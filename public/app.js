@@ -45,12 +45,28 @@ function productImage(product) {
 }
 
 function escapeHtml(value) {
-  return String(value || "")
+  return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function facebookListingText(product) {
+  return [
+    product.name,
+    product.price ? `Price: ${product.price}` : "",
+    product.brand ? `Brand: ${product.brand}` : "",
+    product.sku ? `SKU: ${product.sku}` : "",
+    product.upc ? `UPC: ${product.upc}` : "",
+    `Qty available: ${product.quantityOnHand ?? 0}`,
+    product.category ? `Category: ${product.category}` : "",
+    "",
+    product.description || "",
+    "",
+    "Message me if interested."
+  ].filter((line, index, lines) => line || lines[index - 1] !== "").join("\n").trim();
 }
 
 async function loadProducts() {
@@ -134,8 +150,16 @@ async function loadAdmin() {
     <div class="row">
       <div>
         <strong>${escapeHtml(product.name)}</strong>
-        <p>${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.upc ? `| UPC ${escapeHtml(product.upc)}` : ""} | ${product.price} | ${product.active ? "Active" : "Hidden"}</p>
+        <p>${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.upc ? `| UPC ${escapeHtml(product.upc)}` : ""} | Qty ${escapeHtml(product.quantityOnHand ?? 0)} | ${product.price} | ${product.active ? "Active" : "Hidden"}</p>
         ${product.sourceUrl ? `<p><a class="source-link" href="${escapeHtml(product.sourceUrl)}" target="_blank" rel="noopener">Source listing</a></p>` : ""}
+        <details class="facebook-listing">
+          <summary>List on Facebook</summary>
+          <textarea readonly rows="9" id="facebookListing${product.id}">${escapeHtml(facebookListingText(product))}</textarea>
+          <div class="row-actions">
+            <button type="button" data-copy-facebook="${product.id}">Copy listing text</button>
+            ${product.imageUrl ? `<a class="source-link" href="${escapeHtml(product.imageUrl)}" target="_blank" rel="noopener">Open image</a>` : ""}
+          </div>
+        </details>
         <div class="mini-comparisons">
           ${(product.comparisons || []).map((item) => `<span>${escapeHtml(item.site)} ${escapeHtml(item.price)} <button type="button" data-delete-comparison="${item.id}">Remove</button></span>`).join("") || "<span>No competitor prices</span>"}
         </div>
@@ -198,6 +222,23 @@ document.addEventListener("click", async (event) => {
     await api(`/api/admin/comparisons/${comparisonId}`, { method: "DELETE" });
     loadAdmin();
     loadProducts();
+  }
+
+  const facebookProductId = event.target.closest("[data-copy-facebook]")?.dataset.copyFacebook;
+  if (facebookProductId) {
+    const textarea = document.querySelector(`#facebookListing${facebookProductId}`);
+    if (!textarea) return;
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(textarea.value);
+    } else {
+      textarea.focus();
+      textarea.select();
+      document.execCommand("copy");
+    }
+    event.target.textContent = "Copied";
+    setTimeout(() => {
+      event.target.textContent = "Copy listing text";
+    }, 1600);
   }
 });
 
