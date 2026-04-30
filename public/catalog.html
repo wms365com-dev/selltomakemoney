@@ -3,16 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Browse the selltomakemoney.com public catalog for scooters, electronics, inventory finds, and visible pricing.">
+  <meta name="description" content="Browse the selltomakemoney.com public catalog for Mississauga deals, scooters, electronics, tools, visible pricing, pickup-only items, and select shippable inventory.">
+  <meta name="keywords" content="selltomakemoney catalog, Mississauga inventory, public deals, scooters, electronics, tools, pickup, shippable items">
   <meta name="robots" content="index,follow">
   <meta name="theme-color" content="#131921">
+  <meta name="geo.region" content="CA-ON">
+  <meta name="geo.placename" content="Mississauga">
   <link rel="canonical" href="https://selltomakemoney.com/catalog">
   <meta property="og:site_name" content="selltomakemoney.com">
   <meta property="og:type" content="website">
   <meta property="og:title" content="selltomakemoney.com Catalog | Public Deals and Inventory">
-  <meta property="og:description" content="Search active inventory, view public pricing, and request checkout from selltomakemoney.com.">
+  <meta property="og:description" content="Search active inventory, view public pricing, share item links, and request checkout for pickup or select shippable items.">
   <meta property="og:url" content="https://selltomakemoney.com/catalog">
+  <meta property="og:image" content="https://selltomakemoney.com/assets/logo.svg">
   <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="selltomakemoney.com Catalog">
+  <meta name="twitter:description" content="Browse public deals, inventory finds, Mississauga pickup, and select shippable items.">
   <title>selltomakemoney.com Catalog | Public Deals and Inventory</title>
   <script type="application/ld+json">
     {
@@ -23,12 +29,12 @@
       "description": "Public catalog of available selltomakemoney.com inventory."
     }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=public-dealer-page-1">
+  <link rel="stylesheet" href="/styles.css?v=sell-share-tools-1">
 </head>
 <body class="catalog-page">
   <header class="topbar catalog-topbar">
     <a class="brand" href="/mobile" aria-label="selltomakemoney.com home">
-      <img src="/assets/logo.svg?v=public-dealer-page-1" alt="selltomakemoney.com">
+      <img src="/assets/logo.svg?v=sell-share-tools-1" alt="selltomakemoney.com">
     </a>
     <nav>
       <a class="nav-button" href="/mobile">Store</a>
@@ -46,6 +52,7 @@
         <a class="nav-button primary" href="/mobile#register">Create account</a>
         <a class="nav-button" href="/dealers">Dealer info</a>
         <a class="nav-button" href="/mobile">Open store</a>
+        <button type="button" id="copyCatalogLink">Copy catalog link</button>
       </div>
     </section>
 
@@ -63,6 +70,14 @@
     </section>
   </main>
 
-  <script src="/catalog.js?v=public-dealer-page-1"></script>
+  <footer class="site-footer">
+    <div>
+      <strong>selltomakemoney.com</strong>
+      <span>Shareable public catalog for current inventory finds.</span>
+    </div>
+    <div>Copyright &copy; <span data-year>2026</span> selltomakemoney.com. All rights reserved.</div>
+  </footer>
+
+  <script src="/catalog.js?v=sell-share-tools-1"></script>
 </body>
 </html>

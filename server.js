@@ -315,12 +315,13 @@ async function downloadImage(imageUrl) {
 
 function emptyJsonStore() {
   return {
-    nextIds: { users: 1, products: 1, inquiries: 1, comparisons: 1, orders: 1 },
+    nextIds: { users: 1, products: 1, inquiries: 1, comparisons: 1, orders: 1, alertLeads: 1 },
     users: [],
     products: [],
     inquiries: [],
     comparisons: [],
-    orders: []
+    orders: [],
+    alertLeads: []
   };
 }
 
@@ -329,8 +330,10 @@ function readJsonStore() {
   const data = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
   data.nextIds.comparisons ||= 1;
   data.nextIds.orders ||= 1;
+  data.nextIds.alertLeads ||= 1;
   data.comparisons ||= [];
   data.orders ||= [];
+  data.alertLeads ||= [];
   data.products = data.products.map((product) => ({
     brand: "",
     upc: "",
@@ -387,6 +390,19 @@ function createJsonDatabase() {
     },
     async createUser(user) {
       return insert("users", user);
+    },
+    async createAlertLead(lead) {
+      const cleanEmail = String(lead.email || "").toLowerCase().trim();
+      const existing = store.alertLeads.find((item) => item.email === cleanEmail);
+      if (existing) {
+        Object.assign(existing, { ...lead, email: cleanEmail, updatedAt: new Date().toISOString() });
+        writeJsonStore(store);
+        return existing;
+      }
+      return insert("alertLeads", { ...lead, email: cleanEmail, status: "new" });
+    },
+    async listAlertLeads() {
+      return [...store.alertLeads].sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
     },
     async listUsers() {
       return [...store.users].map((user) => {
@@ -456,7 +472,17 @@ function createJsonDatabase() {
       }).sort((a, b) => b.id - a.id);
     },
     async createOrder(order) {
-      return insert("orders", { status: "new", ...order });
+      const created = insert("orders", { status: "new", ...order });
+      for (const item of order.items || []) {
+        const product = store.products.find((entry) => Number(entry.id) === Number(item.productId));
+        if (!product) continue;
+        const previousQty = Math.max(0, Math.floor(Number(product.quantityOnHand || 0)));
+        const nextQty = Math.max(0, previousQty - Math.max(1, Math.floor(Number(item.quantity || 1))));
+        product.quantityOnHand = nextQty;
+        product.productSpecs = appendStockHistory(product.productSpecs || {}, previousQty, nextQty, `checkout #${created.id}`);
+      }
+      writeJsonStore(store);
+      return created;
     },
     async listOrders() {
       return store.orders.map((order) => {
@@ -483,6 +509,7 @@ function createJsonDatabase() {
         products: store.products.length,
         inquiries: store.inquiries.filter((inquiry) => inquiry.status === "new").length,
         orders: store.orders.filter((order) => order.status === "new").length,
+        alertLeads: store.alertLeads.length,
         returningCustomers: new Set(store.orders.map((order) => order.userId).filter((userId) => store.orders.filter((order) => order.userId === userId).length > 1)).size
       };
     }
@@ -501,6 +528,21 @@ function camelUser(row) {
     status: row.status,
     role: row.role,
     createdAt: row.created_at
+  };
+}
+
+function camelAlertLead(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    email: row.email,
+    contactName: row.contact_name,
+    phone: row.phone,
+    interests: row.interests,
+    source: row.source,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
   };
 }
 
@@ -728,6 +770,17 @@ function createPostgresDatabase() {
           note TEXT NOT NULL DEFAULT '',
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+        CREATE TABLE IF NOT EXISTS alert_leads (
+          id SERIAL PRIMARY KEY,
+          email TEXT NOT NULL UNIQUE,
+          contact_name TEXT NOT NULL DEFAULT '',
+          phone TEXT NOT NULL DEFAULT '',
+          interests TEXT NOT NULL DEFAULT '',
+          source TEXT NOT NULL DEFAULT 'store',
+          status TEXT NOT NULL DEFAULT 'new',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
         CREATE INDEX IF NOT EXISTS idx_products_upc ON products(upc);
         ALTER TABLE products ADD COLUMN IF NOT EXISTS brand TEXT NOT NULL DEFAULT '';
         ALTER TABLE products ADD COLUMN IF NOT EXISTS image_urls TEXT NOT NULL DEFAULT '[]';
@@ -739,6 +792,7 @@ function createPostgresDatabase() {
         CREATE INDEX IF NOT EXISTS idx_products_search ON products USING gin(to_tsvector('english', name || ' ' || description || ' ' || sku || ' ' || upc || ' ' || brand));
         CREATE INDEX IF NOT EXISTS idx_price_comparisons_product ON price_comparisons(product_id);
         CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+        CREATE INDEX IF NOT EXISTS idx_alert_leads_created ON alert_leads(created_at DESC);
       `);
       await migrateFromJsonIfEmpty();
     },
@@ -767,6 +821,23 @@ function createPostgresDatabase() {
         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *
       `, [user.email, user.passwordHash, user.company, user.contactName, user.phone, user.status, user.role]);
       return camelUser(result.rows[0]);
+    },
+    async createAlertLead(lead) {
+      const result = await query(`
+        INSERT INTO alert_leads (email, contact_name, phone, interests, source, status)
+        VALUES ($1,$2,$3,$4,$5,'new')
+        ON CONFLICT (email) DO UPDATE SET
+          contact_name = EXCLUDED.contact_name,
+          phone = EXCLUDED.phone,
+          interests = EXCLUDED.interests,
+          source = EXCLUDED.source,
+          updated_at = NOW()
+        RETURNING *
+      `, [lead.email, lead.contactName, lead.phone, lead.interests, lead.source]);
+      return camelAlertLead(result.rows[0]);
+    },
+    async listAlertLeads() {
+      return (await query("SELECT * FROM alert_leads ORDER BY updated_at DESC, created_at DESC LIMIT 200")).rows.map(camelAlertLead);
     },
     async listUsers() {
       return (await query(`
@@ -888,7 +959,18 @@ function createPostgresDatabase() {
         INSERT INTO orders (user_id, items, ship_to, subtotal_cents, status, note)
         VALUES ($1,$2,$3,$4,'new',$5) RETURNING *
       `, [order.userId, JSON.stringify(order.items), JSON.stringify(order.shipTo), order.subtotalCents, order.note]);
-      return camelOrder(result.rows[0]);
+      const created = camelOrder(result.rows[0]);
+      for (const item of order.items || []) {
+        const existing = await this.getProduct(Number(item.productId));
+        if (!existing) continue;
+        const previousQty = Math.max(0, Math.floor(Number(existing.quantityOnHand || 0)));
+        const nextQty = Math.max(0, previousQty - Math.max(1, Math.floor(Number(item.quantity || 1))));
+        await query(
+          "UPDATE products SET quantity_on_hand = $1, product_specs = $2 WHERE id = $3",
+          [nextQty, JSON.stringify(appendStockHistory(existing.productSpecs || {}, previousQty, nextQty, `checkout #${created.id}`)), existing.id]
+        );
+      }
+      return created;
     },
     async listOrders() {
       return (await query(`
@@ -917,6 +999,7 @@ function createPostgresDatabase() {
           (SELECT COUNT(*) FROM products)::int AS products,
           (SELECT COUNT(*) FROM inquiries WHERE status = 'new')::int AS inquiries,
           (SELECT COUNT(*) FROM orders WHERE status = 'new')::int AS orders,
+          (SELECT COUNT(*) FROM alert_leads)::int AS "alertLeads",
           (SELECT COUNT(*) FROM (SELECT user_id FROM orders GROUP BY user_id HAVING COUNT(*) > 1) returning_customers)::int AS "returningCustomers"
       `);
       return result.rows[0];
@@ -1019,6 +1102,10 @@ function productPath(product) {
   return `/products/${product.id}/${productSlug(product)}`;
 }
 
+function shortProductPath(product) {
+  return `/s/p/${product.id}`;
+}
+
 function publicBaseUrl(req) {
   return process.env.PUBLIC_SITE_URL || (req.get("host")?.includes("localhost") ? `${req.protocol}://${req.get("host")}` : "https://selltomakemoney.com");
 }
@@ -1036,11 +1123,21 @@ app.get("/robots.txt", (req, res) => {
 app.get("/sitemap.xml", async (req, res) => {
   const baseUrl = publicBaseUrl(req).replace(/\/$/, "");
   const products = await db.listProducts({ activeOnly: true });
-  const urls = ["", "/catalog", "/dealers", "/desktop", "/mobile", ...products.map(productPath)];
+  const urls = ["", "/catalog", "/s/catalog", "/dealers", "/desktop", "/mobile", ...products.flatMap((product) => [productPath(product), shortProductPath(product)])];
   res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map((url) => `  <url><loc>${baseUrl}${url}</loc><changefreq>${url.startsWith("/products/") ? "weekly" : "daily"}</changefreq><priority>${url === "" ? "1.0" : url.startsWith("/products/") ? "0.7" : "0.8"}</priority></url>`).join("\n")}
 </urlset>`);
+});
+
+app.get("/s/catalog", (_req, res) => {
+  res.redirect(302, "/catalog");
+});
+
+app.get("/s/p/:id", async (req, res) => {
+  const product = await db.getProduct(Number(req.params.id));
+  if (!product || !product.active) return res.redirect(302, "/catalog");
+  res.redirect(302, productPath(product));
 });
 
 function publicUser(user) {
@@ -1058,7 +1155,7 @@ function publicUser(user) {
 }
 
 function productSpecsLines(product) {
-  const specs = product.productSpecs || {};
+  const specs = publicProductSpecs(product.productSpecs || {});
   const dimensions = [specs.length, specs.width, specs.height].filter(Boolean).join(" x ");
   return [
     product.brand ? ["Brand", product.brand] : null,
@@ -1069,9 +1166,19 @@ function productSpecsLines(product) {
     specs.condition ? ["Condition", specs.condition] : null,
     specs.color ? ["Color", specs.color] : null,
     specs.material ? ["Material", specs.material] : null,
+    specs.fulfillmentType ? ["Fulfillment", fulfillmentLabel(specs.fulfillmentType)] : null,
     dimensions ? ["Dimensions", `${dimensions} ${specs.dimensionUnit || ""}`.trim()] : null,
     specs.weight ? ["Weight", `${specs.weight} ${specs.weightUnit || ""}`.trim()] : null
   ].filter(Boolean);
+}
+
+function fulfillmentLabel(value) {
+  return value === "ships_or_pickup" ? "Shipping or Mississauga pickup" : "Mississauga pickup only";
+}
+
+function publicProductSpecs(specs = {}) {
+  const hiddenKeys = new Set(["cost", "sourceNotes", "stockHistory", "listingStatus", "marketplaceStatus"]);
+  return Object.fromEntries(Object.entries(specs || {}).filter(([key]) => !hiddenKeys.has(key)));
 }
 
 function productJsonLd(product, canonicalUrl, imageUrl) {
@@ -1105,19 +1212,26 @@ async function sendProductPage(req, res) {
   const baseUrl = publicBaseUrl(req).replace(/\/$/, "");
   const canonicalPath = productPath(product);
   const canonicalUrl = `${baseUrl}${canonicalPath}`;
+  const shortUrl = `${baseUrl}${shortProductPath(product)}`;
+  const currentYear = new Date().getFullYear();
   const mainImage = (product.imageUrls?.[0] || product.imageUrl || "");
   const absoluteImage = mainImage ? new URL(mainImage, baseUrl).toString() : "";
   const price = dollars(product.priceCents);
   const title = `${product.name} | ${price} | selltomakemoney.com`;
   const description = `${product.brand ? `${product.brand} ` : ""}${product.name}. ${product.description || "Available from selltomakemoney.com."}`.slice(0, 155);
   const specs = productSpecsLines(product);
+  const fulfillmentType = product.productSpecs?.fulfillmentType || "pickup_only";
+  const fulfillmentText = fulfillmentLabel(fulfillmentType);
   res.type("html").send(`<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="${escapeHtml(description)}">
+  <meta name="keywords" content="${escapeHtml([product.name, product.brand, product.sku, product.upc, product.category, "selltomakemoney", "Mississauga pickup", "inventory deals"].filter(Boolean).join(", "))}">
   <meta name="robots" content="index,follow">
+  <meta name="geo.region" content="CA-ON">
+  <meta name="geo.placename" content="Mississauga">
   <link rel="canonical" href="${escapeHtml(canonicalUrl)}">
   <meta property="og:type" content="product">
   <meta property="og:site_name" content="selltomakemoney.com">
@@ -1126,13 +1240,16 @@ async function sendProductPage(req, res) {
   <meta property="og:url" content="${escapeHtml(canonicalUrl)}">
   ${absoluteImage ? `<meta property="og:image" content="${escapeHtml(absoluteImage)}">` : ""}
   <meta name="twitter:card" content="${absoluteImage ? "summary_large_image" : "summary"}">
+  <meta name="twitter:title" content="${escapeHtml(title)}">
+  <meta name="twitter:description" content="${escapeHtml(description)}">
+  ${absoluteImage ? `<meta name="twitter:image" content="${escapeHtml(absoluteImage)}">` : ""}
   <title>${escapeHtml(title)}</title>
   <script type="application/ld+json">${safeJsonScript(productJsonLd(product, canonicalUrl, absoluteImage))}</script>
-  <link rel="stylesheet" href="/styles.css?v=return-customers-1">
+  <link rel="stylesheet" href="/styles.css?v=sell-share-tools-1">
 </head>
 <body>
   <header class="topbar catalog-topbar">
-    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=return-customers-1" alt="selltomakemoney.com"></a>
+    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=sell-share-tools-1" alt="selltomakemoney.com"></a>
     <nav><a class="nav-button" href="/desktop">Store</a><a class="nav-button" href="/catalog">Catalog</a><a class="nav-button primary" href="/desktop#cart">Checkout</a></nav>
   </header>
   <main>
@@ -1145,19 +1262,28 @@ async function sendProductPage(req, res) {
         <h1>${escapeHtml(product.name)}</h1>
         <p class="sku">${escapeHtml([product.brand, product.sku, product.upc ? `UPC ${product.upc}` : ""].filter(Boolean).join(" | "))}</p>
         <div class="price">${escapeHtml(price)}</div>
+        <div class="fulfillment-alert ${fulfillmentType === "ships_or_pickup" ? "ships" : "pickup"}">${escapeHtml(fulfillmentText)}</div>
         <p>${escapeHtml(product.description)}</p>
         ${specs.length ? `<dl class="product-spec-list">${specs.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>` : ""}
         <div class="checkout-notice">
           <strong>Checkout requires an account.</strong>
-          <span>Payment is by e-transfer or cash on pickup only. Pickup is currently in Mississauga. Credit cards are not accepted.</span>
+          <span>Pickup orders use e-transfer or cash to keep fees down. Credit card is available only for eligible shipped items.</span>
         </div>
         <div class="catalog-actions">
           <a class="nav-button primary" href="/desktop">Open store to add to cart</a>
+          <button class="nav-button" type="button" onclick="navigator.clipboard?.writeText('${escapeHtml(shortUrl)}');this.textContent='Copied link';">Copy short link</button>
           <a class="nav-button" href="/catalog">Browse catalog</a>
         </div>
       </section>
     </article>
   </main>
+  <footer class="site-footer">
+    <div>
+      <strong>selltomakemoney.com</strong>
+      <span>Public deals, Mississauga pickup, and select shippable inventory.</span>
+    </div>
+    <div>Copyright &copy; ${currentYear} selltomakemoney.com. All rights reserved.</div>
+  </footer>
 </body>
 </html>`);
 }
@@ -1185,6 +1311,7 @@ async function productPayload(product, showPrice, includeAdminData = false) {
   const payload = {
     id: product.id,
     url: productPath(product),
+    shortUrl: shortProductPath(product),
     name: product.name,
     sku: product.sku,
     upc: product.upc,
@@ -1193,7 +1320,7 @@ async function productPayload(product, showPrice, includeAdminData = false) {
     description: product.description,
     imageUrl: product.imageUrl,
     imageUrls: product.imageUrls || (product.imageUrl ? [product.imageUrl] : []),
-    productSpecs: product.productSpecs || {},
+    productSpecs: includeAdminData ? (product.productSpecs || {}) : publicProductSpecs(product.productSpecs || {}),
     active: Boolean(product.active),
     recommendedAddonIds: product.recommendedAddonIds || [],
     priceCents: product.priceCents,
@@ -1254,6 +1381,7 @@ function centsFromInput(value, fallback = null) {
 }
 
 function productSpecsFromBody(body, fallback = {}) {
+  const existingHistory = Array.isArray(fallback.stockHistory) ? fallback.stockHistory : [];
   const specs = {
     length: cleanSpec(body.length ?? fallback.length),
     width: cleanSpec(body.width ?? fallback.width),
@@ -1264,9 +1392,28 @@ function productSpecsFromBody(body, fallback = {}) {
     color: cleanSpec(body.color ?? fallback.color),
     material: cleanSpec(body.material ?? fallback.material),
     model: cleanSpec(body.model ?? fallback.model),
-    condition: cleanSpec(body.condition ?? fallback.condition)
+    condition: cleanSpec(body.condition ?? fallback.condition),
+    fulfillmentType: ["pickup_only", "ships_or_pickup"].includes(cleanSpec(body.fulfillmentType ?? fallback.fulfillmentType)) ? cleanSpec(body.fulfillmentType ?? fallback.fulfillmentType) : "pickup_only",
+    cost: cleanSpec(body.cost ?? fallback.cost),
+    sourceNotes: cleanSpec(body.sourceNotes ?? fallback.sourceNotes, 500),
+    listingStatus: cleanSpec(body.listingStatus ?? fallback.listingStatus ?? "draft", 40),
+    marketplaceStatus: cleanSpec(body.marketplaceStatus ?? fallback.marketplaceStatus ?? "not_listed", 40),
+    stockHistory: existingHistory
   };
-  return Object.fromEntries(Object.entries(specs).filter(([, value]) => value));
+  return Object.fromEntries(Object.entries(specs).filter(([, value]) => Array.isArray(value) ? value.length : value));
+}
+
+function appendStockHistory(specs = {}, previousQty, nextQty, reason = "adjusted") {
+  const history = Array.isArray(specs.stockHistory) ? specs.stockHistory.slice(-24) : [];
+  if (Number(previousQty) !== Number(nextQty)) {
+    history.push({
+      at: new Date().toISOString(),
+      from: Math.max(0, Math.floor(Number(previousQty || 0))),
+      to: Math.max(0, Math.floor(Number(nextQty || 0))),
+      reason
+    });
+  }
+  return { ...specs, stockHistory: history };
 }
 
 async function buildOrder(req) {
@@ -1283,6 +1430,7 @@ async function buildOrder(req) {
   if (!quantitiesByProduct.size) throw new Error("Cart items are invalid.");
   const products = await db.getProductsByIds([...quantitiesByProduct.keys()], { activeOnly: true });
   if (products.length !== quantitiesByProduct.size) throw new Error("One or more cart items are no longer available.");
+  const allItemsCanShip = products.every((product) => product.productSpecs?.fulfillmentType === "ships_or_pickup");
   const items = products.map((product) => {
     const quantity = quantitiesByProduct.get(Number(product.id));
     return {
@@ -1300,8 +1448,12 @@ async function buildOrder(req) {
   const fulfillmentMethod = cleanRequired(ship.fulfillmentMethod, "Fulfillment method", 40);
   const paymentMethod = cleanRequired(ship.paymentMethod, "Payment method", 40);
   if (!["ship", "pickup"].includes(fulfillmentMethod)) throw new Error("Choose shipping or customer pickup.");
-  if (!["etransfer", "cash_pickup"].includes(paymentMethod)) throw new Error("Choose e-transfer or cash on pickup. Credit cards are not accepted.");
+  if (!["etransfer", "cash_pickup", "credit_card"].includes(paymentMethod)) throw new Error("Choose e-transfer, cash on pickup, or credit card for eligible shipped items.");
   if (paymentMethod === "cash_pickup" && fulfillmentMethod !== "pickup") throw new Error("Cash payment is only available for customer pickup in Mississauga.");
+  if (fulfillmentMethod === "ship" && !allItemsCanShip) throw new Error("This cart includes pickup-only items. Remove pickup-only items or choose Mississauga pickup.");
+  if (paymentMethod === "credit_card" && (fulfillmentMethod !== "ship" || !allItemsCanShip)) {
+    throw new Error("Credit card is available only for shipped orders where every item can be shipped.");
+  }
   const shipTo = {
     fulfillmentMethod,
     paymentMethod,
@@ -1353,6 +1505,19 @@ app.post("/api/register", async (req, res) => {
     role: "dealer"
   });
   res.status(201).json({ ok: true, message: "Registration sent. You can login after admin approval." });
+});
+
+app.post("/api/alerts", async (req, res) => {
+  const email = String(req.body.email || "").toLowerCase().trim();
+  const contactName = cleanOptional(req.body.contactName, 160);
+  const phone = cleanOptional(req.body.phone, 80);
+  const interests = cleanOptional(req.body.interests, 500);
+  const source = cleanOptional(req.body.source || "store", 80);
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: "Enter a valid email for alerts." });
+  }
+  await db.createAlertLead({ email, contactName, phone, interests, source });
+  res.status(201).json({ ok: true, message: "You are on the alert list. We will send updates when new items are available." });
 });
 
 app.post("/api/login", async (req, res) => {
@@ -1408,6 +1573,10 @@ app.get("/api/admin/users", requireAdmin, async (_req, res) => {
   res.json({ users });
 });
 
+app.get("/api/admin/alert-leads", requireAdmin, async (_req, res) => {
+  res.json({ leads: await db.listAlertLeads() });
+});
+
 app.patch("/api/admin/users/:id", requireAdmin, async (req, res) => {
   if (!["pending", "approved", "rejected"].includes(req.body.status)) return res.status(400).json({ error: "Invalid status." });
   const user = await db.updateUserStatus(Number(req.params.id), req.body.status);
@@ -1429,6 +1598,8 @@ app.post("/api/admin/products", requireAdmin, productImageUpload, async (req, re
   try {
     if (!req.body.name) return res.status(400).json({ error: "Product name is required." });
     const imageUrls = uploadedImageUrls(req);
+    const quantityOnHand = Math.max(0, Math.floor(Number(req.body.quantityOnHand || 0)));
+    const productSpecs = appendStockHistory(productSpecsFromBody(req.body), 0, quantityOnHand, "created");
     const product = await db.createProduct({
       name: String(req.body.name || "").trim(),
       sku: String(req.body.sku || "").trim(),
@@ -1441,8 +1612,8 @@ app.post("/api/admin/products", requireAdmin, productImageUpload, async (req, re
       imageUrl: imageUrls[0] || "",
       imageUrls,
       sourceUrl: String(req.body.sourceUrl || "").trim(),
-      quantityOnHand: Math.max(0, Math.floor(Number(req.body.quantityOnHand || 0))),
-      productSpecs: productSpecsFromBody(req.body),
+      quantityOnHand,
+      productSpecs,
       recommendedAddonIds: parseRecommendedAddonIds(req.body.recommendedAddonIds),
       active: req.body.active !== "false"
     });
@@ -1457,6 +1628,8 @@ app.patch("/api/admin/products/:id", requireAdmin, productImageUpload, async (re
   if (!existing) return res.status(404).json({ error: "Product not found." });
   const newImageUrls = uploadedImageUrls(req);
   const imageUrls = newImageUrls.length ? newImageUrls : (existing.imageUrls || (existing.imageUrl ? [existing.imageUrl] : []));
+  const quantityOnHand = Math.max(0, Math.floor(Number(req.body.quantityOnHand ?? existing.quantityOnHand ?? 0)));
+  const productSpecs = appendStockHistory(productSpecsFromBody(req.body, existing.productSpecs || {}), existing.quantityOnHand, quantityOnHand);
   const product = await db.updateProduct(existing.id, {
     name: String(req.body.name || existing.name).trim(),
     sku: String(req.body.sku || "").trim(),
@@ -1469,8 +1642,8 @@ app.patch("/api/admin/products/:id", requireAdmin, productImageUpload, async (re
     imageUrl: imageUrls[0] || "",
     imageUrls,
     sourceUrl: String(req.body.sourceUrl || existing.sourceUrl || "").trim(),
-    quantityOnHand: Math.max(0, Math.floor(Number(req.body.quantityOnHand ?? existing.quantityOnHand ?? 0))),
-    productSpecs: productSpecsFromBody(req.body, existing.productSpecs || {}),
+    quantityOnHand,
+    productSpecs,
     recommendedAddonIds: parseRecommendedAddonIds(req.body.recommendedAddonIds, existing.id),
     active: req.body.active !== "false"
   });
@@ -1494,6 +1667,7 @@ app.post("/api/admin/import-url", requireAdmin, async (req, res) => {
     if (!listing.name) return res.status(422).json({ error: "Could not find enough listing information on that page." });
     const imageUrl = await downloadImage(listing.remoteImageUrl);
     const imageUrls = imageUrl ? [imageUrl] : [];
+    const quantityOnHand = Math.max(0, Math.floor(Number(req.body.quantityOnHand || 1)));
     const product = await db.createProduct({
       name: listing.name,
       sku: listing.sku,
@@ -1506,8 +1680,8 @@ app.post("/api/admin/import-url", requireAdmin, async (req, res) => {
       imageUrl,
       imageUrls,
       sourceUrl: listing.sourceUrl,
-      quantityOnHand: Math.max(0, Math.floor(Number(req.body.quantityOnHand || 1))),
-      productSpecs: {},
+      quantityOnHand,
+      productSpecs: appendStockHistory({ listingStatus: "draft", marketplaceStatus: "not_listed" }, 0, quantityOnHand, "imported"),
       recommendedAddonIds: [],
       active: true
     });

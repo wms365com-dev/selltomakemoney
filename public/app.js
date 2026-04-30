@@ -1,8 +1,6 @@
 let sessionUser = null;
 const viewMode = window.location.pathname.includes("mobile") ? "mobile" : "desktop";
 document.body.dataset.view = viewMode;
-document.querySelector("#desktopViewLink").classList.toggle("active", viewMode === "desktop");
-document.querySelector("#mobileViewLink").classList.toggle("active", viewMode === "mobile");
 
 const views = {
   store: document.querySelector("#storeView"),
@@ -23,6 +21,7 @@ let statusDepth = 0;
 let productCache = [];
 let cart = JSON.parse(localStorage.getItem("dealerCart") || "[]");
 let productRotatorTimer = null;
+let exitAlertShown = localStorage.getItem("exitAlertDismissed") === "true";
 
 function showStatus(message = "Working...") {
   statusDepth += 1;
@@ -206,6 +205,14 @@ function money(cents) {
   return `$${(Number(cents || 0) / 100).toFixed(2)}`;
 }
 
+document.querySelectorAll("[data-year]").forEach((node) => {
+  node.textContent = new Date().getFullYear();
+});
+
+function absoluteUrl(path) {
+  return new URL(path || "/", window.location.origin).toString();
+}
+
 function shortDate(value) {
   if (!value) return "";
   const date = new Date(value);
@@ -221,6 +228,11 @@ function updateCartCount() {
   const count = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const cartCount = document.querySelector("#cartCount");
   if (cartCount) cartCount.textContent = count;
+  const cartButton = document.querySelector(".cart-icon-button");
+  if (cartButton) {
+    cartButton.classList.toggle("cart-has-items", count > 0);
+    cartButton.setAttribute("aria-label", count ? `Open cart, ${count} item${count === 1 ? "" : "s"}` : "Open cart");
+  }
 }
 
 function addToCart(productId) {
@@ -237,6 +249,18 @@ function cartProducts() {
   }).filter(Boolean);
 }
 
+function updateCheckoutPaymentOptions(items = cartProducts()) {
+  const form = document.querySelector("#checkoutForm");
+  const fulfillment = form?.elements.fulfillmentMethod?.value || "ship";
+  const payment = form?.elements.paymentMethod;
+  const creditOption = payment?.querySelector('option[value="credit_card"]');
+  const allItemsCanShip = items.length > 0 && items.every(({ product }) => product.productSpecs?.fulfillmentType === "ships_or_pickup");
+  if (!creditOption || !payment) return;
+  creditOption.disabled = fulfillment !== "ship" || !allItemsCanShip;
+  creditOption.textContent = allItemsCanShip ? "Credit card for shipped items" : "Credit card unavailable for pickup-only items";
+  if (creditOption.disabled && payment.value === "credit_card") payment.value = "etransfer";
+}
+
 function renderCart() {
   const items = cartProducts();
   const cartItems = document.querySelector("#cartItems");
@@ -246,6 +270,7 @@ function renderCart() {
   if (!items.length) {
     cartItems.innerHTML = `<p>Your cart is empty.</p>`;
     cartSubtotal.textContent = "$0.00";
+    updateCheckoutPaymentOptions(items);
     return;
   }
   cartItems.innerHTML = items.map(({ product, quantity }) => `
@@ -264,13 +289,14 @@ function renderCart() {
     </div>
   `).join("");
   cartSubtotal.textContent = money(items.reduce((sum, item) => sum + item.product.priceCents * item.quantity, 0));
+  updateCheckoutPaymentOptions(items);
 }
 
 function facebookListingText(product) {
+  const shareUrl = absoluteUrl(product.shortUrl || product.url || `/products/${product.id}`);
   return [
     product.name,
     product.price ? `Price: ${product.price}` : "",
-    product.dealerPrice ? `Dealer price: ${product.dealerPrice}` : "",
     product.brand ? `Brand: ${product.brand}` : "",
     product.sku ? `SKU: ${product.sku}` : "",
     product.upc ? `UPC: ${product.upc}` : "",
@@ -282,8 +308,20 @@ function facebookListingText(product) {
     "",
     product.description || "",
     "",
+    `View or buy here: ${shareUrl}`,
+    product.productSpecs?.fulfillmentType === "ships_or_pickup"
+      ? "Pickup orders use e-transfer or cash. Credit card is available for shipped orders on this item."
+      : "Pickup currently in Mississauga. Payment by e-transfer or cash on pickup.",
     "Message me if interested."
   ].filter((line, index, lines) => line || lines[index - 1] !== "").join("\n").trim();
+}
+
+function stockHistoryBlock(product) {
+  const history = Array.isArray(product.productSpecs?.stockHistory) ? product.productSpecs.stockHistory.slice(-5).reverse() : [];
+  if (!history.length) return `<p class="mini-note">No stock changes recorded yet.</p>`;
+  return `<div class="stock-history">${history.map((entry) => `
+    <div><strong>${escapeHtml(entry.from)} to ${escapeHtml(entry.to)}</strong><span>${escapeHtml(entry.reason || "adjusted")} | ${escapeHtml(new Date(entry.at).toLocaleString())}</span></div>
+  `).join("")}</div>`;
 }
 
 function specValue(product, key) {
@@ -306,6 +344,15 @@ function productSpecsSummary(product) {
     specs.model ? `Model: ${specs.model}` : ""
   ].filter(Boolean);
   return lines.length ? `<p class="spec-summary">${lines.map(escapeHtml).join(" | ")}</p>` : "";
+}
+
+function fulfillmentLabel(product) {
+  return product.productSpecs?.fulfillmentType === "ships_or_pickup" ? "Ships or Mississauga pickup" : "Mississauga pickup only";
+}
+
+function fulfillmentBadge(product) {
+  const canShip = product.productSpecs?.fulfillmentType === "ships_or_pickup";
+  return `<div class="fulfillment-alert ${canShip ? "ships" : "pickup"}">${escapeHtml(fulfillmentLabel(product))}</div>`;
 }
 
 function productText(product) {
@@ -373,12 +420,14 @@ function renderProducts(canSeePrices = false) {
         </div>
         <p>${escapeHtml(product.description)}</p>
         ${productSpecsSummary(product)}
+        ${fulfillmentBadge(product)}
         <div class="price">${escapeHtml(product.price || "$0.00")}</div>
         ${dealerPriceBlock(product)}
         ${shoppingLinksBlock(product)}
         ${recommendedAddonsBlock(product)}
         <div class="product-actions">
           <button class="primary" data-add-cart="${product.id}">Add to cart</button>
+          <button type="button" data-copy-share="${product.id}" data-copy-url="${escapeHtml(absoluteUrl(product.shortUrl || product.url || `/products/${product.id}`))}">Share</button>
           <a class="nav-button" href="${escapeHtml(product.url || `/products/${product.id}`)}">Details</a>
         </div>
       </div>
@@ -463,12 +512,14 @@ async function loadAdmin() {
   document.querySelector("#usersList").innerHTML = loadingRows(2);
   document.querySelector("#adminProducts").innerHTML = loadingRows(3);
   document.querySelector("#inquiriesList").innerHTML = loadingRows(1);
+  document.querySelector("#alertLeadsList").innerHTML = loadingRows(1);
   document.querySelector("#ordersList").innerHTML = loadingRows(2);
-  const [summary, users, products, inquiries, orders] = await withStatus("Loading admin data...", () => Promise.all([
+  const [summary, users, products, inquiries, alertLeads, orders] = await withStatus("Loading admin data...", () => Promise.all([
     api("/api/admin/summary"),
     api("/api/admin/users"),
     api("/api/admin/products"),
     api("/api/admin/inquiries"),
+    api("/api/admin/alert-leads"),
     api("/api/admin/orders")
   ]));
 
@@ -476,6 +527,7 @@ async function loadAdmin() {
     <div class="stat"><strong>${summary.pendingUsers}</strong>Pending dealers</div>
     <div class="stat"><strong>${summary.products}</strong>Products</div>
     <div class="stat"><strong>${summary.inquiries}</strong>New inquiries</div>
+    <div class="stat"><strong>${summary.alertLeads || 0}</strong>Alert signups</div>
     <div class="stat"><strong>${summary.orders || 0}</strong>Checkout requests</div>
     <div class="stat"><strong>${summary.returningCustomers || 0}</strong>Returning customers</div>
   `;
@@ -515,6 +567,7 @@ async function loadAdmin() {
       <div>
         <strong>${escapeHtml(product.name)}</strong>
         <p>${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.upc ? `| UPC ${escapeHtml(product.upc)}` : ""} | Qty ${escapeHtml(product.quantityOnHand ?? 0)} | Public ${product.price} ${product.dealerPrice ? `| Dealer ${escapeHtml(product.dealerPrice)}` : ""} | ${product.active ? "Active" : "Hidden"}</p>
+        <p class="mini-note">Listing: ${escapeHtml(product.productSpecs?.listingStatus || "draft")} | Marketplace: ${escapeHtml(product.productSpecs?.marketplaceStatus || "not_listed")} | Short link: ${escapeHtml(absoluteUrl(product.shortUrl || product.url))}</p>
         ${productSpecsSummary(product)}
         ${product.sourceUrl ? `<p><a class="source-link" href="${escapeHtml(product.sourceUrl)}" target="_blank" rel="noopener">Source listing</a></p>` : ""}
         <details class="edit-listing">
@@ -537,9 +590,20 @@ async function loadAdmin() {
                 <label>Qty on hand<input name="quantityOnHand" type="number" min="0" step="1" value="${escapeHtml(product.quantityOnHand ?? 0)}"></label>
                 <label>Public price<input name="price" type="number" min="0" step="0.01" value="${escapeHtml(((product.priceCents || 0) / 100).toFixed(2))}" required></label>
                 <label>Dealer price<input name="dealerPrice" type="number" min="0" step="0.01" value="${product.dealerPriceCents == null ? "" : escapeHtml((product.dealerPriceCents / 100).toFixed(2))}" placeholder="Optional"></label>
+                <label>Cost <input name="cost" type="number" min="0" step="0.01" value="${specValue(product, "cost")}" placeholder="Private"></label>
                 <label>Status<select name="active">
                   <option value="true" ${product.active ? "selected" : ""}>Active</option>
                   <option value="false" ${product.active ? "" : "selected"}>Hidden</option>
+                </select></label>
+                <label>Listing status<select name="listingStatus">
+                  ${["draft", "ready_to_list", "listed_on_site", "sold", "picked_up", "removed"].map((status) => `<option value="${status}" ${product.productSpecs?.listingStatus === status ? "selected" : ""}>${status.replaceAll("_", " ")}</option>`).join("")}
+                </select></label>
+                <label>Facebook status<select name="marketplaceStatus">
+                  ${["not_listed", "ready_for_facebook", "listed_on_facebook", "offer_pending", "sold_on_facebook"].map((status) => `<option value="${status}" ${product.productSpecs?.marketplaceStatus === status ? "selected" : ""}>${status.replaceAll("_", " ")}</option>`).join("")}
+                </select></label>
+                <label>Customer fulfillment<select name="fulfillmentType">
+                  <option value="pickup_only" ${product.productSpecs?.fulfillmentType === "ships_or_pickup" ? "" : "selected"}>Pickup only</option>
+                  <option value="ships_or_pickup" ${product.productSpecs?.fulfillmentType === "ships_or_pickup" ? "selected" : ""}>Can be shipped or picked up</option>
                 </select></label>
                 <label>Condition<input name="condition" value="${specValue(product, "condition")}" placeholder="New, open box, used"></label>
                 <label>Color<input name="color" value="${specValue(product, "color")}"></label>
@@ -562,8 +626,13 @@ async function loadAdmin() {
               <div class="listing-section-grid">
                 <label class="wide-field">Description<textarea name="description" rows="3">${escapeHtml(product.description)}</textarea></label>
                 <label class="wide-field">Source URL<input name="sourceUrl" type="url" value="${escapeHtml(product.sourceUrl)}" placeholder="Optional"></label>
+                <label class="wide-field">Private source notes<textarea name="sourceNotes" rows="2" placeholder="Where it came from, costs, customer notes">${escapeHtml(product.productSpecs?.sourceNotes || "")}</textarea></label>
                 <label class="wide-field">Replace images<input name="images" type="file" accept="image/*" multiple><small>Leave empty to keep current photos.</small></label>
               </div>
+            </details>
+            <details class="listing-section">
+              <summary>Stock history</summary>
+              ${stockHistoryBlock(product)}
             </details>
             <fieldset class="addon-picker wide-field">
               <legend>Recommended add-ons</legend>
@@ -581,6 +650,7 @@ async function loadAdmin() {
           <textarea readonly rows="9" id="facebookListing${product.id}">${escapeHtml(facebookListingText(product))}</textarea>
           <div class="row-actions">
             <button type="button" data-copy-facebook="${product.id}">Copy listing text</button>
+            <button type="button" data-copy-share="${product.id}" data-copy-url="${escapeHtml(absoluteUrl(product.shortUrl || product.url || `/products/${product.id}`))}">Copy short link</button>
             ${product.imageUrl ? `<a class="source-link" href="${escapeHtml(product.imageUrl)}" target="_blank" rel="noopener">Open main image</a>` : ""}
           </div>
           ${product.imageUrls?.length ? `<div class="admin-image-strip">${product.imageUrls.map((url) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" alt="${escapeHtml(product.name)} image"></a>`).join("")}</div>` : ""}
@@ -616,6 +686,22 @@ async function loadAdmin() {
       </div>
     `).join("")
     : "<p>No inquiries yet.</p>";
+
+  document.querySelector("#alertLeadsList").innerHTML = alertLeads.leads.length
+    ? alertLeads.leads.map((lead) => `
+      <div class="row">
+        <div>
+          <strong>${escapeHtml(lead.contactName || lead.email)}</strong>
+          <p>${escapeHtml(lead.email)}${lead.phone ? ` | ${escapeHtml(lead.phone)}` : ""} | ${escapeHtml(lead.status || "new")}</p>
+          <p class="customer-meta">${lead.interests ? `Looking for: ${escapeHtml(lead.interests)} | ` : ""}${lead.updatedAt ? `Updated ${escapeHtml(shortDate(lead.updatedAt))}` : ""}</p>
+        </div>
+        <div class="row-actions">
+          <a class="nav-button" href="mailto:${escapeHtml(lead.email)}">Email</a>
+          ${lead.phone ? `<a class="nav-button" href="tel:${escapeHtml(lead.phone)}">Call</a>` : ""}
+        </div>
+      </div>
+    `).join("")
+    : "<p>No alert signups yet.</p>";
 
   document.querySelector("#ordersList").innerHTML = orders.orders.length
     ? orders.orders.map((order) => `
@@ -657,6 +743,52 @@ document.addEventListener("click", async (event) => {
     setTimeout(() => {
       event.target.textContent = "Add to cart";
     }, 1100);
+  }
+
+  const shareProductId = event.target.closest("[data-copy-share]")?.dataset.copyShare;
+  if (shareProductId) {
+    const shareButton = event.target.closest("[data-copy-share]");
+    const product = productCache.find((entry) => entry.id === Number(shareProductId));
+    const url = shareButton.dataset.copyUrl || absoluteUrl(product?.shortUrl || product?.url || `/products/${shareProductId}`);
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      const fallback = document.createElement("textarea");
+      fallback.value = url;
+      document.body.appendChild(fallback);
+      fallback.select();
+      document.execCommand("copy");
+      fallback.remove();
+    }
+    const original = shareButton.textContent;
+    shareButton.textContent = "Copied";
+    setTimeout(() => { shareButton.textContent = original; }, 900);
+  }
+
+  const catalogButton = event.target.closest("[data-copy-catalog]");
+  if (catalogButton) {
+    const url = absoluteUrl("/s/catalog");
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      const fallback = document.createElement("textarea");
+      fallback.value = url;
+      document.body.appendChild(fallback);
+      fallback.select();
+      document.execCommand("copy");
+      fallback.remove();
+    }
+    const original = catalogButton.textContent;
+    catalogButton.textContent = "Catalog link copied";
+    setTimeout(() => { catalogButton.textContent = original; }, 1000);
+  }
+
+  if (event.target.closest("[data-close-exit-alert]")) {
+    closeExitAlert(true);
+  }
+
+  if (event.target.id === "exitAlertModal") {
+    closeExitAlert(true);
   }
 
   const qtyProductId = event.target.closest("[data-cart-qty]")?.dataset.cartQty;
@@ -806,6 +938,58 @@ document.querySelector("#registerForm").addEventListener("submit", async (event)
   }
 });
 
+document.querySelector("#alertSignupForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  await submitAlertForm(event.target, document.querySelector("#alertSignupMessage"));
+});
+
+document.querySelector("#exitAlertForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const ok = await submitAlertForm(event.target, document.querySelector("#exitAlertMessage"));
+  if (ok) setTimeout(() => closeExitAlert(true), 900);
+});
+
+function showExitAlert() {
+  if (exitAlertShown || sessionUser) return;
+  exitAlertShown = true;
+  const modal = document.querySelector("#exitAlertModal");
+  if (modal) modal.classList.remove("hidden");
+}
+
+function closeExitAlert(persist = false) {
+  document.querySelector("#exitAlertModal")?.classList.add("hidden");
+  if (persist) localStorage.setItem("exitAlertDismissed", "true");
+}
+
+async function submitAlertForm(formElement, messageElement) {
+  const submitButton = formElement.querySelector("button[type='submit']");
+  if (messageElement) messageElement.textContent = "";
+  const restore = setButtonBusy(submitButton, "Saving...");
+  try {
+    const form = new FormData(formElement);
+    const data = await withStatus("Saving alert signup...", () => api("/api/alerts", {
+      method: "POST",
+      body: JSON.stringify(Object.fromEntries(form))
+    }));
+    if (messageElement) messageElement.textContent = data.message;
+    formElement.reset();
+    return true;
+  } catch (error) {
+    if (messageElement) messageElement.textContent = error.message;
+    return false;
+  } finally {
+    restore();
+  }
+}
+
+document.addEventListener("mouseleave", (event) => {
+  if (event.clientY <= 0) showExitAlert();
+});
+
+window.addEventListener("blur", () => {
+  if (window.innerWidth < 760) setTimeout(showExitAlert, 250);
+});
+
 document.querySelector("#importUrlForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const message = document.querySelector("#importUrlMessage");
@@ -857,6 +1041,7 @@ const imageDropHint = document.querySelector("#imageDropHint");
 
 storeSearch.addEventListener("input", () => renderProducts(Boolean(sessionUser?.canSeePrices)));
 storeCategory.addEventListener("change", () => renderProducts(Boolean(sessionUser?.canSeePrices)));
+document.querySelector("#checkoutForm")?.elements.fulfillmentMethod?.addEventListener("change", () => updateCheckoutPaymentOptions());
 
 function updateImageHint() {
   const count = imageInput.files.length;

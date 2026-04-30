@@ -7,6 +7,10 @@ let catalogRotatorTimer = null;
 const initialCatalogSearch = new URLSearchParams(window.location.search).get("search") || "";
 if (initialCatalogSearch) catalogSearch.value = initialCatalogSearch;
 
+document.querySelectorAll("[data-year]").forEach((node) => {
+  node.textContent = new Date().getFullYear();
+});
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -14,6 +18,10 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function absoluteUrl(path) {
+  return new URL(path || "/", window.location.origin).toString();
 }
 
 function productImage(product) {
@@ -78,6 +86,11 @@ function productSpecsSummary(product) {
   return lines.length ? `<p class="spec-summary">${lines.map(escapeHtml).join(" | ")}</p>` : "";
 }
 
+function fulfillmentBadge(product) {
+  const canShip = product.productSpecs?.fulfillmentType === "ships_or_pickup";
+  return `<div class="fulfillment-alert ${canShip ? "ships" : "pickup"}">${canShip ? "Ships or Mississauga pickup" : "Mississauga pickup only"}</div>`;
+}
+
 function updateCatalogStructuredData(products) {
   document.querySelector("#catalogStructuredData")?.remove();
   const script = document.createElement("script");
@@ -134,10 +147,12 @@ function renderCatalog() {
         </div>
         <p>${escapeHtml(product.description)}</p>
         ${productSpecsSummary(product)}
+        ${fulfillmentBadge(product)}
         <div class="price">${escapeHtml(product.price || "$0.00")}</div>
         ${shoppingLinksBlock(product)}
         <div class="product-actions">
           <a class="nav-button primary" href="/mobile#cart">Checkout</a>
+          <button type="button" data-copy-share="${product.id}" data-copy-url="${escapeHtml(absoluteUrl(product.shortUrl || product.url || `/products/${product.id}`))}">Share</button>
           <a class="nav-button" href="${escapeHtml(product.url || `/products/${product.id}`)}">Details</a>
         </div>
       </div>
@@ -164,4 +179,26 @@ async function loadCatalog() {
 
 catalogSearch.addEventListener("input", renderCatalog);
 catalogCategory.addEventListener("change", renderCatalog);
+document.addEventListener("click", async (event) => {
+  const productId = event.target.closest("[data-copy-share]")?.dataset.copyShare;
+  const catalogButton = event.target.closest("#copyCatalogLink");
+  if (!productId && !catalogButton) return;
+  const shareButton = event.target.closest("[data-copy-share]");
+  const product = catalogProducts.find((entry) => Number(entry.id) === Number(productId));
+  const url = catalogButton ? absoluteUrl("/s/catalog") : (shareButton?.dataset.copyUrl || absoluteUrl(product?.shortUrl || product?.url || `/products/${productId}`));
+  try {
+    await navigator.clipboard.writeText(url);
+  } catch {
+    const fallback = document.createElement("textarea");
+    fallback.value = url;
+    document.body.appendChild(fallback);
+    fallback.select();
+    document.execCommand("copy");
+    fallback.remove();
+  }
+  const button = event.target.closest("button");
+  const original = button.textContent;
+  button.textContent = "Copied";
+  setTimeout(() => { button.textContent = original; }, 900);
+});
 loadCatalog();

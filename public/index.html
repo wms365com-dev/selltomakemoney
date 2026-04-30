@@ -3,18 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Shop selltomakemoney.com for public deals on scooters, electronics, inventory finds, and local pickup or shipping requests.">
+  <meta name="description" content="Shop selltomakemoney.com for public deals, inventory finds, scooters, electronics, tools, Mississauga pickup, and select shippable items across Canada.">
+  <meta name="keywords" content="selltomakemoney, Mississauga deals, local pickup, inventory finds, scooters, electronics, tools, online catalog, e-transfer, cash pickup">
   <meta name="robots" content="index,follow">
   <meta name="theme-color" content="#131921">
+  <meta name="geo.region" content="CA-ON">
+  <meta name="geo.placename" content="Mississauga">
   <link rel="canonical" href="https://selltomakemoney.com/">
   <meta property="og:site_name" content="selltomakemoney.com">
   <meta property="og:type" content="website">
   <meta property="og:title" content="selltomakemoney.com Store | Deals and Inventory Finds">
-  <meta property="og:description" content="Browse public pricing, compare retail links, and request checkout for available selltomakemoney.com inventory.">
+  <meta property="og:description" content="Browse public prices, compare retail links, share item pages, and request checkout for Mississauga pickup or select shippable items.">
   <meta property="og:url" content="https://selltomakemoney.com/">
+  <meta property="og:image" content="https://selltomakemoney.com/assets/logo.svg">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="selltomakemoney.com Store">
-  <meta name="twitter:description" content="Shop public deals and inventory finds from selltomakemoney.com.">
+  <meta name="twitter:description" content="Shop public deals, inventory finds, Mississauga pickup, and select shippable items.">
   <title>selltomakemoney.com Store | Public Deals and Inventory Finds</title>
   <script type="application/ld+json">
     {
@@ -34,20 +38,31 @@
       "@context": "https://schema.org",
       "@type": "Organization",
       "name": "selltomakemoney.com",
-      "url": "https://selltomakemoney.com/"
+      "url": "https://selltomakemoney.com/",
+      "areaServed": "Canada",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Mississauga",
+        "addressRegion": "ON",
+        "addressCountry": "CA"
+      },
+      "sameAs": [
+        "https://selltomakemoney.com/catalog"
+      ]
     }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=public-dealer-page-1">
+  <link rel="stylesheet" href="/styles.css?v=sell-share-tools-1">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#store" data-route="store" aria-label="selltomakemoney.com home">
-      <img src="/assets/logo.svg?v=public-dealer-page-1" alt="selltomakemoney.com">
+      <img src="/assets/logo.svg?v=sell-share-tools-1" alt="selltomakemoney.com">
     </a>
-    <div class="view-switch" aria-label="View links">
-      <a href="/desktop" id="desktopViewLink">Desktop</a>
-      <a href="/mobile" id="mobileViewLink">Mobile</a>
-    </div>
+    <button class="cart-icon-button" type="button" data-route="cart" aria-label="Open cart">
+      <span class="cart-icon" aria-hidden="true"></span>
+      <span class="cart-copy">Cart</span>
+      <span class="cart-count-badge" id="cartCount">0</span>
+    </button>
     <nav class="nav-menu" aria-label="Main navigation">
       <details id="mainMenu">
         <summary class="menu-trigger">Menu</summary>
@@ -56,7 +71,7 @@
           <button class="nav-button signed-out" data-route="login">Login</button>
           <button class="nav-button signed-out" data-route="register">Register</button>
           <a class="nav-button" href="/dealers">Dealer Info</a>
-          <button class="nav-button" data-route="cart">Cart <span id="cartCount">0</span></button>
+          <button class="nav-button" data-route="cart">Cart</button>
           <button class="nav-button admin-only hidden" data-route="admin">Admin</button>
           <button class="nav-button signed-in hidden" id="logoutButton">Logout</button>
         </div>
@@ -84,14 +99,50 @@
             <span>Mississauga pickup or shipping</span>
           </div>
         </div>
-        <p class="price-note" id="priceNote">Public pricing is visible. Create an account before checkout. No credit cards accepted.</p>
+        <div class="hero-side-actions">
+          <p class="price-note" id="priceNote">Public pricing is visible. Create an account before checkout. No credit cards accepted.</p>
+          <button type="button" data-copy-catalog>Share catalog</button>
+        </div>
       </div>
       <section class="store-tools" aria-label="Store filters">
         <label>Search inventory<input id="storeSearch" type="search" placeholder="Search by item, brand, SKU, UPC"></label>
         <label>Category<select id="storeCategory"><option value="">All categories</option></select></label>
       </section>
       <div class="product-grid" id="productGrid"></div>
+      <section class="panel alert-signup-panel store-bottom-alert">
+        <div>
+          <p class="eyebrow">Deal alerts</p>
+          <h2>Want updates when new finds are added?</h2>
+          <p>Leave your info and what you are looking for. You do not need an account to get alerts.</p>
+        </div>
+        <form id="alertSignupForm" class="alert-signup-form">
+          <label>Name<input name="contactName" autocomplete="name" placeholder="Optional"></label>
+          <label>Email<input name="email" type="email" autocomplete="email" required placeholder="you@example.com"></label>
+          <label>Phone<input name="phone" autocomplete="tel" placeholder="Optional"></label>
+          <label class="wide-field">What are you looking for?<input name="interests" placeholder="Scooters, tools, electronics, deals under $500..."></label>
+          <input name="source" type="hidden" value="store-bottom">
+          <button class="primary" type="submit">Send me alerts</button>
+          <p class="form-message" id="alertSignupMessage"></p>
+        </form>
+      </section>
     </section>
+
+    <div class="exit-alert-modal hidden" id="exitAlertModal" role="dialog" aria-modal="true" aria-labelledby="exitAlertTitle">
+      <div class="exit-alert-card">
+        <button class="modal-close" type="button" data-close-exit-alert aria-label="Close alerts popup">×</button>
+        <p class="eyebrow">Before you go</p>
+        <h2 id="exitAlertTitle">Want first notice on new deals?</h2>
+        <p>Drop your email and what you are looking for. No account needed.</p>
+        <form id="exitAlertForm" class="alert-signup-form compact-alert-form">
+          <label>Name<input name="contactName" autocomplete="name" placeholder="Optional"></label>
+          <label>Email<input name="email" type="email" autocomplete="email" required placeholder="you@example.com"></label>
+          <label class="wide-field">What are you looking for?<input name="interests" placeholder="Scooters, tools, electronics..."></label>
+          <input name="source" type="hidden" value="exit-popup">
+          <button class="primary" type="submit">Send me alerts</button>
+          <p class="form-message" id="exitAlertMessage"></p>
+        </form>
+      </div>
+    </div>
 
     <section id="loginView" class="view hidden">
       <form class="panel auth-panel" id="loginForm">
@@ -141,7 +192,7 @@
           </div>
           <div class="checkout-notice wide-field">
             <strong>Payment methods</strong>
-            <span>Payment is by e-transfer or cash on customer pickup only. Pickup is currently in Mississauga only. Credit cards are not accepted.</span>
+            <span>Pickup orders use e-transfer or cash to keep processing costs down. Credit card is available only for items marked as shippable and shipped to an address.</span>
           </div>
           <label>Fulfillment method<select name="fulfillmentMethod" required>
             <option value="ship">Ship to address</option>
@@ -150,6 +201,7 @@
           <label>Payment method<select name="paymentMethod" required>
             <option value="etransfer">E-transfer</option>
             <option value="cash_pickup">Cash on pickup in Mississauga</option>
+            <option value="credit_card">Credit card for eligible shipped items</option>
           </select></label>
           <label>Recipient name<input name="recipientName" required autocomplete="name"></label>
           <label>Company<input name="company" required autocomplete="organization"></label>
@@ -221,6 +273,25 @@
                 <label>Qty on hand<input name="quantityOnHand" type="number" min="0" step="1" value="0"></label>
                 <label>Public price<input name="price" type="number" min="0" step="0.01" required></label>
                 <label>Dealer price<input name="dealerPrice" type="number" min="0" step="0.01" placeholder="Optional"></label>
+                <label>Cost <input name="cost" type="number" min="0" step="0.01" placeholder="Private"></label>
+                <label>Listing status<select name="listingStatus">
+                  <option value="draft">Draft</option>
+                  <option value="ready_to_list">Ready to list</option>
+                  <option value="listed_on_site">Listed on site</option>
+                  <option value="sold">Sold</option>
+                  <option value="picked_up">Picked up</option>
+                </select></label>
+                <label>Facebook status<select name="marketplaceStatus">
+                  <option value="not_listed">Not listed</option>
+                  <option value="ready_for_facebook">Ready for Facebook</option>
+                  <option value="listed_on_facebook">Listed on Facebook</option>
+                  <option value="offer_pending">Offer pending</option>
+                  <option value="sold_on_facebook">Sold on Facebook</option>
+                </select></label>
+                <label>Customer fulfillment<select name="fulfillmentType">
+                  <option value="pickup_only">Pickup only</option>
+                  <option value="ships_or_pickup">Can be shipped or picked up</option>
+                </select></label>
                 <label>Condition<input name="condition" placeholder="New, open box, used"></label>
                 <label>Color<input name="color"></label>
               </div>
@@ -248,6 +319,7 @@
                   <small id="imageDropHint">You can add multiple product photos at once.</small>
                 </label>
                 <label class="wide-field">Source URL<input name="sourceUrl" type="url" placeholder="Optional"></label>
+                <label class="wide-field">Private source notes<textarea name="sourceNotes" rows="2" placeholder="Where it came from, costs, customer notes"></textarea></label>
               </div>
             </details>
             <button class="primary" type="submit">Add product</button>
@@ -263,6 +335,10 @@
           <div id="inquiriesList" class="stack"></div>
         </section>
         <section class="panel wide">
+          <h2>Alert signups</h2>
+          <div id="alertLeadsList" class="stack"></div>
+        </section>
+        <section class="panel wide">
           <h2>Checkout requests</h2>
           <div id="ordersList" class="stack"></div>
         </section>
@@ -270,6 +346,14 @@
     </section>
   </main>
 
-  <script src="/app.js?v=public-dealer-page-1"></script>
+  <footer class="site-footer">
+    <div>
+      <strong>selltomakemoney.com</strong>
+      <span>Public deals, Mississauga pickup, and select shippable inventory.</span>
+    </div>
+    <div>Copyright &copy; <span data-year>2026</span> selltomakemoney.com. All rights reserved.</div>
+  </footer>
+
+  <script src="/app.js?v=sell-share-tools-1"></script>
 </body>
 </html>
