@@ -107,8 +107,30 @@
         </div>
       </div>
       <section class="store-tools" aria-label="Store filters">
-        <label>Search inventory<input id="storeSearch" type="search" placeholder="Search by item, brand, SKU, UPC"></label>
-        <label>Category<select id="storeCategory"><option value="">All categories</option></select></label>
+        <label class="store-search-label"><span>Search inventory</span><input id="storeSearch" type="search" placeholder="Search by item, brand, SKU, UPC"></label>
+        <button class="store-search-button" id="storeSearchButton" type="button" aria-label="Search inventory">Search</button>
+        <label class="store-category-label">Category<select id="storeCategory"><option value="">All categories</option></select></label>
+      </section>
+      <section class="category-tile-panel" aria-label="Shop by category">
+        <div class="category-tiles" id="categoryTiles"></div>
+      </section>
+      <section class="mobile-store-links" aria-label="Store links">
+        <details open>
+          <summary>Catalog request</summary>
+          <button type="button" data-copy-catalog>Copy catalog link</button>
+        </details>
+        <details>
+          <summary>All products</summary>
+          <button type="button" data-category-filter="">Show all products</button>
+        </details>
+        <details>
+          <summary>Special offers</summary>
+          <button type="button" data-route="store">Browse current deals</button>
+        </details>
+        <details>
+          <summary>About us</summary>
+          <p>Public deals, Mississauga pickup, and select shippable inventory that helps fund real projects.</p>
+        </details>
       </section>
       <div class="product-grid" id="productGrid"></div>
       <section class="panel alert-signup-panel store-bottom-alert">
@@ -376,6 +398,6 @@
     <div>Copyright &copy; <span data-year>2026</span> selltomakemoney.com. All rights reserved.</div>
   </footer>
 
-  <script src="/app.js?v=secure-checkout-1"></script>
+  <script src="/app.js?v=mobile-catalog-1"></script>
 </body>
 </html>

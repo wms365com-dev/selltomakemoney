@@ -14,6 +14,7 @@ const productGrid = document.querySelector("#productGrid");
 const priceNote = document.querySelector("#priceNote");
 const storeSearch = document.querySelector("#storeSearch");
 const storeCategory = document.querySelector("#storeCategory");
+const categoryTiles = document.querySelector("#categoryTiles");
 const appStatus = document.querySelector("#appStatus");
 const appStatusText = document.querySelector("#appStatusText");
 const minimumStatusMs = 140;
@@ -435,6 +436,25 @@ function renderStoreCategories(products) {
   if (categories.includes(current)) storeCategory.value = current;
 }
 
+function renderCategoryTiles(products) {
+  if (!categoryTiles) return;
+  const categoryMap = new Map();
+  products.forEach((product) => {
+    const category = product.category || "Featured";
+    if (!categoryMap.has(category)) categoryMap.set(category, product);
+  });
+  const tiles = [...categoryMap.entries()].slice(0, 9);
+  categoryTiles.innerHTML = tiles.length ? tiles.map(([category, product]) => {
+    const imageUrl = product.imageUrl || product.imageUrls?.[0] || "";
+    return `
+      <button type="button" class="category-tile" data-category-filter="${escapeHtml(category)}">
+        ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="" loading="lazy" decoding="async">` : `<span>${escapeHtml(category.slice(0, 2).toUpperCase())}</span>`}
+        <strong>${escapeHtml(category)}</strong>
+      </button>
+    `;
+  }).join("") : "";
+}
+
 function filteredProducts(products) {
   const search = storeSearch.value.trim().toLowerCase();
   const category = storeCategory.value;
@@ -539,6 +559,7 @@ async function loadProducts() {
     const data = await api("/api/products");
     productCache = data.products;
     renderStoreCategories(productCache);
+    renderCategoryTiles(productCache);
     updateStoreStructuredData(productCache);
     priceNote.textContent = data.canSeePrices
       ? "Account pricing is visible on your approved account."
@@ -803,6 +824,15 @@ document.addEventListener("click", async (event) => {
     window.location.hash = route;
     setRoute(route);
     document.querySelector("#mainMenu")?.removeAttribute("open");
+  }
+
+  const categoryFilter = event.target.closest("[data-category-filter]");
+  if (categoryFilter) {
+    const category = categoryFilter.dataset.categoryFilter || "";
+    storeCategory.value = category;
+    storeSearch.value = "";
+    renderProducts(Boolean(sessionUser?.canSeePrices));
+    productGrid.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   const addCartId = event.target.closest("[data-add-cart]")?.dataset.addCart;
@@ -1110,6 +1140,10 @@ const imageDropHint = document.querySelector("#imageDropHint");
 
 storeSearch.addEventListener("input", () => renderProducts(Boolean(sessionUser?.canSeePrices)));
 storeCategory.addEventListener("change", () => renderProducts(Boolean(sessionUser?.canSeePrices)));
+document.querySelector("#storeSearchButton")?.addEventListener("click", () => {
+  storeSearch.focus();
+  renderProducts(Boolean(sessionUser?.canSeePrices));
+});
 document.querySelector("#checkoutForm")?.elements.fulfillmentMethod?.addEventListener("change", () => updateCheckoutPaymentOptions());
 document.querySelector("#fillAddressBtn")?.addEventListener("click", () => {
   const message = document.querySelector("#checkoutMessage");

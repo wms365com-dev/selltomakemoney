@@ -463,6 +463,18 @@ button.button-busy {
   padding: 14px;
 }
 
+.store-tools {
+  grid-template-columns: minmax(0, 1fr) auto minmax(180px, 260px);
+}
+
+.store-search-button {
+  align-self: end;
+  min-height: 48px;
+  background: var(--nav);
+  color: #fff;
+  font-weight: 900;
+}
+
 .catalog-card .primary {
   width: fit-content;
 }
@@ -645,6 +657,11 @@ h2 {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 20px;
+}
+
+.category-tile-panel,
+.mobile-store-links {
+  display: none;
 }
 
 .product-card,
@@ -1562,10 +1579,12 @@ body[data-view="mobile"] .topbar {
   position: sticky;
   align-items: center;
   flex-direction: row;
-  gap: 12px;
+  gap: 8px;
   justify-content: space-between;
   min-height: 0;
-  padding: 14px 16px;
+  border-bottom-width: 2px;
+  padding: 10px 12px;
+  background: #003b7a;
 }
 
 body[data-view="mobile"] .brand {
@@ -1573,7 +1592,7 @@ body[data-view="mobile"] .brand {
 }
 
 body[data-view="mobile"] .brand img {
-  width: min(190px, 48vw);
+  width: min(142px, 42vw);
 }
 
 body[data-view="mobile"] .header-actions {
@@ -1583,9 +1602,9 @@ body[data-view="mobile"] .header-actions {
 }
 
 body[data-view="mobile"] .cart-icon-button {
-  min-width: 54px;
-  min-height: 48px;
-  padding: 0 12px;
+  min-width: 50px;
+  min-height: 40px;
+  padding: 0 10px;
 }
 
 body[data-view="mobile"] .cart-copy {
@@ -1598,7 +1617,8 @@ body[data-view="mobile"] .nav-menu {
 
 body[data-view="mobile"] .menu-trigger {
   width: 100%;
-  min-height: 48px;
+  min-height: 40px;
+  padding-inline: 10px;
 }
 
 body[data-view="mobile"] .menu-panel {
@@ -1619,8 +1639,13 @@ body[data-view="mobile"] nav button {
 }
 
 body[data-view="mobile"] main {
-  width: min(100% - 24px, 520px);
-  padding: 24px 0;
+  width: min(100%, 520px);
+  padding: 0 0 18px;
+}
+
+body[data-view="mobile"] #storeView {
+  display: flex;
+  flex-direction: column;
 }
 
 body[data-view="mobile"] .site-footer {
@@ -1652,21 +1677,196 @@ body[data-view="mobile"] .section-head {
   padding: 20px;
 }
 
+body[data-view="mobile"] #storeView .section-head {
+  order: 2;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 122px;
+  margin: 0 8px 12px;
+  border-radius: 0 0 8px 8px;
+  padding: 14px 118px 14px 14px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.96), rgba(255, 247, 232, 0.72)),
+    linear-gradient(135deg, rgba(254, 189, 105, 0.32), rgba(0, 59, 122, 0.12));
+}
+
 body[data-view="mobile"] .hero-side-actions {
   justify-items: stretch;
   width: 100%;
 }
 
-body[data-view="mobile"] .section-head::after {
-  right: 14px;
-  top: 14px;
-  width: 92px;
-  height: 50px;
-  opacity: 0.42;
+body[data-view="mobile"] #storeView .section-head::after {
+  right: 10px;
+  top: 16px;
+  width: 96px;
+  height: 82px;
+  border-radius: 8px;
+  opacity: 0.85;
+  background:
+    linear-gradient(90deg, transparent 31%, rgba(19, 25, 33, 0.16) 31% 34%, transparent 34% 64%, rgba(19, 25, 33, 0.16) 64% 67%, transparent 67%),
+    linear-gradient(180deg, rgba(35, 47, 62, 0.18) 38%, rgba(254, 189, 105, 0.72) 38% 42%, transparent 42%),
+    rgba(255, 255, 255, 0.66);
 }
 
 body[data-view="mobile"] h1 {
   font-size: 34px;
+}
+
+body[data-view="mobile"] #storeView h1 {
+  font-size: 24px;
+  line-height: 1.08;
+}
+
+body[data-view="mobile"] #storeView .hero-copy {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+body[data-view="mobile"] #storeView .hero-badges,
+body[data-view="mobile"] #storeView .hero-side-actions {
+  display: none;
+}
+
+body[data-view="mobile"] .store-tools {
+  order: 1;
+  position: sticky;
+  top: 62px;
+  z-index: 9;
+  grid-template-columns: minmax(0, 1fr) 48px;
+  gap: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid #b9c2cf;
+  background: #fff;
+  padding: 8px 10px;
+}
+
+body[data-view="mobile"] .store-search-label {
+  display: block;
+}
+
+body[data-view="mobile"] .store-search-label span,
+body[data-view="mobile"] .store-category-label {
+  display: none;
+}
+
+body[data-view="mobile"] .store-search-label input {
+  border-radius: 0;
+  border-right: 0;
+}
+
+body[data-view="mobile"] .store-search-button {
+  align-self: end;
+  min-height: 48px;
+  border-radius: 0;
+  background: #003b7a;
+  color: #fff;
+  font-size: 0;
+}
+
+body[data-view="mobile"] .store-search-button::before {
+  content: "Search";
+  font-size: 13px;
+}
+
+body[data-view="mobile"] .category-tile-panel {
+  order: 3;
+  display: block;
+  background: #fff;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px;
+  padding: 10px 8px;
+}
+
+body[data-view="mobile"] .category-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+body[data-view="mobile"] .category-tile {
+  display: grid;
+  gap: 5px;
+  justify-items: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  min-height: 0;
+  padding: 0;
+  text-align: center;
+}
+
+body[data-view="mobile"] .category-tile img,
+body[data-view="mobile"] .category-tile span {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1.42 / 1;
+  background: #e8e8e8;
+  color: #003b7a;
+  font-weight: 900;
+  object-fit: cover;
+}
+
+body[data-view="mobile"] .category-tile strong {
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+body[data-view="mobile"] #productGrid {
+  order: 5;
+}
+
+body[data-view="mobile"] .mobile-store-links {
+  order: 4;
+  display: block;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+  margin: 0 0 10px;
+}
+
+body[data-view="mobile"] .mobile-store-links details {
+  border-bottom: 1px solid var(--line);
+}
+
+body[data-view="mobile"] .mobile-store-links details:last-child {
+  border-bottom: 0;
+}
+
+body[data-view="mobile"] .mobile-store-links summary {
+  cursor: pointer;
+  list-style: none;
+  min-height: 42px;
+  color: #003b7a;
+  font-size: 14px;
+  padding: 13px 14px;
+}
+
+body[data-view="mobile"] .mobile-store-links summary::-webkit-details-marker {
+  display: none;
+}
+
+body[data-view="mobile"] .mobile-store-links summary::after {
+  content: "";
+  float: right;
+  margin-top: 5px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid var(--ink);
+}
+
+body[data-view="mobile"] .mobile-store-links button,
+body[data-view="mobile"] .mobile-store-links p {
+  margin: 0 14px 12px;
+}
+
+body[data-view="mobile"] .store-bottom-alert {
+  order: 6;
 }
 
 body[data-view="mobile"] .store-tools,
