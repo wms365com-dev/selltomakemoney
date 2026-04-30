@@ -133,7 +133,7 @@ async function loadAdmin() {
         <strong>${escapeHtml(product.name)}</strong>
         <p>${escapeHtml(product.sku)} ${product.upc ? `| UPC ${escapeHtml(product.upc)}` : ""} | ${product.price} | ${product.active ? "Active" : "Hidden"}</p>
         <div class="mini-comparisons">
-          ${(product.comparisons || []).map((item) => `<span>${escapeHtml(item.site)} ${escapeHtml(item.price)}</span>`).join("") || "<span>No competitor prices</span>"}
+          ${(product.comparisons || []).map((item) => `<span>${escapeHtml(item.site)} ${escapeHtml(item.price)} <button type="button" data-delete-comparison="${item.id}">Remove</button></span>`).join("") || "<span>No competitor prices</span>"}
         </div>
         <form class="comparison-form" data-comparison-form="${product.id}">
           <input name="site" placeholder="Site" required>
@@ -187,6 +187,13 @@ document.addEventListener("click", async (event) => {
     });
     event.target.textContent = "Request sent";
     event.target.disabled = true;
+  }
+
+  const comparisonId = event.target.closest("[data-delete-comparison]")?.dataset.deleteComparison;
+  if (comparisonId) {
+    await api(`/api/admin/comparisons/${comparisonId}`, { method: "DELETE" });
+    loadAdmin();
+    loadProducts();
   }
 });
 

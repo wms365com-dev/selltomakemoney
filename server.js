@@ -135,6 +135,13 @@ function createJsonDatabase() {
     async createComparison(comparison) {
       return insert("comparisons", comparison);
     },
+    async deleteComparison(id) {
+      const index = store.comparisons.findIndex((comparison) => comparison.id === Number(id));
+      if (index === -1) return false;
+      store.comparisons.splice(index, 1);
+      writeJsonStore(store);
+      return true;
+    },
     async createInquiry(inquiry) {
       return insert("inquiries", inquiry);
     },
@@ -372,6 +379,10 @@ function createPostgresDatabase() {
         VALUES ($1,$2,$3,$4,$5,$6,$7,NOW()) RETURNING *
       `, [comparison.productId, comparison.site, comparison.title, comparison.priceCents, comparison.currency, comparison.productUrl, comparison.matchType]);
       return camelComparison(result.rows[0]);
+    },
+    async deleteComparison(id) {
+      const result = await query("DELETE FROM price_comparisons WHERE id = $1", [id]);
+      return result.rowCount > 0;
     },
     async createInquiry(inquiry) {
       const result = await query(`
@@ -628,6 +639,12 @@ app.post("/api/admin/products/:id/comparisons", requireAdmin, async (req, res) =
     matchType: String(req.body.matchType || (product.upc ? "upc" : "description")).trim()
   });
   res.status(201).json({ comparison });
+});
+
+app.delete("/api/admin/comparisons/:id", requireAdmin, async (req, res) => {
+  const deleted = await db.deleteComparison(Number(req.params.id));
+  if (!deleted) return res.status(404).json({ error: "Comparison not found." });
+  res.json({ ok: true });
 });
 
 app.get("/api/admin/inquiries", requireAdmin, async (_req, res) => {
