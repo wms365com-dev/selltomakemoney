@@ -13,6 +13,77 @@ const views = {
 
 const productGrid = document.querySelector("#productGrid");
 const priceNote = document.querySelector("#priceNote");
+const appStatus = document.querySelector("#appStatus");
+const appStatusText = document.querySelector("#appStatusText");
+const minimumStatusMs = 320;
+let statusDepth = 0;
+
+function showStatus(message = "Working...") {
+  statusDepth += 1;
+  appStatusText.textContent = message;
+  appStatus.classList.remove("hidden");
+  document.body.classList.add("is-busy");
+}
+
+function hideStatus() {
+  statusDepth = Math.max(0, statusDepth - 1);
+  if (statusDepth === 0) {
+    appStatus.classList.add("hidden");
+    document.body.classList.remove("is-busy");
+  }
+}
+
+async function withStatus(message, task) {
+  const startedAt = Date.now();
+  showStatus(message);
+  try {
+    return await task();
+  } finally {
+    const remaining = minimumStatusMs - (Date.now() - startedAt);
+    if (remaining > 0) {
+      await new Promise((resolve) => setTimeout(resolve, remaining));
+    }
+    hideStatus();
+  }
+}
+
+function setButtonBusy(button, busyText) {
+  const original = button.textContent;
+  button.disabled = true;
+  button.classList.add("button-busy");
+  button.dataset.originalText = original;
+  button.innerHTML = `<span class="button-spinner" aria-hidden="true"></span><span>${escapeHtml(busyText)}</span>`;
+  return () => {
+    button.disabled = false;
+    button.classList.remove("button-busy");
+    button.textContent = button.dataset.originalText || original;
+    delete button.dataset.originalText;
+  };
+}
+
+function loadingCards(count = 3) {
+  return Array.from({ length: count }).map(() => `
+    <article class="product-card skeleton-card" aria-hidden="true">
+      <div class="skeleton skeleton-image"></div>
+      <div class="product-body">
+        <div class="skeleton skeleton-line wide"></div>
+        <div class="skeleton skeleton-line"></div>
+        <div class="skeleton skeleton-line short"></div>
+      </div>
+    </article>
+  `).join("");
+}
+
+function loadingRows(count = 3) {
+  return Array.from({ length: count }).map(() => `
+    <div class="row skeleton-row" aria-hidden="true">
+      <div>
+        <div class="skeleton skeleton-line wide"></div>
+        <div class="skeleton skeleton-line"></div>
+      </div>
+    </div>
+  `).join("");
+}
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -71,24 +142,27 @@ function facebookListingText(product) {
 }
 
 async function loadProducts() {
-  const data = await api("/api/products");
-  priceNote.textContent = data.canSeePrices
-    ? "Dealer pricing is visible on your approved account."
-    : "Login after approval to see dealer pricing.";
-  productGrid.innerHTML = data.products.map((product) => `
-    <article class="product-card">
-      ${productImage(product)}
-      <div class="product-body">
-        <div>
-          <h2>${escapeHtml(product.name)}</h2>
-          <p class="sku">${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.category ? `| ${escapeHtml(product.category)}` : ""}</p>
+  productGrid.innerHTML = loadingCards();
+  await withStatus("Loading products...", async () => {
+    const data = await api("/api/products");
+    priceNote.textContent = data.canSeePrices
+      ? "Dealer pricing is visible on your approved account."
+      : "Login after approval to see dealer pricing.";
+    productGrid.innerHTML = data.products.map((product) => `
+      <article class="product-card">
+        ${productImage(product)}
+        <div class="product-body">
+          <div>
+            <h2>${escapeHtml(product.name)}</h2>
+            <p class="sku">${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.category ? `| ${escapeHtml(product.category)}` : ""}</p>
+          </div>
+          <p>${escapeHtml(product.description)}</p>
+          ${product.price ? `<div class="price">${product.price}</div>` : `<div class="locked">Dealer login required for pricing</div>`}
+          ${product.price ? `<button class="primary" data-inquire="${product.id}">Request quote</button>` : ""}
         </div>
-        <p>${escapeHtml(product.description)}</p>
-        ${product.price ? `<div class="price">${product.price}</div>` : `<div class="locked">Dealer login required for pricing</div>`}
-        ${product.price ? `<button class="primary" data-inquire="${product.id}">Request quote</button>` : ""}
-      </div>
-    </article>
-  `).join("");
+      </article>
+    `).join("");
+  });
 }
 
 function comparisonBlock(product) {
@@ -112,19 +186,25 @@ function comparisonBlock(product) {
 }
 
 async function loadSession() {
-  const data = await api("/api/session");
-  sessionUser = data.user;
-  updateNav();
+  await withStatus("Checking session...", async () => {
+    const data = await api("/api/session");
+    sessionUser = data.user;
+    updateNav();
+  });
 }
 
 async function loadAdmin() {
   if (sessionUser?.role !== "admin") return setRoute("store");
-  const [summary, users, products, inquiries] = await Promise.all([
+  document.querySelector("#adminStats").innerHTML = loadingRows(3);
+  document.querySelector("#usersList").innerHTML = loadingRows(2);
+  document.querySelector("#adminProducts").innerHTML = loadingRows(3);
+  document.querySelector("#inquiriesList").innerHTML = loadingRows(1);
+  const [summary, users, products, inquiries] = await withStatus("Loading admin data...", () => Promise.all([
     api("/api/admin/summary"),
     api("/api/admin/users"),
     api("/api/admin/products"),
     api("/api/admin/inquiries")
-  ]);
+  ]));
 
   document.querySelector("#adminStats").innerHTML = `
     <div class="stat"><strong>${summary.pendingUsers}</strong>Pending dealers</div>
@@ -202,28 +282,45 @@ document.addEventListener("click", async (event) => {
   const userId = event.target.closest("[data-user]")?.dataset.user;
   const status = event.target.closest("[data-status]")?.dataset.status;
   if (userId && status) {
-    await api(`/api/admin/users/${userId}`, {
-      method: "PATCH",
-      body: JSON.stringify({ status })
-    });
-    loadAdmin();
+    const restore = setButtonBusy(event.target.closest("[data-user]"), status === "approved" ? "Approving..." : "Saving...");
+    try {
+      await withStatus("Updating dealer status...", () => api(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status })
+      }));
+      await loadAdmin();
+    } finally {
+      restore();
+    }
   }
 
   const productId = event.target.closest("[data-inquire]")?.dataset.inquire;
   if (productId) {
-    await api("/api/inquiries", {
-      method: "POST",
-      body: JSON.stringify({ productId, quantity: 1 })
-    });
-    event.target.textContent = "Request sent";
-    event.target.disabled = true;
+    const button = event.target.closest("[data-inquire]");
+    const restore = setButtonBusy(button, "Sending...");
+    try {
+      await withStatus("Sending request...", () => api("/api/inquiries", {
+        method: "POST",
+        body: JSON.stringify({ productId, quantity: 1 })
+      }));
+      button.textContent = "Request sent";
+      button.disabled = true;
+    } catch (error) {
+      restore();
+      throw error;
+    }
   }
 
   const comparisonId = event.target.closest("[data-delete-comparison]")?.dataset.deleteComparison;
   if (comparisonId) {
-    await api(`/api/admin/comparisons/${comparisonId}`, { method: "DELETE" });
-    loadAdmin();
-    loadProducts();
+    const restore = setButtonBusy(event.target.closest("[data-delete-comparison]"), "Removing...");
+    try {
+      await withStatus("Removing comparison...", () => api(`/api/admin/comparisons/${comparisonId}`, { method: "DELETE" }));
+      await loadAdmin();
+      await loadProducts();
+    } finally {
+      restore();
+    }
   }
 
   const facebookProductId = event.target.closest("[data-copy-facebook]")?.dataset.copyFacebook;
@@ -248,32 +345,45 @@ document.querySelector("#loginForm").addEventListener("submit", async (event) =>
   event.preventDefault();
   const message = document.querySelector("#loginMessage");
   try {
+    const restore = setButtonBusy(event.target.querySelector("button[type='submit']"), "Logging in...");
     const form = new FormData(event.target);
-    const data = await api("/api/login", {
+    const data = await withStatus("Logging in...", () => api("/api/login", {
       method: "POST",
       body: JSON.stringify(Object.fromEntries(form))
-    });
+    }));
     sessionUser = data.user;
     updateNav();
     setRoute(sessionUser.role === "admin" ? "admin" : "store");
+    restore();
   } catch (error) {
     message.textContent = error.message;
+    const button = event.target.querySelector("button[type='submit']");
+    if (button.dataset.originalText) {
+      button.disabled = false;
+      button.classList.remove("button-busy");
+      button.textContent = button.dataset.originalText;
+      delete button.dataset.originalText;
+    }
   }
 });
 
 document.querySelector("#registerForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const message = document.querySelector("#registerMessage");
+  const submitButton = event.target.querySelector("button[type='submit']");
+  const restore = setButtonBusy(submitButton, "Registering...");
   try {
     const form = new FormData(event.target);
-    const data = await api("/api/register", {
+    const data = await withStatus("Submitting registration...", () => api("/api/register", {
       method: "POST",
       body: JSON.stringify(Object.fromEntries(form))
-    });
+    }));
     message.textContent = data.message;
     event.target.reset();
   } catch (error) {
     message.textContent = error.message;
+  } finally {
+    restore();
   }
 });
 
@@ -282,14 +392,13 @@ document.querySelector("#importUrlForm").addEventListener("submit", async (event
   const message = document.querySelector("#importUrlMessage");
   const submitButton = event.target.querySelector("button[type='submit']");
   message.textContent = "";
-  submitButton.disabled = true;
-  submitButton.textContent = "Importing...";
+  const restore = setButtonBusy(submitButton, "Importing...");
   try {
     const body = Object.fromEntries(new FormData(event.target));
-    const data = await api("/api/admin/import-url", {
+    const data = await withStatus("Importing listing...", () => api("/api/admin/import-url", {
       method: "POST",
       body: JSON.stringify(body)
-    });
+    }));
     event.target.reset();
     message.textContent = data.imported.savedImage ? "Imported with image saved." : "Imported. No image was available to save.";
     await loadAdmin();
@@ -297,8 +406,7 @@ document.querySelector("#importUrlForm").addEventListener("submit", async (event
   } catch (error) {
     message.textContent = error.message;
   } finally {
-    submitButton.disabled = false;
-    submitButton.textContent = "Import URL";
+    restore();
   }
 });
 
@@ -340,11 +448,10 @@ document.querySelector("#productForm").addEventListener("submit", async (event) 
   const message = document.querySelector("#productMessage");
   const submitButton = event.target.querySelector("button[type='submit']");
   message.textContent = "";
-  submitButton.disabled = true;
-  submitButton.textContent = "Adding...";
+  const restore = setButtonBusy(submitButton, "Adding...");
   const form = new FormData(event.target);
   try {
-    await api("/api/admin/products", { method: "POST", body: form });
+    await withStatus("Adding product...", () => api("/api/admin/products", { method: "POST", body: form }));
     event.target.reset();
     updateImageHint();
     message.textContent = "Product added.";
@@ -353,8 +460,7 @@ document.querySelector("#productForm").addEventListener("submit", async (event) 
   } catch (error) {
     message.textContent = error.message;
   } finally {
-    submitButton.disabled = false;
-    submitButton.textContent = "Add product";
+    restore();
   }
 });
 
@@ -364,17 +470,22 @@ document.addEventListener("submit", async (event) => {
   event.preventDefault();
   const productId = form.dataset.comparisonForm;
   const body = Object.fromEntries(new FormData(form));
-  await api(`/api/admin/products/${productId}/comparisons`, {
-    method: "POST",
-    body: JSON.stringify(body)
-  });
-  form.reset();
-  loadAdmin();
-  loadProducts();
+  const restore = setButtonBusy(form.querySelector("button[type='submit']"), "Adding...");
+  try {
+    await withStatus("Adding comparison...", () => api(`/api/admin/products/${productId}/comparisons`, {
+      method: "POST",
+      body: JSON.stringify(body)
+    }));
+    form.reset();
+    await loadAdmin();
+    await loadProducts();
+  } finally {
+    restore();
+  }
 });
 
 document.querySelector("#logoutButton").addEventListener("click", async () => {
-  await api("/api/logout", { method: "POST", body: JSON.stringify({}) });
+  await withStatus("Logging out...", () => api("/api/logout", { method: "POST", body: JSON.stringify({}) }));
   sessionUser = null;
   updateNav();
   setRoute("store");
