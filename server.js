@@ -1,16 +1,19 @@
 const path = require("path");
 const fs = require("fs");
+const dns = require("dns").promises;
+const net = require("net");
 const express = require("express");
 const session = require("express-session");
 const multer = require("multer");
 const bcrypt = require("bcryptjs");
+const cheerio = require("cheerio");
 const { Pool } = require("pg");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, "data");
-const UPLOAD_DIR = path.join(ROOT, "uploads");
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(ROOT, "uploads");
 const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, "store.json");
 const DATABASE_URL = process.env.DATABASE_URL;
 const SESSION_SECRET = process.env.SESSION_SECRET || "replace-this-before-production";
@@ -40,6 +43,167 @@ function searchLinks(product) {
   ];
 }
 
+function isPrivateAddress(address) {
+  if (!address) return true;
+  if (net.isIPv6(address)) return address === "::1" || address.startsWith("fc") || address.startsWith("fd") || address.startsWith("fe80:");
+  if (!net.isIPv4(address)) return true;
+  const parts = address.split(".").map(Number);
+  return parts[0] === 10 ||
+    parts[0] === 127 ||
+    (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+    (parts[0] === 192 && parts[1] === 168) ||
+    (parts[0] === 169 && parts[1] === 254) ||
+    parts[0] === 0;
+}
+
+async function assertSafeImportUrl(value) {
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch (_error) {
+    throw new Error("Paste a valid listing URL.");
+  }
+  if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("Only http and https listing URLs are supported.");
+  const hostname = parsed.hostname.toLowerCase();
+  if (hostname === "localhost" || hostname.endsWith(".local")) throw new Error("Local/private URLs cannot be imported.");
+  const addresses = await dns.lookup(hostname, { all: true });
+  if (!addresses.length || addresses.some((entry) => isPrivateAddress(entry.address))) {
+    throw new Error("Local/private URLs cannot be imported.");
+  }
+  return parsed;
+}
+
+async function fetchText(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        "user-agent": "DealerStoreImporter/1.0 (+https://selltomakemoney-production.up.railway.app)",
+        "accept": "text/html,application/xhtml+xml"
+      }
+    });
+    if (!response.ok) throw new Error(`The listing page returned ${response.status}.`);
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("text/html") && !contentType.includes("application/xhtml")) {
+      throw new Error("That URL did not return an HTML listing page.");
+    }
+    return response.text();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function asText(value) {
+  if (value == null) return "";
+  if (Array.isArray(value)) return asText(value[0]);
+  if (typeof value === "object") return asText(value.name || value.value || value["@id"]);
+  return String(value).trim();
+}
+
+function asImage(value) {
+  if (!value) return "";
+  if (Array.isArray(value)) return asImage(value[0]);
+  if (typeof value === "object") return asText(value.url || value.contentUrl);
+  return asText(value);
+}
+
+function flattenJsonLd(node, output = []) {
+  if (!node) return output;
+  if (Array.isArray(node)) {
+    node.forEach((item) => flattenJsonLd(item, output));
+    return output;
+  }
+  if (typeof node !== "object") return output;
+  output.push(node);
+  if (node["@graph"]) flattenJsonLd(node["@graph"], output);
+  return output;
+}
+
+function productFromJsonLd($) {
+  const nodes = [];
+  $('script[type="application/ld+json"]').each((_index, element) => {
+    try {
+      flattenJsonLd(JSON.parse($(element).contents().text()), nodes);
+    } catch (_error) {
+      // Ignore malformed structured data from third-party pages.
+    }
+  });
+  return nodes.find((node) => {
+    const type = node["@type"];
+    return Array.isArray(type) ? type.includes("Product") : type === "Product";
+  }) || null;
+}
+
+function metaContent($, selectors) {
+  for (const selector of selectors) {
+    const value = $(selector).attr("content") || $(selector).attr("value");
+    if (value) return value.trim();
+  }
+  return "";
+}
+
+function parseCents(value) {
+  const text = asText(value).replace(/,/g, "");
+  const match = text.match(/(\d+(?:\.\d{1,2})?)/);
+  if (!match) return 0;
+  return Math.round(Number(match[1]) * 100);
+}
+
+function extractListing(html, listingUrl) {
+  const $ = cheerio.load(html);
+  const structured = productFromJsonLd($);
+  const offers = Array.isArray(structured?.offers) ? structured.offers[0] : structured?.offers;
+  const title = asText(structured?.name) || metaContent($, ['meta[property="og:title"]', 'meta[name="twitter:title"]']) || $("title").first().text().trim();
+  const description = asText(structured?.description) || metaContent($, ['meta[property="og:description"]', 'meta[name="description"]', 'meta[name="twitter:description"]']);
+  const image = asImage(structured?.image) || metaContent($, ['meta[property="og:image"]', 'meta[name="twitter:image"]']);
+  const priceCents = parseCents(offers?.price || metaContent($, ['meta[property="product:price:amount"]', 'meta[name="price"]']));
+  const currency = asText(offers?.priceCurrency) || metaContent($, ['meta[property="product:price:currency"]']) || "CAD";
+  const brand = asText(structured?.brand);
+  const sku = asText(structured?.sku || structured?.mpn);
+  const upc = asText(structured?.gtin12 || structured?.gtin13 || structured?.gtin14 || structured?.gtin || structured?.upc);
+  const category = asText(structured?.category);
+  return {
+    name: title.slice(0, 180),
+    brand: brand.slice(0, 120),
+    sku: sku.slice(0, 80),
+    upc: upc.slice(0, 40),
+    category: category.slice(0, 120),
+    description: description.slice(0, 1200),
+    priceCents,
+    currency: currency.toUpperCase().slice(0, 3),
+    remoteImageUrl: image ? new URL(image, listingUrl).toString() : "",
+    sourceUrl: listingUrl
+  };
+}
+
+async function downloadImage(imageUrl) {
+  if (!imageUrl) return "";
+  const parsed = await assertSafeImportUrl(imageUrl);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch(parsed, {
+      signal: controller.signal,
+      headers: { "user-agent": "DealerStoreImporter/1.0" }
+    });
+    if (!response.ok) return "";
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.startsWith("image/")) return "";
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.length > 8 * 1024 * 1024) return "";
+    const typeExt = contentType.split(";")[0].split("/")[1] || "";
+    const urlExt = path.extname(parsed.pathname).replace(".", "");
+    const ext = (urlExt || typeExt || "jpg").replace(/[^a-z0-9]/gi, "").slice(0, 5);
+    const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
+    fs.writeFileSync(path.join(UPLOAD_DIR, filename), bytes);
+    return `/uploads/${filename}`;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function emptyJsonStore() {
   return {
     nextIds: { users: 1, products: 1, inquiries: 1, comparisons: 1 },
@@ -55,7 +219,7 @@ function readJsonStore() {
   const data = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
   data.nextIds.comparisons ||= 1;
   data.comparisons ||= [];
-  data.products = data.products.map((product) => ({ brand: "", upc: "", ...product }));
+  data.products = data.products.map((product) => ({ brand: "", upc: "", sourceUrl: "", ...product }));
   return data;
 }
 
@@ -189,6 +353,7 @@ function camelProduct(row) {
     description: row.description,
     priceCents: row.price_cents,
     imageUrl: row.image_url,
+    sourceUrl: row.source_url,
     active: row.active,
     createdAt: row.created_at
   };
@@ -237,10 +402,10 @@ function createPostgresDatabase() {
     }
     for (const product of old.products) {
       await query(`
-        INSERT INTO products (id, name, sku, upc, brand, category, description, price_cents, image_url, active, created_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        INSERT INTO products (id, name, sku, upc, brand, category, description, price_cents, image_url, source_url, active, created_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
         ON CONFLICT (id) DO NOTHING
-      `, [product.id, product.name, product.sku, product.upc || "", product.brand || "", product.category, product.description, product.priceCents, product.imageUrl, product.active, product.createdAt || new Date()]);
+      `, [product.id, product.name, product.sku, product.upc || "", product.brand || "", product.category, product.description, product.priceCents, product.imageUrl, product.sourceUrl || "", product.active, product.createdAt || new Date()]);
     }
     for (const inquiry of old.inquiries) {
       await query(`
@@ -287,6 +452,7 @@ function createPostgresDatabase() {
           description TEXT NOT NULL DEFAULT '',
           price_cents INTEGER NOT NULL DEFAULT 0,
           image_url TEXT NOT NULL DEFAULT '',
+          source_url TEXT NOT NULL DEFAULT '',
           active BOOLEAN NOT NULL DEFAULT TRUE,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
@@ -313,6 +479,7 @@ function createPostgresDatabase() {
         );
         CREATE INDEX IF NOT EXISTS idx_products_upc ON products(upc);
         ALTER TABLE products ADD COLUMN IF NOT EXISTS brand TEXT NOT NULL DEFAULT '';
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS source_url TEXT NOT NULL DEFAULT '';
         CREATE INDEX IF NOT EXISTS idx_products_search ON products USING gin(to_tsvector('english', name || ' ' || description || ' ' || sku || ' ' || upc || ' ' || brand));
         CREATE INDEX IF NOT EXISTS idx_price_comparisons_product ON price_comparisons(product_id);
       `);
@@ -360,16 +527,16 @@ function createPostgresDatabase() {
     },
     async createProduct(product) {
       const result = await query(`
-        INSERT INTO products (name, sku, upc, brand, category, description, price_cents, image_url, active)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *
-      `, [product.name, product.sku, product.upc, product.brand, product.category, product.description, product.priceCents, product.imageUrl, product.active]);
+        INSERT INTO products (name, sku, upc, brand, category, description, price_cents, image_url, source_url, active)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *
+      `, [product.name, product.sku, product.upc, product.brand, product.category, product.description, product.priceCents, product.imageUrl, product.sourceUrl || "", product.active]);
       return camelProduct(result.rows[0]);
     },
     async updateProduct(id, product) {
       const result = await query(`
-        UPDATE products SET name=$1, sku=$2, upc=$3, brand=$4, category=$5, description=$6, price_cents=$7, image_url=$8, active=$9
-        WHERE id=$10 RETURNING *
-      `, [product.name, product.sku, product.upc, product.brand, product.category, product.description, product.priceCents, product.imageUrl, product.active, id]);
+        UPDATE products SET name=$1, sku=$2, upc=$3, brand=$4, category=$5, description=$6, price_cents=$7, image_url=$8, source_url=$9, active=$10
+        WHERE id=$11 RETURNING *
+      `, [product.name, product.sku, product.upc, product.brand, product.category, product.description, product.priceCents, product.imageUrl, product.sourceUrl || "", product.active, id]);
       return camelProduct(result.rows[0]);
     },
     async listComparisons(productId) {
@@ -418,9 +585,9 @@ function createPostgresDatabase() {
 
 function seedProductRows() {
   return [
-    { name: "Dealer Starter Kit", sku: "DSK-100", upc: "", brand: "House Brand", category: "Starter", description: "A ready-to-sell bundle for new dealer accounts.", priceCents: 19900, imageUrl: "", active: true },
-    { name: "Premium Inventory Pack", sku: "PIP-250", upc: "", brand: "House Brand", category: "Inventory", description: "Higher-margin product mix for established dealers.", priceCents: 54900, imageUrl: "", active: true },
-    { name: "Display Sample Set", sku: "DSS-050", upc: "", brand: "House Brand", category: "Samples", description: "Showroom samples and sell sheets for in-person selling.", priceCents: 8900, imageUrl: "", active: true }
+    { name: "Dealer Starter Kit", sku: "DSK-100", upc: "", brand: "House Brand", category: "Starter", description: "A ready-to-sell bundle for new dealer accounts.", priceCents: 19900, imageUrl: "", sourceUrl: "", active: true },
+    { name: "Premium Inventory Pack", sku: "PIP-250", upc: "", brand: "House Brand", category: "Inventory", description: "Higher-margin product mix for established dealers.", priceCents: 54900, imageUrl: "", sourceUrl: "", active: true },
+    { name: "Display Sample Set", sku: "DSS-050", upc: "", brand: "House Brand", category: "Samples", description: "Showroom samples and sell sheets for in-person selling.", priceCents: 8900, imageUrl: "", sourceUrl: "", active: true }
   ];
 }
 
@@ -517,6 +684,7 @@ async function productPayload(product, showPrice, includeAdminData = false) {
   const comparisons = await db.listComparisons(product.id);
   return {
     ...payload,
+    sourceUrl: product.sourceUrl || "",
     comparisons: comparisons.map((comparison) => ({
       id: comparison.id,
       site: comparison.site,
@@ -622,6 +790,7 @@ app.post("/api/admin/products", requireAdmin, upload.single("image"), async (req
     description: String(req.body.description || "").trim(),
     priceCents: Math.round(Number(req.body.price || 0) * 100),
     imageUrl: req.file ? `/uploads/${req.file.filename}` : "",
+    sourceUrl: String(req.body.sourceUrl || "").trim(),
     active: req.body.active !== "false"
   });
   res.status(201).json({ id: product.id });
@@ -639,9 +808,42 @@ app.patch("/api/admin/products/:id", requireAdmin, upload.single("image"), async
     description: String(req.body.description || "").trim(),
     priceCents: Math.round(Number(req.body.price || existing.priceCents / 100) * 100),
     imageUrl: req.file ? `/uploads/${req.file.filename}` : existing.imageUrl,
+    sourceUrl: String(req.body.sourceUrl || existing.sourceUrl || "").trim(),
     active: req.body.active !== "false"
   });
   res.json({ product: await productPayload(product, true, true) });
+});
+
+app.post("/api/admin/import-url", requireAdmin, async (req, res) => {
+  try {
+    const parsedUrl = await assertSafeImportUrl(String(req.body.url || "").trim());
+    const html = await fetchText(parsedUrl.toString());
+    const listing = extractListing(html, parsedUrl.toString());
+    if (!listing.name) return res.status(422).json({ error: "Could not find enough listing information on that page." });
+    const imageUrl = await downloadImage(listing.remoteImageUrl);
+    const product = await db.createProduct({
+      name: listing.name,
+      sku: listing.sku,
+      upc: listing.upc,
+      brand: listing.brand,
+      category: listing.category,
+      description: listing.description,
+      priceCents: listing.priceCents,
+      imageUrl,
+      sourceUrl: listing.sourceUrl,
+      active: true
+    });
+    res.status(201).json({
+      product: await productPayload(product, true, true),
+      imported: {
+        remoteImageUrl: listing.remoteImageUrl,
+        savedImage: Boolean(imageUrl),
+        currency: listing.currency
+      }
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Could not import that listing URL." });
+  }
 });
 
 app.post("/api/admin/products/:id/comparisons", requireAdmin, async (req, res) => {

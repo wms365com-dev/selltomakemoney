@@ -72,6 +72,11 @@
         </section>
         <section class="panel admin-add-product">
           <h2>Add product</h2>
+          <form id="importUrlForm" class="import-url-form">
+            <label>Import from listing URL<input name="url" type="url" placeholder="https://..." required autocomplete="off"></label>
+            <button type="submit">Import URL</button>
+            <p class="form-message" id="importUrlMessage"></p>
+          </form>
           <form id="productForm" class="product-form">
             <label>Name<input name="name" required autocomplete="off"></label>
             <label>Brand<input name="brand" autocomplete="organization"></label>
@@ -81,6 +86,7 @@
             <label>Price<input name="price" type="number" min="0" step="0.01" required></label>
             <label>Description<textarea name="description" rows="4"></textarea></label>
             <label>Image<input name="image" type="file" accept="image/*"></label>
+            <label>Source URL<input name="sourceUrl" type="url" placeholder="Optional"></label>
             <button class="primary" type="submit">Add product</button>
             <p class="form-message" id="productMessage"></p>
           </form>

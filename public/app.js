@@ -135,6 +135,7 @@ async function loadAdmin() {
       <div>
         <strong>${escapeHtml(product.name)}</strong>
         <p>${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.upc ? `| UPC ${escapeHtml(product.upc)}` : ""} | ${product.price} | ${product.active ? "Active" : "Hidden"}</p>
+        ${product.sourceUrl ? `<p><a class="source-link" href="${escapeHtml(product.sourceUrl)}" target="_blank" rel="noopener">Source listing</a></p>` : ""}
         <div class="mini-comparisons">
           ${(product.comparisons || []).map((item) => `<span>${escapeHtml(item.site)} ${escapeHtml(item.price)} <button type="button" data-delete-comparison="${item.id}">Remove</button></span>`).join("") || "<span>No competitor prices</span>"}
         </div>
@@ -230,6 +231,31 @@ document.querySelector("#registerForm").addEventListener("submit", async (event)
     event.target.reset();
   } catch (error) {
     message.textContent = error.message;
+  }
+});
+
+document.querySelector("#importUrlForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const message = document.querySelector("#importUrlMessage");
+  const submitButton = event.target.querySelector("button[type='submit']");
+  message.textContent = "";
+  submitButton.disabled = true;
+  submitButton.textContent = "Importing...";
+  try {
+    const body = Object.fromEntries(new FormData(event.target));
+    const data = await api("/api/admin/import-url", {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+    event.target.reset();
+    message.textContent = data.imported.savedImage ? "Imported with image saved." : "Imported. No image was available to save.";
+    await loadAdmin();
+    await loadProducts();
+  } catch (error) {
+    message.textContent = error.message;
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "Import URL";
   }
 });
 

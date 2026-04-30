@@ -248,7 +248,8 @@ h2 {
 }
 
 .comparison-box a,
-.comparison-links a {
+.comparison-links a,
+.source-link {
   color: var(--accent);
   font-weight: 700;
   text-decoration: none;
@@ -274,6 +275,21 @@ form,
 .product-form {
   display: grid;
   gap: 14px;
+}
+
+.import-url-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+}
+
+.import-url-form .form-message {
+  grid-column: 1 / -1;
+  min-height: 0;
 }
 
 label {
@@ -400,6 +416,7 @@ body[data-view="desktop"] .product-form {
 
 body[data-view="desktop"] .product-form label:nth-child(7),
 body[data-view="desktop"] .product-form label:nth-child(8),
+body[data-view="desktop"] .product-form label:nth-child(9),
 body[data-view="desktop"] .product-form button,
 body[data-view="desktop"] .product-form .form-message {
   grid-column: 1 / -1;
@@ -488,6 +505,11 @@ body[data-view="mobile"] .product-form {
   gap: 12px;
 }
 
+body[data-view="mobile"] .import-url-form {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
 body[data-view="mobile"] label {
   font-size: 13px;
 }
@@ -504,7 +526,8 @@ body[data-view="mobile"] textarea {
 }
 
 body[data-view="mobile"] .primary,
-body[data-view="mobile"] .product-form button[type="submit"] {
+body[data-view="mobile"] .product-form button[type="submit"],
+body[data-view="mobile"] .import-url-form button[type="submit"] {
   min-height: 52px;
   width: 100%;
 }
