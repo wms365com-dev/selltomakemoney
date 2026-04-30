@@ -1382,6 +1382,24 @@ function cleanSpec(value, max = 80) {
   return String(value || "").trim().slice(0, max);
 }
 
+function cleanCondition(value, fallback = "") {
+  const normalized = cleanSpec(value || fallback);
+  const aliases = {
+    bnib: "Brand New In Box (BNIB)",
+    "brand new in box": "Brand New In Box (BNIB)",
+    "brand new in box (bnib)": "Brand New In Box (BNIB)",
+    opr: "Open Box / Refurbished (OP/R)",
+    "op/r": "Open Box / Refurbished (OP/R)",
+    "open box": "Open Box / Refurbished (OP/R)",
+    refurbished: "Open Box / Refurbished (OP/R)",
+    "open box / refurbished (op/r)": "Open Box / Refurbished (OP/R)",
+    u: "Used (U)",
+    used: "Used (U)",
+    "used (u)": "Used (U)"
+  };
+  return aliases[normalized.toLowerCase()] || normalized;
+}
+
 function centsFromInput(value, fallback = null) {
   if (value === undefined || value === null || value === "") return fallback;
   const amount = Number(value);
@@ -1400,7 +1418,7 @@ function productSpecsFromBody(body, fallback = {}) {
     color: cleanSpec(body.color ?? fallback.color),
     material: cleanSpec(body.material ?? fallback.material),
     model: cleanSpec(body.model ?? fallback.model),
-    condition: cleanSpec(body.condition ?? fallback.condition),
+    condition: cleanCondition(body.condition, fallback.condition),
     fulfillmentType: ["pickup_only", "ships_or_pickup"].includes(cleanSpec(body.fulfillmentType ?? fallback.fulfillmentType)) ? cleanSpec(body.fulfillmentType ?? fallback.fulfillmentType) : "pickup_only",
     cost: cleanSpec(body.cost ?? fallback.cost),
     sourceNotes: cleanSpec(body.sourceNotes ?? fallback.sourceNotes, 500),

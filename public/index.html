@@ -332,7 +332,12 @@
                   <option value="pickup_only">Pickup only</option>
                   <option value="ships_or_pickup">Can be shipped or picked up</option>
                 </select></label>
-                <label>Condition<input name="condition" placeholder="New, open box, used"></label>
+                <label>Condition<select name="condition">
+                  <option value="">Select condition</option>
+                  <option value="Brand New In Box (BNIB)">Brand New In Box (BNIB)</option>
+                  <option value="Open Box / Refurbished (OP/R)">Open Box / Refurbished (OP/R)</option>
+                  <option value="Used (U)">Used (U)</option>
+                </select></label>
                 <label>Color<input name="color"></label>
               </div>
             </details>
@@ -398,6 +403,6 @@
     <div>Copyright &copy; <span data-year>2026</span> selltomakemoney.com. All rights reserved.</div>
   </footer>
 
-  <script src="/app.js?v=mobile-catalog-1"></script>
+  <script src="/app.js?v=condition-select-1"></script>
 </body>
 </html>

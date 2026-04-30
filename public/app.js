@@ -402,6 +402,17 @@ function specSelect(product, key, value, label) {
   return `<option value="${value}" ${product.productSpecs?.[key] === value ? "selected" : ""}>${label}</option>`;
 }
 
+function conditionSelect(product) {
+  const conditions = [
+    ["", "Select condition"],
+    ["Brand New In Box (BNIB)", "Brand New In Box (BNIB)"],
+    ["Open Box / Refurbished (OP/R)", "Open Box / Refurbished (OP/R)"],
+    ["Used (U)", "Used (U)"]
+  ];
+  const current = product.productSpecs?.condition || "";
+  return conditions.map(([value, label]) => `<option value="${escapeHtml(value)}" ${current === value ? "selected" : ""}>${escapeHtml(label)}</option>`).join("");
+}
+
 function productSpecsSummary(product) {
   const specs = product.productSpecs || {};
   const dimensions = [specs.length, specs.width, specs.height].filter(Boolean).join(" x ");
@@ -695,7 +706,7 @@ async function loadAdmin() {
                   <option value="pickup_only" ${product.productSpecs?.fulfillmentType === "ships_or_pickup" ? "" : "selected"}>Pickup only</option>
                   <option value="ships_or_pickup" ${product.productSpecs?.fulfillmentType === "ships_or_pickup" ? "selected" : ""}>Can be shipped or picked up</option>
                 </select></label>
-                <label>Condition<input name="condition" value="${specValue(product, "condition")}" placeholder="New, open box, used"></label>
+                <label>Condition<select name="condition">${conditionSelect(product)}</select></label>
                 <label>Color<input name="color" value="${specValue(product, "color")}"></label>
               </div>
             </details>
