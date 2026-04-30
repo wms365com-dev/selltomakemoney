@@ -9,6 +9,10 @@
 <body>
   <header class="topbar">
     <a class="brand" href="#store" data-route="store">Dealer Store</a>
+    <div class="view-switch" aria-label="View links">
+      <a href="/desktop" id="desktopViewLink">Desktop</a>
+      <a href="/mobile" id="mobileViewLink">Mobile</a>
+    </div>
     <nav>
       <button class="nav-button" data-route="store">Store</button>
       <button class="nav-button signed-out" data-route="login">Login</button>
@@ -66,11 +70,11 @@
           <h2>Dealer approvals</h2>
           <div id="usersList" class="stack"></div>
         </section>
-        <section class="panel">
+        <section class="panel admin-add-product">
           <h2>Add product</h2>
           <form id="productForm" class="product-form">
-            <label>Name<input name="name" required></label>
-            <label>Brand<input name="brand"></label>
+            <label>Name<input name="name" required autocomplete="off"></label>
+            <label>Brand<input name="brand" autocomplete="organization"></label>
             <label>SKU<input name="sku"></label>
             <label>UPC<input name="upc" inputmode="numeric"></label>
             <label>Category<input name="category"></label>
@@ -78,6 +82,7 @@
             <label>Description<textarea name="description" rows="4"></textarea></label>
             <label>Image<input name="image" type="file" accept="image/*"></label>
             <button class="primary" type="submit">Add product</button>
+            <p class="form-message" id="productMessage"></p>
           </form>
         </section>
         <section class="panel wide">

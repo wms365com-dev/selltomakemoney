@@ -455,7 +455,16 @@ app.use(session({
   }
 }));
 app.use("/uploads", express.static(UPLOAD_DIR));
-app.use(express.static(path.join(ROOT, "public")));
+app.use(express.static(path.join(ROOT, "public"), { index: false }));
+
+function isMobileRequest(req) {
+  const ua = req.get("user-agent") || "";
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(ua);
+}
+
+function sendApp(_req, res) {
+  res.sendFile(path.join(ROOT, "public", "index.html"));
+}
 
 function publicUser(user) {
   if (!user) return null;
@@ -661,9 +670,13 @@ app.get("/api/admin/inquiries", requireAdmin, async (_req, res) => {
   res.json({ inquiries: await db.listInquiries() });
 });
 
-app.get("*", (_req, res) => {
-  res.sendFile(path.join(ROOT, "public", "index.html"));
+app.get("/", (req, res) => {
+  res.redirect(isMobileRequest(req) ? "/mobile" : "/desktop");
 });
+
+app.get(["/desktop", "/mobile"], sendApp);
+
+app.get("*", sendApp);
 
 async function start() {
   await db.init();

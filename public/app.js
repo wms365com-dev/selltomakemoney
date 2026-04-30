@@ -1,4 +1,8 @@
 let sessionUser = null;
+const viewMode = window.location.pathname.includes("mobile") ? "mobile" : "desktop";
+document.body.dataset.view = viewMode;
+document.querySelector("#desktopViewLink").classList.toggle("active", viewMode === "desktop");
+document.querySelector("#mobileViewLink").classList.toggle("active", viewMode === "mobile");
 
 const views = {
   store: document.querySelector("#storeView"),
@@ -231,11 +235,24 @@ document.querySelector("#registerForm").addEventListener("submit", async (event)
 
 document.querySelector("#productForm").addEventListener("submit", async (event) => {
   event.preventDefault();
+  const message = document.querySelector("#productMessage");
+  const submitButton = event.target.querySelector("button[type='submit']");
+  message.textContent = "";
+  submitButton.disabled = true;
+  submitButton.textContent = "Adding...";
   const form = new FormData(event.target);
-  await api("/api/admin/products", { method: "POST", body: form });
-  event.target.reset();
-  loadAdmin();
-  loadProducts();
+  try {
+    await api("/api/admin/products", { method: "POST", body: form });
+    event.target.reset();
+    message.textContent = "Product added.";
+    await loadAdmin();
+    await loadProducts();
+  } catch (error) {
+    message.textContent = error.message;
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "Add product";
+  }
 });
 
 document.addEventListener("submit", async (event) => {

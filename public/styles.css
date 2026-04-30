@@ -24,7 +24,8 @@ body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
@@ -48,6 +49,30 @@ textarea {
   font-size: 20px;
   font-weight: 800;
   text-decoration: none;
+}
+
+.view-switch {
+  display: flex;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 3px;
+}
+
+.view-switch a {
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 9px 10px;
+  text-decoration: none;
+}
+
+.view-switch a.active {
+  background: var(--accent);
+  color: #fff;
 }
 
 nav {
@@ -260,7 +285,8 @@ label {
 }
 
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -366,6 +392,145 @@ textarea {
 .danger {
   border-color: var(--danger);
   color: var(--danger);
+}
+
+body[data-view="desktop"] .product-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+body[data-view="desktop"] .product-form label:nth-child(7),
+body[data-view="desktop"] .product-form label:nth-child(8),
+body[data-view="desktop"] .product-form button,
+body[data-view="desktop"] .product-form .form-message {
+  grid-column: 1 / -1;
+}
+
+body[data-view="mobile"] {
+  padding-bottom: 82px;
+}
+
+body[data-view="mobile"] .topbar {
+  position: sticky;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 14px 16px;
+}
+
+body[data-view="mobile"] .brand {
+  font-size: 18px;
+}
+
+body[data-view="mobile"] .view-switch {
+  order: 3;
+  width: 100%;
+}
+
+body[data-view="mobile"] .view-switch a {
+  flex: 1;
+  text-align: center;
+}
+
+body[data-view="mobile"] nav {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 8px;
+  box-shadow: 0 12px 30px rgba(23, 33, 28, 0.18);
+}
+
+body[data-view="mobile"] .nav-button {
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 6px;
+}
+
+body[data-view="mobile"] main {
+  width: min(100% - 24px, 520px);
+  padding: 24px 0;
+}
+
+body[data-view="mobile"] .section-head {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+body[data-view="mobile"] h1 {
+  font-size: 34px;
+}
+
+body[data-view="mobile"] .product-grid,
+body[data-view="mobile"] .stats,
+body[data-view="mobile"] .admin-layout {
+  grid-template-columns: 1fr;
+}
+
+body[data-view="mobile"] .admin-add-product {
+  order: -1;
+}
+
+body[data-view="mobile"] .panel {
+  padding: 16px;
+}
+
+body[data-view="mobile"] .product-form {
+  gap: 12px;
+}
+
+body[data-view="mobile"] label {
+  font-size: 13px;
+}
+
+body[data-view="mobile"] input,
+body[data-view="mobile"] textarea,
+body[data-view="mobile"] select {
+  min-height: 48px;
+  font-size: 16px;
+}
+
+body[data-view="mobile"] textarea {
+  min-height: 112px;
+}
+
+body[data-view="mobile"] .primary,
+body[data-view="mobile"] .product-form button[type="submit"] {
+  min-height: 52px;
+  width: 100%;
+}
+
+body[data-view="mobile"] .row {
+  grid-template-columns: 1fr;
+}
+
+body[data-view="mobile"] .row-actions,
+body[data-view="mobile"] .comparison-links {
+  justify-content: stretch;
+}
+
+body[data-view="mobile"] .row-actions button {
+  flex: 1;
+}
+
+body[data-view="mobile"] .comparison-form {
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+body[data-view="mobile"] .comparison-form input[name="site"],
+body[data-view="mobile"] .comparison-form input[name="productUrl"],
+body[data-view="mobile"] .comparison-form button {
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 760px) {
