@@ -37,7 +37,7 @@ function productImage(product) {
   if (product.imageUrl) {
     return `<div class="product-image"><img src="${product.imageUrl}" alt="${escapeHtml(product.name)}"></div>`;
   }
-  return `<div class="product-image">${escapeHtml(product.category || "Dealer")}</div>`;
+  return `<div class="product-image">${escapeHtml(product.brand || product.category || "Dealer")}</div>`;
 }
 
 function escapeHtml(value) {
@@ -60,11 +60,10 @@ async function loadProducts() {
       <div class="product-body">
         <div>
           <h2>${escapeHtml(product.name)}</h2>
-          <p class="sku">${escapeHtml(product.sku)} ${product.upc ? `| UPC ${escapeHtml(product.upc)}` : ""} ${product.category ? `| ${escapeHtml(product.category)}` : ""}</p>
+          <p class="sku">${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.category ? `| ${escapeHtml(product.category)}` : ""}</p>
         </div>
         <p>${escapeHtml(product.description)}</p>
-        <div class="${product.price ? "price" : "locked"}">${product.price || "Login to view dealer price"}</div>
-        ${comparisonBlock(product)}
+        ${product.price ? `<div class="price">${product.price}</div>` : `<div class="locked">Dealer login required for pricing</div>`}
         ${product.price ? `<button class="primary" data-inquire="${product.id}">Request quote</button>` : ""}
       </div>
     </article>
@@ -131,7 +130,7 @@ async function loadAdmin() {
     <div class="row">
       <div>
         <strong>${escapeHtml(product.name)}</strong>
-        <p>${escapeHtml(product.sku)} ${product.upc ? `| UPC ${escapeHtml(product.upc)}` : ""} | ${product.price} | ${product.active ? "Active" : "Hidden"}</p>
+        <p>${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.upc ? `| UPC ${escapeHtml(product.upc)}` : ""} | ${product.price} | ${product.active ? "Active" : "Hidden"}</p>
         <div class="mini-comparisons">
           ${(product.comparisons || []).map((item) => `<span>${escapeHtml(item.site)} ${escapeHtml(item.price)} <button type="button" data-delete-comparison="${item.id}">Remove</button></span>`).join("") || "<span>No competitor prices</span>"}
         </div>

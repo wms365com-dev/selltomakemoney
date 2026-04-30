@@ -55,7 +55,7 @@ function readJsonStore() {
   const data = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
   data.nextIds.comparisons ||= 1;
   data.comparisons ||= [];
-  data.products = data.products.map((product) => ({ upc: "", ...product }));
+  data.products = data.products.map((product) => ({ brand: "", upc: "", ...product }));
   return data;
 }
 
@@ -185,6 +185,7 @@ function camelProduct(row) {
     sku: row.sku,
     upc: row.upc,
     category: row.category,
+    brand: row.brand,
     description: row.description,
     priceCents: row.price_cents,
     imageUrl: row.image_url,
@@ -236,10 +237,10 @@ function createPostgresDatabase() {
     }
     for (const product of old.products) {
       await query(`
-        INSERT INTO products (id, name, sku, upc, category, description, price_cents, image_url, active, created_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        INSERT INTO products (id, name, sku, upc, brand, category, description, price_cents, image_url, active, created_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
         ON CONFLICT (id) DO NOTHING
-      `, [product.id, product.name, product.sku, product.upc || "", product.category, product.description, product.priceCents, product.imageUrl, product.active, product.createdAt || new Date()]);
+      `, [product.id, product.name, product.sku, product.upc || "", product.brand || "", product.category, product.description, product.priceCents, product.imageUrl, product.active, product.createdAt || new Date()]);
     }
     for (const inquiry of old.inquiries) {
       await query(`
@@ -281,6 +282,7 @@ function createPostgresDatabase() {
           name TEXT NOT NULL,
           sku TEXT NOT NULL DEFAULT '',
           upc TEXT NOT NULL DEFAULT '',
+          brand TEXT NOT NULL DEFAULT '',
           category TEXT NOT NULL DEFAULT '',
           description TEXT NOT NULL DEFAULT '',
           price_cents INTEGER NOT NULL DEFAULT 0,
@@ -310,7 +312,8 @@ function createPostgresDatabase() {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
         CREATE INDEX IF NOT EXISTS idx_products_upc ON products(upc);
-        CREATE INDEX IF NOT EXISTS idx_products_search ON products USING gin(to_tsvector('english', name || ' ' || description || ' ' || sku || ' ' || upc));
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS brand TEXT NOT NULL DEFAULT '';
+        CREATE INDEX IF NOT EXISTS idx_products_search ON products USING gin(to_tsvector('english', name || ' ' || description || ' ' || sku || ' ' || upc || ' ' || brand));
         CREATE INDEX IF NOT EXISTS idx_price_comparisons_product ON price_comparisons(product_id);
       `);
       await migrateFromJsonIfEmpty();
@@ -357,16 +360,16 @@ function createPostgresDatabase() {
     },
     async createProduct(product) {
       const result = await query(`
-        INSERT INTO products (name, sku, upc, category, description, price_cents, image_url, active)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *
-      `, [product.name, product.sku, product.upc, product.category, product.description, product.priceCents, product.imageUrl, product.active]);
+        INSERT INTO products (name, sku, upc, brand, category, description, price_cents, image_url, active)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *
+      `, [product.name, product.sku, product.upc, product.brand, product.category, product.description, product.priceCents, product.imageUrl, product.active]);
       return camelProduct(result.rows[0]);
     },
     async updateProduct(id, product) {
       const result = await query(`
-        UPDATE products SET name=$1, sku=$2, upc=$3, category=$4, description=$5, price_cents=$6, image_url=$7, active=$8
-        WHERE id=$9 RETURNING *
-      `, [product.name, product.sku, product.upc, product.category, product.description, product.priceCents, product.imageUrl, product.active, id]);
+        UPDATE products SET name=$1, sku=$2, upc=$3, brand=$4, category=$5, description=$6, price_cents=$7, image_url=$8, active=$9
+        WHERE id=$10 RETURNING *
+      `, [product.name, product.sku, product.upc, product.brand, product.category, product.description, product.priceCents, product.imageUrl, product.active, id]);
       return camelProduct(result.rows[0]);
     },
     async listComparisons(productId) {
@@ -415,9 +418,9 @@ function createPostgresDatabase() {
 
 function seedProductRows() {
   return [
-    { name: "Dealer Starter Kit", sku: "DSK-100", upc: "", category: "Starter", description: "A ready-to-sell bundle for new dealer accounts.", priceCents: 19900, imageUrl: "", active: true },
-    { name: "Premium Inventory Pack", sku: "PIP-250", upc: "", category: "Inventory", description: "Higher-margin product mix for established dealers.", priceCents: 54900, imageUrl: "", active: true },
-    { name: "Display Sample Set", sku: "DSS-050", upc: "", category: "Samples", description: "Showroom samples and sell sheets for in-person selling.", priceCents: 8900, imageUrl: "", active: true }
+    { name: "Dealer Starter Kit", sku: "DSK-100", upc: "", brand: "House Brand", category: "Starter", description: "A ready-to-sell bundle for new dealer accounts.", priceCents: 19900, imageUrl: "", active: true },
+    { name: "Premium Inventory Pack", sku: "PIP-250", upc: "", brand: "House Brand", category: "Inventory", description: "Higher-margin product mix for established dealers.", priceCents: 54900, imageUrl: "", active: true },
+    { name: "Display Sample Set", sku: "DSS-050", upc: "", brand: "House Brand", category: "Samples", description: "Showroom samples and sell sheets for in-person selling.", priceCents: 8900, imageUrl: "", active: true }
   ];
 }
 
@@ -487,19 +490,24 @@ async function requireAdmin(req, res, next) {
   next();
 }
 
-async function productPayload(product, showPrice) {
-  const comparisons = await db.listComparisons(product.id);
-  return {
+async function productPayload(product, showPrice, includeAdminData = false) {
+  const payload = {
     id: product.id,
     name: product.name,
     sku: product.sku,
     upc: product.upc,
+    brand: product.brand,
     category: product.category,
     description: product.description,
     imageUrl: product.imageUrl,
     active: Boolean(product.active),
     priceCents: showPrice ? product.priceCents : null,
-    price: showPrice ? dollars(product.priceCents) : null,
+    price: showPrice ? dollars(product.priceCents) : null
+  };
+  if (!includeAdminData) return payload;
+  const comparisons = await db.listComparisons(product.id);
+  return {
+    ...payload,
     comparisons: comparisons.map((comparison) => ({
       id: comparison.id,
       site: comparison.site,
@@ -556,7 +564,7 @@ app.get("/api/products", async (req, res) => {
   const user = await currentUser(req);
   const showPrice = Boolean(user && user.status === "approved");
   const products = await db.listProducts({ activeOnly: true });
-  res.json({ products: await Promise.all(products.map((product) => productPayload(product, showPrice))), canSeePrices: showPrice });
+  res.json({ products: await Promise.all(products.map((product) => productPayload(product, showPrice, false))), canSeePrices: showPrice });
 });
 
 app.post("/api/inquiries", requireLogin, async (req, res) => {
@@ -591,7 +599,7 @@ app.patch("/api/admin/users/:id", requireAdmin, async (req, res) => {
 
 app.get("/api/admin/products", requireAdmin, async (_req, res) => {
   const products = await db.listProducts();
-  res.json({ products: await Promise.all(products.map((product) => productPayload(product, true))) });
+  res.json({ products: await Promise.all(products.map((product) => productPayload(product, true, true))) });
 });
 
 app.post("/api/admin/products", requireAdmin, upload.single("image"), async (req, res) => {
@@ -600,6 +608,7 @@ app.post("/api/admin/products", requireAdmin, upload.single("image"), async (req
     name: String(req.body.name || "").trim(),
     sku: String(req.body.sku || "").trim(),
     upc: String(req.body.upc || "").trim(),
+    brand: String(req.body.brand || "").trim(),
     category: String(req.body.category || "").trim(),
     description: String(req.body.description || "").trim(),
     priceCents: Math.round(Number(req.body.price || 0) * 100),
@@ -616,13 +625,14 @@ app.patch("/api/admin/products/:id", requireAdmin, upload.single("image"), async
     name: String(req.body.name || existing.name).trim(),
     sku: String(req.body.sku || "").trim(),
     upc: String(req.body.upc || "").trim(),
+    brand: String(req.body.brand || "").trim(),
     category: String(req.body.category || "").trim(),
     description: String(req.body.description || "").trim(),
     priceCents: Math.round(Number(req.body.price || existing.priceCents / 100) * 100),
     imageUrl: req.file ? `/uploads/${req.file.filename}` : existing.imageUrl,
     active: req.body.active !== "false"
   });
-  res.json({ product: await productPayload(product, true) });
+  res.json({ product: await productPayload(product, true, true) });
 });
 
 app.post("/api/admin/products/:id/comparisons", requireAdmin, async (req, res) => {
