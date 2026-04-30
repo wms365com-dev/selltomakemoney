@@ -303,7 +303,22 @@
                 <label>Brand<input name="brand" autocomplete="organization"></label>
                 <label>SKU<input name="sku"></label>
                 <label>UPC<input name="upc" inputmode="numeric"></label>
-                <label>Category<input name="category"></label>
+                <label>Category<select name="category" required>
+                  <option value="">Select category</option>
+                  <option>Electronics</option>
+                  <option>Scooters & Mobility</option>
+                  <option>Tools & Hardware</option>
+                  <option>Home & Office</option>
+                  <option>Furniture</option>
+                  <option>Appliances</option>
+                  <option>Automotive</option>
+                  <option>Warehouse & Storage</option>
+                  <option>Safety</option>
+                  <option>Janitorial</option>
+                  <option>Clothing & Accessories</option>
+                  <option>Toys & Games</option>
+                  <option>Other</option>
+                </select></label>
                 <label>Model<input name="model" autocomplete="off"></label>
               </div>
             </details>
@@ -403,6 +418,6 @@
     <div>Copyright &copy; <span data-year>2026</span> selltomakemoney.com. All rights reserved.</div>
   </footer>
 
-  <script src="/app.js?v=condition-select-1"></script>
+  <script src="/app.js?v=category-required-1"></script>
 </body>
 </html>

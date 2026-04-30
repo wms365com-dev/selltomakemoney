@@ -18,6 +18,21 @@ const categoryTiles = document.querySelector("#categoryTiles");
 const appStatus = document.querySelector("#appStatus");
 const appStatusText = document.querySelector("#appStatusText");
 const minimumStatusMs = 140;
+const productCategories = [
+  "Electronics",
+  "Scooters & Mobility",
+  "Tools & Hardware",
+  "Home & Office",
+  "Furniture",
+  "Appliances",
+  "Automotive",
+  "Warehouse & Storage",
+  "Safety",
+  "Janitorial",
+  "Clothing & Accessories",
+  "Toys & Games",
+  "Other"
+];
 let statusDepth = 0;
 let productCache = [];
 let cart = JSON.parse(localStorage.getItem("dealerCart") || "[]");
@@ -402,6 +417,11 @@ function specSelect(product, key, value, label) {
   return `<option value="${value}" ${product.productSpecs?.[key] === value ? "selected" : ""}>${label}</option>`;
 }
 
+function categorySelect(currentCategory = "") {
+  const current = currentCategory || "";
+  return `<option value="">Select category</option>${productCategories.map((category) => `<option value="${escapeHtml(category)}" ${current === category ? "selected" : ""}>${escapeHtml(category)}</option>`).join("")}`;
+}
+
 function conditionSelect(product) {
   const conditions = [
     ["", "Select condition"],
@@ -681,7 +701,7 @@ async function loadAdmin() {
                 <label>Brand<input name="brand" value="${escapeHtml(product.brand)}" autocomplete="organization"></label>
                 <label>SKU<input name="sku" value="${escapeHtml(product.sku)}"></label>
                 <label>UPC<input name="upc" value="${escapeHtml(product.upc)}" inputmode="numeric"></label>
-                <label>Category<input name="category" value="${escapeHtml(product.category)}"></label>
+                <label>Category<select name="category" required>${categorySelect(product.category)}</select></label>
                 <label>Model<input name="model" value="${specValue(product, "model")}" autocomplete="off"></label>
               </div>
             </details>

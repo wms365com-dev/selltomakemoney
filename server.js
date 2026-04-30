@@ -20,6 +20,21 @@ const SESSION_SECRET = process.env.SESSION_SECRET || "replace-this-before-produc
 const ADMIN_EMAIL = "k.prathab@gmail.com";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "DealerStore!2026";
 const AMAZON_AFFILIATE_TAG = process.env.AMAZON_AFFILIATE_TAG || "dealerstore-20";
+const PRODUCT_CATEGORIES = [
+  "Electronics",
+  "Scooters & Mobility",
+  "Tools & Hardware",
+  "Home & Office",
+  "Furniture",
+  "Appliances",
+  "Automotive",
+  "Warehouse & Storage",
+  "Safety",
+  "Janitorial",
+  "Clothing & Accessories",
+  "Toys & Games",
+  "Other"
+];
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
@@ -1382,6 +1397,36 @@ function cleanSpec(value, max = 80) {
   return String(value || "").trim().slice(0, max);
 }
 
+function normalizeCategory(value, { fallback = "", required = false } = {}) {
+  const raw = cleanSpec(value || fallback, 120);
+  const exact = PRODUCT_CATEGORIES.find((category) => category.toLowerCase() === raw.toLowerCase());
+  if (exact) return exact;
+  if (!raw) {
+    if (required) throw new Error("Choose a category for this item.");
+    return "";
+  }
+  const text = raw.toLowerCase();
+  const rules = [
+    ["Scooters & Mobility", /\b(scooter|bike|bicycle|mobility|wheelchair|segway|hoverboard)\b/],
+    ["Tools & Hardware", /\b(tool|drill|saw|wrench|hardware|compressor|ladder|generator)\b/],
+    ["Electronics", /\b(electronic|computer|laptop|tablet|phone|camera|tv|audio|speaker|monitor|console)\b/],
+    ["Home & Office", /\b(office|desk|chair|home|decor|kitchen|bath|household)\b/],
+    ["Furniture", /\b(furniture|sofa|table|cabinet|shelf|dresser|mattress|bed)\b/],
+    ["Appliances", /\b(appliance|fridge|freezer|washer|dryer|microwave|oven|dishwasher|vacuum)\b/],
+    ["Automotive", /\b(auto|automotive|car|truck|tire|wheel|battery|garage)\b/],
+    ["Warehouse & Storage", /\b(warehouse|storage|rack|shelving|pallet|bin|tote|material handling)\b/],
+    ["Safety", /\b(safety|ppe|vest|cone|traffic|first aid|helmet|glove)\b/],
+    ["Janitorial", /\b(janitorial|cleaning|mop|broom|sanitizer|trash|garbage)\b/],
+    ["Clothing & Accessories", /\b(clothing|shirt|pants|jacket|shoes|boots|accessory|bag)\b/],
+    ["Toys & Games", /\b(toy|game|kids|children|puzzle|lego)\b/]
+  ];
+  return rules.find(([, pattern]) => pattern.test(text))?.[0] || "Other";
+}
+
+function inferCategoryFromListing(listing) {
+  return normalizeCategory([listing.category, listing.name, listing.description, listing.brand].filter(Boolean).join(" "));
+}
+
 function cleanCondition(value, fallback = "") {
   const normalized = cleanSpec(value || fallback);
   const aliases = {
@@ -1629,12 +1674,13 @@ app.post("/api/admin/products", requireAdmin, productImageUpload, async (req, re
     const imageUrls = uploadedImageUrls(req);
     const quantityOnHand = Math.max(0, Math.floor(Number(req.body.quantityOnHand || 0)));
     const productSpecs = appendStockHistory(productSpecsFromBody(req.body), 0, quantityOnHand, "created");
+    const category = normalizeCategory(req.body.category, { required: true });
     const product = await db.createProduct({
       name: String(req.body.name || "").trim(),
       sku: String(req.body.sku || "").trim(),
       upc: String(req.body.upc || "").trim(),
       brand: String(req.body.brand || "").trim(),
-      category: String(req.body.category || "").trim(),
+      category,
       description: String(req.body.description || "").trim(),
       priceCents: centsFromInput(req.body.price, 0),
       dealerPriceCents: centsFromInput(req.body.dealerPrice),
@@ -1659,12 +1705,13 @@ app.patch("/api/admin/products/:id", requireAdmin, productImageUpload, async (re
   const imageUrls = newImageUrls.length ? newImageUrls : (existing.imageUrls || (existing.imageUrl ? [existing.imageUrl] : []));
   const quantityOnHand = Math.max(0, Math.floor(Number(req.body.quantityOnHand ?? existing.quantityOnHand ?? 0)));
   const productSpecs = appendStockHistory(productSpecsFromBody(req.body, existing.productSpecs || {}), existing.quantityOnHand, quantityOnHand);
+  const category = normalizeCategory(req.body.category, { fallback: existing.category, required: true });
   const product = await db.updateProduct(existing.id, {
     name: String(req.body.name || existing.name).trim(),
     sku: String(req.body.sku || "").trim(),
     upc: String(req.body.upc || "").trim(),
     brand: String(req.body.brand || "").trim(),
-    category: String(req.body.category || "").trim(),
+    category,
     description: String(req.body.description || "").trim(),
     priceCents: centsFromInput(req.body.price, existing.priceCents),
     dealerPriceCents: centsFromInput(req.body.dealerPrice, existing.dealerPriceCents),
@@ -1702,7 +1749,7 @@ app.post("/api/admin/import-url", requireAdmin, async (req, res) => {
       sku: listing.sku,
       upc: listing.upc,
       brand: listing.brand,
-      category: listing.category,
+      category: inferCategoryFromListing(listing),
       description: listing.description,
       priceCents: listing.priceCents || 0,
       dealerPriceCents: null,
