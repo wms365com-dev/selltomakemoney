@@ -58,25 +58,27 @@
     <a class="brand" href="#store" data-route="store" aria-label="selltomakemoney.com home">
       <img src="/assets/logo.svg?v=sell-share-tools-1" alt="selltomakemoney.com">
     </a>
-    <button class="cart-icon-button" type="button" data-route="cart" aria-label="Open cart">
-      <span class="cart-icon" aria-hidden="true"></span>
-      <span class="cart-copy">Cart</span>
-      <span class="cart-count-badge" id="cartCount">0</span>
-    </button>
-    <nav class="nav-menu" aria-label="Main navigation">
-      <details id="mainMenu">
-        <summary class="menu-trigger">Menu</summary>
-        <div class="menu-panel">
-          <button class="nav-button" data-route="store">Store</button>
-          <button class="nav-button signed-out" data-route="login">Login</button>
-          <button class="nav-button signed-out" data-route="register">Register</button>
-          <a class="nav-button" href="/dealers">Dealer Info</a>
-          <button class="nav-button" data-route="cart">Cart</button>
-          <button class="nav-button admin-only hidden" data-route="admin">Admin</button>
-          <button class="nav-button signed-in hidden" id="logoutButton">Logout</button>
-        </div>
-      </details>
-    </nav>
+    <div class="header-actions">
+      <button class="cart-icon-button" type="button" data-route="cart" aria-label="Open cart">
+        <span class="cart-icon" aria-hidden="true"></span>
+        <span class="cart-copy">Cart</span>
+        <span class="cart-count-badge" id="cartCount">0</span>
+      </button>
+      <nav class="nav-menu" aria-label="Main navigation">
+        <details id="mainMenu">
+          <summary class="menu-trigger">Menu</summary>
+          <div class="menu-panel">
+            <button class="nav-button" data-route="store">Store</button>
+            <button class="nav-button signed-out" data-route="login">Login</button>
+            <button class="nav-button signed-out" data-route="register">Register</button>
+            <a class="nav-button" href="/dealers">Dealer Info</a>
+            <button class="nav-button" data-route="cart">Cart</button>
+            <button class="nav-button admin-only hidden" data-route="admin">Admin</button>
+            <button class="nav-button signed-in hidden" id="logoutButton">Logout</button>
+          </div>
+        </details>
+      </nav>
+    </div>
   </header>
 
   <main>

@@ -64,6 +64,14 @@ select {
   height: auto;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-left: auto;
+}
+
 .cart-icon-button {
   position: relative;
   gap: 8px;
@@ -1498,10 +1506,14 @@ body[data-view="mobile"] .brand img {
   width: min(220px, 76vw);
 }
 
-body[data-view="mobile"] .cart-icon-button {
+body[data-view="mobile"] .header-actions {
   position: absolute;
   top: 18px;
   right: 16px;
+  gap: 8px;
+}
+
+body[data-view="mobile"] .cart-icon-button {
   min-width: 54px;
   min-height: 48px;
   padding: 0 12px;
@@ -1512,8 +1524,7 @@ body[data-view="mobile"] .cart-copy {
 }
 
 body[data-view="mobile"] .nav-menu {
-  order: 2;
-  width: 100%;
+  width: auto;
 }
 
 body[data-view="mobile"] .menu-trigger {
