@@ -276,12 +276,14 @@
       </div>
       <div class="stats" id="adminStats"></div>
       <div class="admin-layout">
-        <section class="panel">
-          <h2>Dealer approvals</h2>
-          <div id="usersList" class="stack"></div>
-        </section>
-        <section class="panel admin-add-product">
-          <h2>Add product</h2>
+        <section class="panel admin-add-product wide">
+          <div class="admin-workspace-head">
+            <div>
+              <p class="eyebrow">Inventory data entry</p>
+              <h2>Add product</h2>
+            </div>
+            <span>Paste/import first, then review the required fields before saving.</span>
+          </div>
           <form id="importUrlForm" class="import-url-form">
             <label>Import from listing URL<input name="url" type="url" placeholder="https://..." required autocomplete="off"></label>
             <label>Qty on hand<input name="quantityOnHand" type="number" min="0" step="1" value="1"></label>
@@ -385,6 +387,19 @@
             <button class="primary" type="submit">Add product</button>
             <p class="form-message" id="productMessage"></p>
           </form>
+        </section>
+        <section class="panel">
+          <h2>Dealer approvals</h2>
+          <div id="usersList" class="stack"></div>
+        </section>
+        <section class="panel">
+          <h2>Quick workflow</h2>
+          <div class="workflow-steps">
+            <span>1. Import or enter item details</span>
+            <span>2. Choose category, condition, price, and qty</span>
+            <span>3. Add photos and save</span>
+            <span>4. Copy listing text for Facebook or share the item link</span>
+          </div>
         </section>
         <section class="panel wide">
           <h2>Products</h2>

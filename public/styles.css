@@ -1157,6 +1157,28 @@ h2 {
   border-color: rgba(255, 153, 0, 0.36);
 }
 
+.admin-workspace-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid var(--line);
+  margin: -4px 0 18px;
+  padding-bottom: 14px;
+}
+
+.admin-workspace-head h2 {
+  margin: 0;
+}
+
+.admin-workspace-head span {
+  max-width: 420px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+  text-align: right;
+}
+
 .auth-panel {
   width: min(440px, 100%);
   margin: 40px auto;
@@ -1350,6 +1372,20 @@ select {
 
 .wide {
   grid-column: 1 / -1;
+}
+
+.workflow-steps {
+  display: grid;
+  gap: 10px;
+}
+
+.workflow-steps span {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--nav);
+  font-weight: 800;
+  padding: 12px;
 }
 
 .stack {
@@ -1563,7 +1599,23 @@ select {
 }
 
 body[data-view="desktop"] .listing-section-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+body[data-view="desktop"] .admin-add-product {
+  padding: 28px;
+}
+
+body[data-view="desktop"] .admin-add-product .import-url-form {
+  grid-template-columns: minmax(0, 1.4fr) 150px auto;
+}
+
+body[data-view="desktop"] .product-form {
+  gap: 18px;
+}
+
+body[data-view="desktop"] .listing-section-grid .wide-field {
+  grid-column: 1 / -1;
 }
 
 body[data-view="desktop"] .product-form button,
@@ -1878,6 +1930,15 @@ body[data-view="mobile"] .admin-layout,
 body[data-view="mobile"] .checkout-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+}
+
+body[data-view="mobile"] .admin-workspace-head {
+  align-items: start;
+  flex-direction: column;
+}
+
+body[data-view="mobile"] .admin-workspace-head span {
+  text-align: left;
 }
 
 body[data-view="mobile"] .checkout-layout,
