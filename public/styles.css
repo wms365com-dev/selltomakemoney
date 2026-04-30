@@ -378,6 +378,49 @@ h2 {
   padding: 7px 10px;
 }
 
+.recommended-addons {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.recommended-title {
+  color: var(--accent-dark);
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.addon-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.addon-pill {
+  display: grid;
+  gap: 2px;
+  min-width: 150px;
+  border: 1px solid rgba(29, 107, 84, 0.18);
+  border-radius: 8px;
+  background: rgba(29, 107, 84, 0.05);
+  padding: 9px 10px;
+}
+
+.addon-pill span {
+  font-weight: 800;
+}
+
+.addon-pill small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.addon-pill strong {
+  color: var(--accent);
+}
+
 .comparison-box {
   display: grid;
   gap: 8px;
@@ -596,6 +639,39 @@ select {
 .product-edit-form small {
   color: var(--muted);
   font-weight: 700;
+}
+
+.addon-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin: 0;
+  padding: 12px;
+}
+
+.addon-picker legend {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+  padding: 0 6px;
+}
+
+.addon-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid rgba(29, 107, 84, 0.14);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  padding: 9px;
+}
+
+.addon-choice input {
+  width: auto;
+  margin-top: 2px;
 }
 
 .facebook-listing textarea {

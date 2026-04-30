@@ -116,6 +116,24 @@ function productImage(product) {
   return `<div class="product-image">${escapeHtml(product.brand || product.category || "Dealer")}</div>`;
 }
 
+function recommendedAddonsBlock(product) {
+  if (!product.recommendedAddons?.length) return "";
+  return `
+    <div class="recommended-addons">
+      <div class="recommended-title">Recommended add-ons</div>
+      <div class="addon-list">
+        ${product.recommendedAddons.map((addon) => `
+          <div class="addon-pill">
+            <span>${escapeHtml(addon.name)}</span>
+            ${addon.brand ? `<small>${escapeHtml(addon.brand)}</small>` : ""}
+            ${addon.price ? `<strong>${escapeHtml(addon.price)}</strong>` : ""}
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -158,6 +176,7 @@ async function loadProducts() {
           </div>
           <p>${escapeHtml(product.description)}</p>
           ${product.price ? `<div class="price">${product.price}</div>` : `<div class="locked">Dealer login required for pricing</div>`}
+          ${recommendedAddonsBlock(product)}
           ${product.price ? `<button class="primary" data-inquire="${product.id}">Request quote</button>` : ""}
         </div>
       </article>
@@ -227,6 +246,15 @@ async function loadAdmin() {
     </div>
   `).join("");
 
+  const addonChoices = (product) => products.products
+    .filter((item) => item.id !== product.id)
+    .map((item) => `
+      <label class="addon-choice">
+        <input type="checkbox" name="recommendedAddonIds" value="${item.id}" ${(product.recommendedAddonIds || []).includes(item.id) ? "checked" : ""}>
+        <span>${escapeHtml(item.name)}</span>
+      </label>
+    `).join("");
+
   document.querySelector("#adminProducts").innerHTML = products.products.map((product) => `
     <div class="row">
       <div>
@@ -250,12 +278,17 @@ async function loadAdmin() {
             <label class="wide-field">Description<textarea name="description" rows="3">${escapeHtml(product.description)}</textarea></label>
             <label class="wide-field">Source URL<input name="sourceUrl" type="url" value="${escapeHtml(product.sourceUrl)}" placeholder="Optional"></label>
             <label class="wide-field">Replace images<input name="images" type="file" accept="image/*" multiple><small>Leave empty to keep current photos.</small></label>
+            <fieldset class="addon-picker wide-field">
+              <legend>Recommended add-ons</legend>
+              ${addonChoices(product) || "<p>No other products available yet.</p>"}
+            </fieldset>
             <div class="row-actions wide-field">
               <button class="primary" type="submit">Save changes</button>
             </div>
             <p class="form-message wide-field"></p>
           </form>
         </details>
+        ${recommendedAddonsBlock(product)}
         <details class="facebook-listing">
           <summary>List on Facebook</summary>
           <textarea readonly rows="9" id="facebookListing${product.id}">${escapeHtml(facebookListingText(product))}</textarea>

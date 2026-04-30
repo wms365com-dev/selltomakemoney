@@ -178,6 +178,14 @@ function extractListing(html, listingUrl) {
   };
 }
 
+function parseRecommendedAddonIds(value, productId = 0) {
+  const values = Array.isArray(value) ? value : [value];
+  return [...new Set(values
+    .flatMap((item) => String(item || "").split(","))
+    .map((item) => Number(item))
+    .filter((id) => Number.isInteger(id) && id > 0 && id !== Number(productId)))];
+}
+
 async function downloadImage(imageUrl) {
   if (!imageUrl) return "";
   const parsed = await assertSafeImportUrl(imageUrl);
@@ -225,6 +233,7 @@ function readJsonStore() {
     sourceUrl: "",
     quantityOnHand: 0,
     imageUrls: product.imageUrls || (product.imageUrl ? [product.imageUrl] : []),
+    recommendedAddonIds: product.recommendedAddonIds || [],
     ...product
   }));
   return data;
@@ -290,6 +299,13 @@ function createJsonDatabase() {
     async getProduct(id) {
       return store.products.find((product) => product.id === Number(id)) || null;
     },
+    async getProductsByIds(ids, { activeOnly = false } = {}) {
+      const orderedIds = ids.map(Number);
+      const wanted = new Set(orderedIds);
+      return store.products
+        .filter((product) => wanted.has(Number(product.id)) && (!activeOnly || product.active))
+        .sort((a, b) => orderedIds.indexOf(Number(a.id)) - orderedIds.indexOf(Number(b.id)));
+    },
     async createProduct(product) {
       return insert("products", product);
     },
@@ -351,10 +367,16 @@ function camelUser(row) {
 function camelProduct(row) {
   if (!row) return null;
   let imageUrls = [];
+  let recommendedAddonIds = [];
   try {
     imageUrls = JSON.parse(row.image_urls || "[]");
   } catch (_error) {
     imageUrls = [];
+  }
+  try {
+    recommendedAddonIds = JSON.parse(row.recommended_addon_ids || "[]").map(Number).filter(Boolean);
+  } catch (_error) {
+    recommendedAddonIds = [];
   }
   if (!imageUrls.length && row.image_url) imageUrls = [row.image_url];
   return {
@@ -370,6 +392,7 @@ function camelProduct(row) {
     imageUrls,
     sourceUrl: row.source_url,
     quantityOnHand: row.quantity_on_hand,
+    recommendedAddonIds,
     active: row.active,
     createdAt: row.created_at
   };
@@ -418,8 +441,8 @@ function createPostgresDatabase() {
     }
     for (const product of old.products) {
       await query(`
-        INSERT INTO products (id, name, sku, upc, brand, category, description, price_cents, image_url, image_urls, source_url, quantity_on_hand, active, created_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+        INSERT INTO products (id, name, sku, upc, brand, category, description, price_cents, image_url, image_urls, source_url, quantity_on_hand, active, recommended_addon_ids, created_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
         ON CONFLICT (id) DO NOTHING
       `, [
         product.id,
@@ -435,6 +458,7 @@ function createPostgresDatabase() {
         product.sourceUrl || "",
         product.quantityOnHand || 0,
         product.active,
+        JSON.stringify(product.recommendedAddonIds || []),
         product.createdAt || new Date()
       ]);
     }
@@ -486,6 +510,7 @@ function createPostgresDatabase() {
           image_urls TEXT NOT NULL DEFAULT '[]',
           source_url TEXT NOT NULL DEFAULT '',
           quantity_on_hand INTEGER NOT NULL DEFAULT 0,
+          recommended_addon_ids TEXT NOT NULL DEFAULT '[]',
           active BOOLEAN NOT NULL DEFAULT TRUE,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
@@ -515,6 +540,7 @@ function createPostgresDatabase() {
         ALTER TABLE products ADD COLUMN IF NOT EXISTS image_urls TEXT NOT NULL DEFAULT '[]';
         ALTER TABLE products ADD COLUMN IF NOT EXISTS source_url TEXT NOT NULL DEFAULT '';
         ALTER TABLE products ADD COLUMN IF NOT EXISTS quantity_on_hand INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS recommended_addon_ids TEXT NOT NULL DEFAULT '[]';
         CREATE INDEX IF NOT EXISTS idx_products_search ON products USING gin(to_tsvector('english', name || ' ' || description || ' ' || sku || ' ' || upc || ' ' || brand));
         CREATE INDEX IF NOT EXISTS idx_price_comparisons_product ON price_comparisons(product_id);
       `);
@@ -560,30 +586,19 @@ function createPostgresDatabase() {
     async getProduct(id) {
       return camelProduct((await query("SELECT * FROM products WHERE id = $1", [id])).rows[0]);
     },
+    async getProductsByIds(ids, { activeOnly = false } = {}) {
+      if (!ids.length) return [];
+      const result = await query(
+        `SELECT * FROM products WHERE id = ANY($1::int[]) ${activeOnly ? "AND active = true" : ""}`,
+        [ids]
+      );
+      const byId = new Map(result.rows.map((row) => [Number(row.id), camelProduct(row)]));
+      return ids.map(Number).map((id) => byId.get(id)).filter(Boolean);
+    },
     async createProduct(product) {
       const result = await query(`
-        INSERT INTO products (name, sku, upc, brand, category, description, price_cents, image_url, image_urls, source_url, quantity_on_hand, active)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *
-      `, [
-        product.name,
-        product.sku,
-        product.upc,
-        product.brand,
-        product.category,
-        product.description,
-        product.priceCents,
-        product.imageUrl,
-        JSON.stringify(product.imageUrls || (product.imageUrl ? [product.imageUrl] : [])),
-        product.sourceUrl || "",
-        product.quantityOnHand || 0,
-        product.active
-      ]);
-      return camelProduct(result.rows[0]);
-    },
-    async updateProduct(id, product) {
-      const result = await query(`
-        UPDATE products SET name=$1, sku=$2, upc=$3, brand=$4, category=$5, description=$6, price_cents=$7, image_url=$8, image_urls=$9, source_url=$10, quantity_on_hand=$11, active=$12
-        WHERE id=$13 RETURNING *
+        INSERT INTO products (name, sku, upc, brand, category, description, price_cents, image_url, image_urls, source_url, quantity_on_hand, active, recommended_addon_ids)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *
       `, [
         product.name,
         product.sku,
@@ -597,6 +612,28 @@ function createPostgresDatabase() {
         product.sourceUrl || "",
         product.quantityOnHand || 0,
         product.active,
+        JSON.stringify(product.recommendedAddonIds || [])
+      ]);
+      return camelProduct(result.rows[0]);
+    },
+    async updateProduct(id, product) {
+      const result = await query(`
+        UPDATE products SET name=$1, sku=$2, upc=$3, brand=$4, category=$5, description=$6, price_cents=$7, image_url=$8, image_urls=$9, source_url=$10, quantity_on_hand=$11, active=$12, recommended_addon_ids=$13
+        WHERE id=$14 RETURNING *
+      `, [
+        product.name,
+        product.sku,
+        product.upc,
+        product.brand,
+        product.category,
+        product.description,
+        product.priceCents,
+        product.imageUrl,
+        JSON.stringify(product.imageUrls || (product.imageUrl ? [product.imageUrl] : [])),
+        product.sourceUrl || "",
+        product.quantityOnHand || 0,
+        product.active,
+        JSON.stringify(product.recommendedAddonIds || []),
         id
       ]);
       return camelProduct(result.rows[0]);
@@ -647,9 +684,9 @@ function createPostgresDatabase() {
 
 function seedProductRows() {
   return [
-    { name: "Dealer Starter Kit", sku: "DSK-100", upc: "", brand: "House Brand", category: "Starter", description: "A ready-to-sell bundle for new dealer accounts.", priceCents: 19900, imageUrl: "", imageUrls: [], sourceUrl: "", quantityOnHand: 0, active: true },
-    { name: "Premium Inventory Pack", sku: "PIP-250", upc: "", brand: "House Brand", category: "Inventory", description: "Higher-margin product mix for established dealers.", priceCents: 54900, imageUrl: "", imageUrls: [], sourceUrl: "", quantityOnHand: 0, active: true },
-    { name: "Display Sample Set", sku: "DSS-050", upc: "", brand: "House Brand", category: "Samples", description: "Showroom samples and sell sheets for in-person selling.", priceCents: 8900, imageUrl: "", imageUrls: [], sourceUrl: "", quantityOnHand: 0, active: true }
+    { name: "Dealer Starter Kit", sku: "DSK-100", upc: "", brand: "House Brand", category: "Starter", description: "A ready-to-sell bundle for new dealer accounts.", priceCents: 19900, imageUrl: "", imageUrls: [], sourceUrl: "", quantityOnHand: 0, recommendedAddonIds: [], active: true },
+    { name: "Premium Inventory Pack", sku: "PIP-250", upc: "", brand: "House Brand", category: "Inventory", description: "Higher-margin product mix for established dealers.", priceCents: 54900, imageUrl: "", imageUrls: [], sourceUrl: "", quantityOnHand: 0, recommendedAddonIds: [], active: true },
+    { name: "Display Sample Set", sku: "DSS-050", upc: "", brand: "House Brand", category: "Samples", description: "Showroom samples and sell sheets for in-person selling.", priceCents: 8900, imageUrl: "", imageUrls: [], sourceUrl: "", quantityOnHand: 0, recommendedAddonIds: [], active: true }
   ];
 }
 
@@ -746,9 +783,20 @@ async function productPayload(product, showPrice, includeAdminData = false) {
     imageUrl: product.imageUrl,
     imageUrls: product.imageUrls || (product.imageUrl ? [product.imageUrl] : []),
     active: Boolean(product.active),
+    recommendedAddonIds: product.recommendedAddonIds || [],
     priceCents: showPrice ? product.priceCents : null,
     price: showPrice ? dollars(product.priceCents) : null
   };
+  const recommendedAddons = await db.getProductsByIds(product.recommendedAddonIds || [], { activeOnly: !includeAdminData });
+  payload.recommendedAddons = recommendedAddons.map((addon) => ({
+    id: addon.id,
+    name: addon.name,
+    sku: addon.sku,
+    brand: addon.brand,
+    imageUrl: addon.imageUrl,
+    imageUrls: addon.imageUrls || (addon.imageUrl ? [addon.imageUrl] : []),
+    price: showPrice ? dollars(addon.priceCents) : null
+  }));
   if (!includeAdminData) return payload;
   const comparisons = await db.listComparisons(product.id);
   return {
@@ -869,6 +917,7 @@ app.post("/api/admin/products", requireAdmin, productImageUpload, async (req, re
     imageUrls,
     sourceUrl: String(req.body.sourceUrl || "").trim(),
     quantityOnHand: Math.max(0, Math.floor(Number(req.body.quantityOnHand || 0))),
+    recommendedAddonIds: parseRecommendedAddonIds(req.body.recommendedAddonIds),
     active: req.body.active !== "false"
   });
   res.status(201).json({ id: product.id });
@@ -891,6 +940,7 @@ app.patch("/api/admin/products/:id", requireAdmin, productImageUpload, async (re
     imageUrls,
     sourceUrl: String(req.body.sourceUrl || existing.sourceUrl || "").trim(),
     quantityOnHand: Math.max(0, Math.floor(Number(req.body.quantityOnHand ?? existing.quantityOnHand ?? 0))),
+    recommendedAddonIds: parseRecommendedAddonIds(req.body.recommendedAddonIds, existing.id),
     active: req.body.active !== "false"
   });
   res.json({ product: await productPayload(product, true, true) });
@@ -916,6 +966,7 @@ app.post("/api/admin/import-url", requireAdmin, async (req, res) => {
       imageUrls,
       sourceUrl: listing.sourceUrl,
       quantityOnHand: Math.max(0, Math.floor(Number(req.body.quantityOnHand || 1))),
+      recommendedAddonIds: [],
       active: true
     });
     res.status(201).json({
