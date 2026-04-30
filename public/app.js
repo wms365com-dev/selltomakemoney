@@ -60,14 +60,35 @@ async function loadProducts() {
       <div class="product-body">
         <div>
           <h2>${escapeHtml(product.name)}</h2>
-          <p class="sku">${escapeHtml(product.sku)} ${product.category ? `| ${escapeHtml(product.category)}` : ""}</p>
+          <p class="sku">${escapeHtml(product.sku)} ${product.upc ? `| UPC ${escapeHtml(product.upc)}` : ""} ${product.category ? `| ${escapeHtml(product.category)}` : ""}</p>
         </div>
         <p>${escapeHtml(product.description)}</p>
         <div class="${product.price ? "price" : "locked"}">${product.price || "Login to view dealer price"}</div>
+        ${comparisonBlock(product)}
         ${product.price ? `<button class="primary" data-inquire="${product.id}">Request quote</button>` : ""}
       </div>
     </article>
   `).join("");
+}
+
+function comparisonBlock(product) {
+  const rows = product.comparisons?.length
+    ? product.comparisons.map((item) => `
+      <li>
+        <span>${escapeHtml(item.site)}</span>
+        <strong>${escapeHtml(item.price)}</strong>
+        ${item.productUrl ? `<a href="${escapeHtml(item.productUrl)}" target="_blank" rel="noopener">View</a>` : ""}
+      </li>
+    `).join("")
+    : "<li><span>No saved competitor prices yet</span></li>";
+  const links = product.searchLinks.map((link) => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener">${escapeHtml(link.site)}</a>`).join("");
+  return `
+    <div class="comparison-box">
+      <div class="comparison-title">Market comparison</div>
+      <ul>${rows}</ul>
+      <div class="comparison-links">${links}</div>
+    </div>
+  `;
 }
 
 async function loadSession() {
@@ -110,7 +131,24 @@ async function loadAdmin() {
     <div class="row">
       <div>
         <strong>${escapeHtml(product.name)}</strong>
-        <p>${escapeHtml(product.sku)} | ${product.price} | ${product.active ? "Active" : "Hidden"}</p>
+        <p>${escapeHtml(product.sku)} ${product.upc ? `| UPC ${escapeHtml(product.upc)}` : ""} | ${product.price} | ${product.active ? "Active" : "Hidden"}</p>
+        <div class="mini-comparisons">
+          ${(product.comparisons || []).map((item) => `<span>${escapeHtml(item.site)} ${escapeHtml(item.price)}</span>`).join("") || "<span>No competitor prices</span>"}
+        </div>
+        <form class="comparison-form" data-comparison-form="${product.id}">
+          <input name="site" placeholder="Site" required>
+          <input name="price" type="number" min="0" step="0.01" placeholder="Price" required>
+          <input name="productUrl" placeholder="Product URL">
+          <select name="currency">
+            <option>CAD</option>
+            <option>USD</option>
+          </select>
+          <select name="matchType">
+            <option value="upc">UPC</option>
+            <option value="description">Description</option>
+          </select>
+          <button type="submit">Add comparison</button>
+        </form>
       </div>
     </div>
   `).join("");
@@ -190,6 +228,21 @@ document.querySelector("#productForm").addEventListener("submit", async (event) 
   const form = new FormData(event.target);
   await api("/api/admin/products", { method: "POST", body: form });
   event.target.reset();
+  loadAdmin();
+  loadProducts();
+});
+
+document.addEventListener("submit", async (event) => {
+  const form = event.target.closest("[data-comparison-form]");
+  if (!form) return;
+  event.preventDefault();
+  const productId = form.dataset.comparisonForm;
+  const body = Object.fromEntries(new FormData(form));
+  await api(`/api/admin/products/${productId}/comparisons`, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+  form.reset();
   loadAdmin();
   loadProducts();
 });

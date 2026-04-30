@@ -40,7 +40,13 @@ Recommended Railway variables:
 ```text
 SESSION_SECRET=use-a-long-random-secret
 ADMIN_PASSWORD=change-this-before-first-production-run
-DB_PATH=/data/store.json
+DATABASE_URL=${{Postgres.DATABASE_URL}}
 ```
 
-For persistent production data, add a Railway volume mounted at `/data`. Uploaded product images are stored in `uploads/`; for production permanence, mount a Railway volume for uploads too or connect cloud object storage later.
+Production data should live in Railway Postgres. The app still supports `DB_PATH=/data/store.json` as a local/simple fallback, but Postgres is preferred for the live site.
+
+Uploaded product images are stored in `uploads/`; for production permanence, mount a Railway volume for uploads too or connect cloud object storage later.
+
+## Price comparisons
+
+Products support UPCs and saved competitor price comparisons. Admin users can add comparison rows for Amazon, Walmart, eBay, Google Shopping, or any other site. The storefront shows those comparison prices publicly while keeping your dealer price hidden until the dealer is approved and logged in.

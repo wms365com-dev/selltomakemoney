@@ -192,6 +192,50 @@ h2 {
   font-weight: 800;
 }
 
+.comparison-box {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.comparison-title {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.comparison-box ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.comparison-box li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+}
+
+.comparison-box a,
+.comparison-links a {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.comparison-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  font-size: 13px;
+}
+
 .panel {
   padding: 22px;
 }
@@ -274,6 +318,31 @@ textarea {
   padding: 12px;
 }
 
+.mini-comparisons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.mini-comparisons span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.comparison-form {
+  grid-template-columns: 1fr 110px minmax(180px, 1fr) 90px 120px auto;
+  align-items: end;
+}
+
+.comparison-form input,
+.comparison-form select {
+  min-width: 0;
+}
+
 .row-actions {
   display: flex;
   flex-wrap: wrap;
@@ -302,6 +371,10 @@ textarea {
   }
 
   .admin-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .comparison-form {
     grid-template-columns: 1fr;
   }
 }
