@@ -16,6 +16,7 @@ const ADMIN_EMAIL = "k.prathab@gmail.com";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "DealerStore!2026";
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 function readDatabase() {
