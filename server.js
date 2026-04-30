@@ -219,7 +219,14 @@ function readJsonStore() {
   const data = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
   data.nextIds.comparisons ||= 1;
   data.comparisons ||= [];
-  data.products = data.products.map((product) => ({ brand: "", upc: "", sourceUrl: "", quantityOnHand: 0, ...product }));
+  data.products = data.products.map((product) => ({
+    brand: "",
+    upc: "",
+    sourceUrl: "",
+    quantityOnHand: 0,
+    imageUrls: product.imageUrls || (product.imageUrl ? [product.imageUrl] : []),
+    ...product
+  }));
   return data;
 }
 
@@ -343,6 +350,13 @@ function camelUser(row) {
 
 function camelProduct(row) {
   if (!row) return null;
+  let imageUrls = [];
+  try {
+    imageUrls = JSON.parse(row.image_urls || "[]");
+  } catch (_error) {
+    imageUrls = [];
+  }
+  if (!imageUrls.length && row.image_url) imageUrls = [row.image_url];
   return {
     id: row.id,
     name: row.name,
@@ -353,6 +367,7 @@ function camelProduct(row) {
     description: row.description,
     priceCents: row.price_cents,
     imageUrl: row.image_url,
+    imageUrls,
     sourceUrl: row.source_url,
     quantityOnHand: row.quantity_on_hand,
     active: row.active,
@@ -403,10 +418,25 @@ function createPostgresDatabase() {
     }
     for (const product of old.products) {
       await query(`
-        INSERT INTO products (id, name, sku, upc, brand, category, description, price_cents, image_url, source_url, quantity_on_hand, active, created_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        INSERT INTO products (id, name, sku, upc, brand, category, description, price_cents, image_url, image_urls, source_url, quantity_on_hand, active, created_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
         ON CONFLICT (id) DO NOTHING
-      `, [product.id, product.name, product.sku, product.upc || "", product.brand || "", product.category, product.description, product.priceCents, product.imageUrl, product.sourceUrl || "", product.quantityOnHand || 0, product.active, product.createdAt || new Date()]);
+      `, [
+        product.id,
+        product.name,
+        product.sku,
+        product.upc || "",
+        product.brand || "",
+        product.category,
+        product.description,
+        product.priceCents,
+        product.imageUrl,
+        JSON.stringify(product.imageUrls || (product.imageUrl ? [product.imageUrl] : [])),
+        product.sourceUrl || "",
+        product.quantityOnHand || 0,
+        product.active,
+        product.createdAt || new Date()
+      ]);
     }
     for (const inquiry of old.inquiries) {
       await query(`
@@ -453,6 +483,7 @@ function createPostgresDatabase() {
           description TEXT NOT NULL DEFAULT '',
           price_cents INTEGER NOT NULL DEFAULT 0,
           image_url TEXT NOT NULL DEFAULT '',
+          image_urls TEXT NOT NULL DEFAULT '[]',
           source_url TEXT NOT NULL DEFAULT '',
           quantity_on_hand INTEGER NOT NULL DEFAULT 0,
           active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -481,6 +512,7 @@ function createPostgresDatabase() {
         );
         CREATE INDEX IF NOT EXISTS idx_products_upc ON products(upc);
         ALTER TABLE products ADD COLUMN IF NOT EXISTS brand TEXT NOT NULL DEFAULT '';
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS image_urls TEXT NOT NULL DEFAULT '[]';
         ALTER TABLE products ADD COLUMN IF NOT EXISTS source_url TEXT NOT NULL DEFAULT '';
         ALTER TABLE products ADD COLUMN IF NOT EXISTS quantity_on_hand INTEGER NOT NULL DEFAULT 0;
         CREATE INDEX IF NOT EXISTS idx_products_search ON products USING gin(to_tsvector('english', name || ' ' || description || ' ' || sku || ' ' || upc || ' ' || brand));
@@ -530,16 +562,43 @@ function createPostgresDatabase() {
     },
     async createProduct(product) {
       const result = await query(`
-        INSERT INTO products (name, sku, upc, brand, category, description, price_cents, image_url, source_url, quantity_on_hand, active)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *
-      `, [product.name, product.sku, product.upc, product.brand, product.category, product.description, product.priceCents, product.imageUrl, product.sourceUrl || "", product.quantityOnHand || 0, product.active]);
+        INSERT INTO products (name, sku, upc, brand, category, description, price_cents, image_url, image_urls, source_url, quantity_on_hand, active)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *
+      `, [
+        product.name,
+        product.sku,
+        product.upc,
+        product.brand,
+        product.category,
+        product.description,
+        product.priceCents,
+        product.imageUrl,
+        JSON.stringify(product.imageUrls || (product.imageUrl ? [product.imageUrl] : [])),
+        product.sourceUrl || "",
+        product.quantityOnHand || 0,
+        product.active
+      ]);
       return camelProduct(result.rows[0]);
     },
     async updateProduct(id, product) {
       const result = await query(`
-        UPDATE products SET name=$1, sku=$2, upc=$3, brand=$4, category=$5, description=$6, price_cents=$7, image_url=$8, source_url=$9, quantity_on_hand=$10, active=$11
-        WHERE id=$12 RETURNING *
-      `, [product.name, product.sku, product.upc, product.brand, product.category, product.description, product.priceCents, product.imageUrl, product.sourceUrl || "", product.quantityOnHand || 0, product.active, id]);
+        UPDATE products SET name=$1, sku=$2, upc=$3, brand=$4, category=$5, description=$6, price_cents=$7, image_url=$8, image_urls=$9, source_url=$10, quantity_on_hand=$11, active=$12
+        WHERE id=$13 RETURNING *
+      `, [
+        product.name,
+        product.sku,
+        product.upc,
+        product.brand,
+        product.category,
+        product.description,
+        product.priceCents,
+        product.imageUrl,
+        JSON.stringify(product.imageUrls || (product.imageUrl ? [product.imageUrl] : [])),
+        product.sourceUrl || "",
+        product.quantityOnHand || 0,
+        product.active,
+        id
+      ]);
       return camelProduct(result.rows[0]);
     },
     async listComparisons(productId) {
@@ -588,9 +647,9 @@ function createPostgresDatabase() {
 
 function seedProductRows() {
   return [
-    { name: "Dealer Starter Kit", sku: "DSK-100", upc: "", brand: "House Brand", category: "Starter", description: "A ready-to-sell bundle for new dealer accounts.", priceCents: 19900, imageUrl: "", sourceUrl: "", quantityOnHand: 0, active: true },
-    { name: "Premium Inventory Pack", sku: "PIP-250", upc: "", brand: "House Brand", category: "Inventory", description: "Higher-margin product mix for established dealers.", priceCents: 54900, imageUrl: "", sourceUrl: "", quantityOnHand: 0, active: true },
-    { name: "Display Sample Set", sku: "DSS-050", upc: "", brand: "House Brand", category: "Samples", description: "Showroom samples and sell sheets for in-person selling.", priceCents: 8900, imageUrl: "", sourceUrl: "", quantityOnHand: 0, active: true }
+    { name: "Dealer Starter Kit", sku: "DSK-100", upc: "", brand: "House Brand", category: "Starter", description: "A ready-to-sell bundle for new dealer accounts.", priceCents: 19900, imageUrl: "", imageUrls: [], sourceUrl: "", quantityOnHand: 0, active: true },
+    { name: "Premium Inventory Pack", sku: "PIP-250", upc: "", brand: "House Brand", category: "Inventory", description: "Higher-margin product mix for established dealers.", priceCents: 54900, imageUrl: "", imageUrls: [], sourceUrl: "", quantityOnHand: 0, active: true },
+    { name: "Display Sample Set", sku: "DSS-050", upc: "", brand: "House Brand", category: "Samples", description: "Showroom samples and sell sheets for in-person selling.", priceCents: 8900, imageUrl: "", imageUrls: [], sourceUrl: "", quantityOnHand: 0, active: true }
   ];
 }
 
@@ -610,6 +669,12 @@ const upload = multer({
     cb(null, true);
   }
 });
+
+function uploadedImageUrls(req) {
+  const files = Object.values(req.files || {}).flat();
+  if (req.file) files.push(req.file);
+  return files.map((file) => `/uploads/${file.filename}`);
+}
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -679,6 +744,7 @@ async function productPayload(product, showPrice, includeAdminData = false) {
     category: product.category,
     description: product.description,
     imageUrl: product.imageUrl,
+    imageUrls: product.imageUrls || (product.imageUrl ? [product.imageUrl] : []),
     active: Boolean(product.active),
     priceCents: showPrice ? product.priceCents : null,
     price: showPrice ? dollars(product.priceCents) : null
@@ -783,8 +849,14 @@ app.get("/api/admin/products", requireAdmin, async (_req, res) => {
   res.json({ products: await Promise.all(products.map((product) => productPayload(product, true, true))) });
 });
 
-app.post("/api/admin/products", requireAdmin, upload.single("image"), async (req, res) => {
+const productImageUpload = upload.fields([
+  { name: "image", maxCount: 1 },
+  { name: "images", maxCount: 12 }
+]);
+
+app.post("/api/admin/products", requireAdmin, productImageUpload, async (req, res) => {
   if (!req.body.name) return res.status(400).json({ error: "Product name is required." });
+  const imageUrls = uploadedImageUrls(req);
   const product = await db.createProduct({
     name: String(req.body.name || "").trim(),
     sku: String(req.body.sku || "").trim(),
@@ -793,7 +865,8 @@ app.post("/api/admin/products", requireAdmin, upload.single("image"), async (req
     category: String(req.body.category || "").trim(),
     description: String(req.body.description || "").trim(),
     priceCents: Math.round(Number(req.body.price || 0) * 100),
-    imageUrl: req.file ? `/uploads/${req.file.filename}` : "",
+    imageUrl: imageUrls[0] || "",
+    imageUrls,
     sourceUrl: String(req.body.sourceUrl || "").trim(),
     quantityOnHand: Math.max(0, Math.floor(Number(req.body.quantityOnHand || 0))),
     active: req.body.active !== "false"
@@ -801,9 +874,11 @@ app.post("/api/admin/products", requireAdmin, upload.single("image"), async (req
   res.status(201).json({ id: product.id });
 });
 
-app.patch("/api/admin/products/:id", requireAdmin, upload.single("image"), async (req, res) => {
+app.patch("/api/admin/products/:id", requireAdmin, productImageUpload, async (req, res) => {
   const existing = await db.getProduct(Number(req.params.id));
   if (!existing) return res.status(404).json({ error: "Product not found." });
+  const newImageUrls = uploadedImageUrls(req);
+  const imageUrls = newImageUrls.length ? newImageUrls : (existing.imageUrls || (existing.imageUrl ? [existing.imageUrl] : []));
   const product = await db.updateProduct(existing.id, {
     name: String(req.body.name || existing.name).trim(),
     sku: String(req.body.sku || "").trim(),
@@ -812,7 +887,8 @@ app.patch("/api/admin/products/:id", requireAdmin, upload.single("image"), async
     category: String(req.body.category || "").trim(),
     description: String(req.body.description || "").trim(),
     priceCents: Math.round(Number(req.body.price || existing.priceCents / 100) * 100),
-    imageUrl: req.file ? `/uploads/${req.file.filename}` : existing.imageUrl,
+    imageUrl: imageUrls[0] || "",
+    imageUrls,
     sourceUrl: String(req.body.sourceUrl || existing.sourceUrl || "").trim(),
     quantityOnHand: Math.max(0, Math.floor(Number(req.body.quantityOnHand ?? existing.quantityOnHand ?? 0))),
     active: req.body.active !== "false"
@@ -827,6 +903,7 @@ app.post("/api/admin/import-url", requireAdmin, async (req, res) => {
     const listing = extractListing(html, parsedUrl.toString());
     if (!listing.name) return res.status(422).json({ error: "Could not find enough listing information on that page." });
     const imageUrl = await downloadImage(listing.remoteImageUrl);
+    const imageUrls = imageUrl ? [imageUrl] : [];
     const product = await db.createProduct({
       name: listing.name,
       sku: listing.sku,
@@ -836,6 +913,7 @@ app.post("/api/admin/import-url", requireAdmin, async (req, res) => {
       description: listing.description,
       priceCents: listing.priceCents,
       imageUrl,
+      imageUrls,
       sourceUrl: listing.sourceUrl,
       quantityOnHand: Math.max(0, Math.floor(Number(req.body.quantityOnHand || 1))),
       active: true

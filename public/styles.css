@@ -357,6 +357,34 @@ form,
   min-height: 0;
 }
 
+.dropzone {
+  border: 2px dashed rgba(29, 107, 84, 0.34);
+  border-radius: 8px;
+  background: rgba(29, 107, 84, 0.05);
+  cursor: pointer;
+  padding: 14px;
+}
+
+.dropzone input {
+  border: 0;
+  background: transparent;
+  padding: 8px 0 4px;
+}
+
+.dropzone strong {
+  color: var(--accent-dark);
+}
+
+.dropzone small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.dropzone.drag-over {
+  border-color: var(--accent);
+  background: rgba(29, 107, 84, 0.12);
+}
+
 label {
   display: grid;
   gap: 6px;
@@ -450,6 +478,21 @@ select {
   min-height: 180px;
   margin: 10px 0;
   resize: vertical;
+}
+
+.admin-image-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.admin-image-strip img {
+  width: 74px;
+  height: 58px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  object-fit: cover;
 }
 
 .mini-comparisons span {

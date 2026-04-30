@@ -38,8 +38,9 @@ function updateNav() {
 }
 
 function productImage(product) {
-  if (product.imageUrl) {
-    return `<div class="product-image"><img src="${product.imageUrl}" alt="${escapeHtml(product.name)}"></div>`;
+  const imageUrl = product.imageUrls?.[0] || product.imageUrl;
+  if (imageUrl) {
+    return `<div class="product-image"><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(product.name)}"></div>`;
   }
   return `<div class="product-image">${escapeHtml(product.brand || product.category || "Dealer")}</div>`;
 }
@@ -157,8 +158,9 @@ async function loadAdmin() {
           <textarea readonly rows="9" id="facebookListing${product.id}">${escapeHtml(facebookListingText(product))}</textarea>
           <div class="row-actions">
             <button type="button" data-copy-facebook="${product.id}">Copy listing text</button>
-            ${product.imageUrl ? `<a class="source-link" href="${escapeHtml(product.imageUrl)}" target="_blank" rel="noopener">Open image</a>` : ""}
+            ${product.imageUrl ? `<a class="source-link" href="${escapeHtml(product.imageUrl)}" target="_blank" rel="noopener">Open main image</a>` : ""}
           </div>
+          ${product.imageUrls?.length ? `<div class="admin-image-strip">${product.imageUrls.map((url) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" alt="${escapeHtml(product.name)} image"></a>`).join("")}</div>` : ""}
         </details>
         <div class="mini-comparisons">
           ${(product.comparisons || []).map((item) => `<span>${escapeHtml(item.site)} ${escapeHtml(item.price)} <button type="button" data-delete-comparison="${item.id}">Remove</button></span>`).join("") || "<span>No competitor prices</span>"}
@@ -300,6 +302,39 @@ document.querySelector("#importUrlForm").addEventListener("submit", async (event
   }
 });
 
+const imageInput = document.querySelector("#productImages");
+const imageDropzone = document.querySelector("#imageDropzone");
+const imageDropHint = document.querySelector("#imageDropHint");
+
+function updateImageHint() {
+  const count = imageInput.files.length;
+  imageDropHint.textContent = count ? `${count} image${count === 1 ? "" : "s"} selected.` : "You can add multiple product photos at once.";
+}
+
+imageInput.addEventListener("change", updateImageHint);
+
+["dragenter", "dragover"].forEach((eventName) => {
+  imageDropzone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    imageDropzone.classList.add("drag-over");
+  });
+});
+
+["dragleave", "drop"].forEach((eventName) => {
+  imageDropzone.addEventListener(eventName, (event) => {
+    event.preventDefault();
+    imageDropzone.classList.remove("drag-over");
+  });
+});
+
+imageDropzone.addEventListener("drop", (event) => {
+  const files = [...event.dataTransfer.files].filter((file) => file.type.startsWith("image/"));
+  const transfer = new DataTransfer();
+  files.forEach((file) => transfer.items.add(file));
+  imageInput.files = transfer.files;
+  updateImageHint();
+});
+
 document.querySelector("#productForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const message = document.querySelector("#productMessage");
@@ -311,6 +346,7 @@ document.querySelector("#productForm").addEventListener("submit", async (event) 
   try {
     await api("/api/admin/products", { method: "POST", body: form });
     event.target.reset();
+    updateImageHint();
     message.textContent = "Product added.";
     await loadAdmin();
     await loadProducts();
