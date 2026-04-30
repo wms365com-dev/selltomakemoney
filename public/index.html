@@ -37,12 +37,12 @@
       "url": "https://selltomakemoney.com/"
     }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=product-pages-1">
+  <link rel="stylesheet" href="/styles.css?v=public-account-checkout-1">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#store" data-route="store" aria-label="selltomakemoney.com home">
-      <img src="/assets/logo.svg?v=product-pages-1" alt="selltomakemoney.com">
+      <img src="/assets/logo.svg?v=public-account-checkout-1" alt="selltomakemoney.com">
     </a>
     <div class="view-switch" aria-label="View links">
       <a href="/desktop" id="desktopViewLink">Desktop</a>
@@ -74,14 +74,16 @@
         <div>
           <p class="eyebrow">Public deals and dealer inventory</p>
           <h1>Shop inventory that helps fund real projects.</h1>
-          <p class="hero-copy">Browse available items, compare retail links, and request checkout for shipping or pickup.</p>
+          <p class="hero-copy">Browse available items, compare retail links, and add items to your cart. Checkout requires an account.</p>
           <div class="hero-badges" aria-label="Store highlights">
             <span>Public pricing</span>
-            <span>Checkout requests</span>
+            <span>Account checkout</span>
+            <span>E-transfer</span>
+            <span>Cash pickup</span>
             <span>Pickup or shipping</span>
           </div>
         </div>
-        <p class="price-note" id="priceNote">Public pricing is visible. Approved dealers can also see dealer pricing.</p>
+        <p class="price-note" id="priceNote">Public pricing is visible. Create an account before checkout. No credit cards accepted.</p>
       </div>
       <section class="store-tools" aria-label="Store filters">
         <label>Search inventory<input id="storeSearch" type="search" placeholder="Search by item, brand, SKU, UPC"></label>
@@ -92,7 +94,7 @@
 
     <section id="loginView" class="view hidden">
       <form class="panel auth-panel" id="loginForm">
-        <h2>Dealer login</h2>
+        <h2>Account login</h2>
         <label>Email<input type="email" name="email" required autocomplete="email"></label>
         <label>Password<input type="password" name="password" required autocomplete="current-password"></label>
         <button class="primary" type="submit">Login</button>
@@ -102,7 +104,7 @@
 
     <section id="registerView" class="view hidden">
       <form class="panel auth-panel" id="registerForm">
-        <h2>Request dealer access</h2>
+        <h2>Create account</h2>
         <label>Company<input name="company" required></label>
         <label>Contact name<input name="contactName" required autocomplete="name"></label>
         <label>Email<input type="email" name="email" required autocomplete="email"></label>
@@ -128,9 +130,25 @@
         </section>
         <form class="panel checkout-form" id="checkoutForm">
           <h2>Ship-to / pickup information</h2>
+          <div class="checkout-notice wide-field signed-out">
+            <strong>Account required for checkout.</strong>
+            <span>Add items freely, then login or create an account before submitting your order request.</span>
+            <div class="row-actions">
+              <button type="button" data-route="login">Login</button>
+              <button type="button" class="primary" data-route="register">Create account</button>
+            </div>
+          </div>
+          <div class="checkout-notice wide-field">
+            <strong>Payment methods</strong>
+            <span>Payment is by e-transfer or cash on customer pickup only. Credit cards are not accepted.</span>
+          </div>
           <label>Fulfillment method<select name="fulfillmentMethod" required>
             <option value="ship">Ship to address</option>
             <option value="pickup">Customer pickup</option>
+          </select></label>
+          <label>Payment method<select name="paymentMethod" required>
+            <option value="etransfer">E-transfer</option>
+            <option value="cash_pickup">Cash on pickup</option>
           </select></label>
           <label>Recipient name<input name="recipientName" required autocomplete="name"></label>
           <label>Company<input name="company" required autocomplete="organization"></label>
@@ -251,6 +269,6 @@
     </section>
   </main>
 
-  <script src="/app.js?v=product-pages-1"></script>
+  <script src="/app.js?v=public-account-checkout-1"></script>
 </body>
 </html>
