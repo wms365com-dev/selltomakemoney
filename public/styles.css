@@ -374,6 +374,18 @@ button.button-busy {
   width: fit-content;
 }
 
+.dealer-info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.dealer-info-grid .panel {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
 .empty-catalog {
   grid-column: 1 / -1;
 }
@@ -1347,6 +1359,7 @@ body[data-view="mobile"] h1 {
 }
 
 body[data-view="mobile"] .store-tools,
+body[data-view="mobile"] .dealer-info-grid,
 body[data-view="mobile"] .product-grid,
 body[data-view="mobile"] .stats,
 body[data-view="mobile"] .admin-layout,
@@ -1485,6 +1498,10 @@ body[data-view="mobile"] .comparison-form button {
   }
 
   .product-detail {
+    grid-template-columns: 1fr;
+  }
+
+  .dealer-info-grid {
     grid-template-columns: 1fr;
   }
 

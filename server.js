@@ -991,6 +991,10 @@ function sendCatalog(_req, res) {
   res.sendFile(path.join(ROOT, "public", "catalog.html"));
 }
 
+function sendDealers(_req, res) {
+  res.sendFile(path.join(ROOT, "public", "dealers.html"));
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -1032,7 +1036,7 @@ app.get("/robots.txt", (req, res) => {
 app.get("/sitemap.xml", async (req, res) => {
   const baseUrl = publicBaseUrl(req).replace(/\/$/, "");
   const products = await db.listProducts({ activeOnly: true });
-  const urls = ["", "/catalog", "/desktop", "/mobile", ...products.map(productPath)];
+  const urls = ["", "/catalog", "/dealers", "/desktop", "/mobile", ...products.map(productPath)];
   res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map((url) => `  <url><loc>${baseUrl}${url}</loc><changefreq>${url.startsWith("/products/") ? "weekly" : "daily"}</changefreq><priority>${url === "" ? "1.0" : url.startsWith("/products/") ? "0.7" : "0.8"}</priority></url>`).join("\n")}
@@ -1570,6 +1574,7 @@ app.get("/", (req, res) => {
 app.get("/products/:id/:slug?", sendProductPage);
 app.get(["/desktop", "/mobile"], sendApp);
 app.get("/catalog", sendCatalog);
+app.get("/dealers", sendDealers);
 
 app.get("*", sendApp);
 

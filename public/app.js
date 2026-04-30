@@ -423,7 +423,7 @@ async function loadProducts() {
     renderStoreCategories(productCache);
     updateStoreStructuredData(productCache);
     priceNote.textContent = data.canSeePrices
-      ? "Dealer pricing is visible on your approved account."
+      ? "Account pricing is visible on your approved account."
       : "Public pricing is visible. Create an account before checkout. Pickup is currently in Mississauga only.";
     renderProducts(data.canSeePrices);
   });
