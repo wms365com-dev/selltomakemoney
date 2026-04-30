@@ -198,6 +198,18 @@
             <strong>Payment methods</strong>
             <span>Pickup orders use e-transfer or cash to keep processing costs down. Credit card is available only for items marked as shippable and shipped to an address.</span>
           </div>
+          <div class="secure-checkout-strip wide-field" aria-label="Secure checkout details">
+            <div>
+              <strong>Secure checkout</strong>
+              <div class="payment-badges" aria-label="Accepted payment options">
+                <span>Visa</span>
+                <span>Mastercard</span>
+                <span>Amex</span>
+                <span>SSL</span>
+              </div>
+            </div>
+            <p>We do not request or store card information for pickup, e-transfer, or cash orders. Card payment is only available for eligible shipped items through a secure payment process.</p>
+          </div>
           <label>Fulfillment method<select name="fulfillmentMethod" required>
             <option value="ship">Ship to address</option>
             <option value="pickup">Customer pickup in Mississauga</option>
@@ -353,6 +365,10 @@
   </main>
 
   <footer class="site-footer">
+    <div class="footer-trust">
+      <strong>Secure checkout</strong>
+      <span>No stored card details for pickup, e-transfer, or cash orders.</span>
+    </div>
     <div>
       <strong>selltomakemoney.com</strong>
       <span>Public deals, Mississauga pickup, and select shippable inventory.</span>
@@ -360,6 +376,6 @@
     <div>Copyright &copy; <span data-year>2026</span> selltomakemoney.com. All rights reserved.</div>
   </footer>
 
-  <script src="/app.js?v=alert-names-1"></script>
+  <script src="/app.js?v=secure-checkout-1"></script>
 </body>
 </html>

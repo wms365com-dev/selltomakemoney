@@ -270,6 +270,15 @@ main {
   color: var(--ink);
 }
 
+.footer-trust {
+  min-width: 220px;
+}
+
+.footer-trust span {
+  color: #007185;
+  font-weight: 700;
+}
+
 .view {
   min-height: calc(100vh - 120px);
 }
@@ -1037,6 +1046,55 @@ h2 {
   color: #007185;
 }
 
+.secure-checkout-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-radius: 8px;
+  background: var(--nav);
+  color: #fff;
+  padding: 14px 16px;
+}
+
+.secure-checkout-strip strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.secure-checkout-strip p {
+  max-width: 560px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.payment-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.payment-badges span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 4px 9px;
+}
+
+.payment-badges span:last-child {
+  border-color: rgba(254, 189, 105, 0.74);
+  color: var(--gold);
+}
+
 .checkout-flags {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1558,6 +1616,16 @@ body[data-view="mobile"] .site-footer {
   align-items: flex-start;
   flex-direction: column;
   padding: 18px 20px;
+}
+
+body[data-view="mobile"] .secure-checkout-strip {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+body[data-view="mobile"] .payment-badges span {
+  min-height: 26px;
+  padding-inline: 8px;
 }
 
 body[data-view="mobile"] .app-status {
