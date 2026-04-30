@@ -219,6 +219,10 @@ function shortDate(value) {
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString();
 }
 
+function alertLeadName(lead) {
+  return [lead.firstName, lead.lastName].filter(Boolean).join(" ") || lead.contactName || lead.email;
+}
+
 function saveCart() {
   localStorage.setItem("dealerCart", JSON.stringify(cart));
   updateCartCount();
@@ -259,6 +263,71 @@ function updateCheckoutPaymentOptions(items = cartProducts()) {
   creditOption.disabled = fulfillment !== "ship" || !allItemsCanShip;
   creditOption.textContent = allItemsCanShip ? "Credit card for shipped items" : "Credit card unavailable for pickup-only items";
   if (creditOption.disabled && payment.value === "credit_card") payment.value = "etransfer";
+}
+
+function provinceFromPostalCode(postalCode) {
+  const first = String(postalCode || "").trim().toUpperCase()[0];
+  return {
+    A: "NL",
+    B: "NS",
+    C: "PE",
+    E: "NB",
+    G: "QC",
+    H: "QC",
+    J: "QC",
+    K: "ON",
+    L: "ON",
+    M: "ON",
+    N: "ON",
+    P: "ON",
+    R: "MB",
+    S: "SK",
+    T: "AB",
+    V: "BC",
+    X: "NT",
+    Y: "YT"
+  }[first] || "";
+}
+
+function normalizePostalCode(value) {
+  const text = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (/^[A-Z]\d[A-Z]\d[A-Z]\d$/.test(text)) return `${text.slice(0, 3)} ${text.slice(3)}`;
+  return String(value || "").trim().toUpperCase();
+}
+
+function parseQuickAddress(value) {
+  const original = String(value || "").replace(/\s+/g, " ").trim();
+  if (!original) return null;
+  const postalMatch = original.match(/[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z][ -]?\d[ABCEGHJ-NPRSTV-Z]\d/i);
+  const postalCode = postalMatch ? normalizePostalCode(postalMatch[0]) : "";
+  const withoutPostal = postalCode ? original.replace(postalMatch[0], "").replace(/\s+,/g, ",").replace(/,\s*,/g, ",").trim() : original;
+  const parts = withoutPostal.split(",").map((part) => part.trim()).filter(Boolean);
+  const countryIndex = parts.findIndex((part) => /^(canada|ca|usa|united states|us)$/i.test(part));
+  const country = countryIndex >= 0
+    ? (/^(usa|united states|us)$/i.test(parts[countryIndex]) ? "United States" : "Canada")
+    : "Canada";
+  if (countryIndex >= 0) parts.splice(countryIndex, 1);
+  let region = "";
+  const regionIndex = parts.findIndex((part) => /^(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT|ALBERTA|BRITISH COLUMBIA|MANITOBA|NEW BRUNSWICK|NEWFOUNDLAND|NOVA SCOTIA|ONTARIO|QUEBEC|SASKATCHEWAN)$/i.test(part));
+  if (regionIndex >= 0) {
+    region = parts[regionIndex].toUpperCase();
+    parts.splice(regionIndex, 1);
+  }
+  if (!region) region = provinceFromPostalCode(postalCode);
+  const address1 = parts[0] || "";
+  const city = parts.length > 1 ? parts[parts.length - 1] : "";
+  return { address1, city, region, postalCode, country };
+}
+
+function fillCheckoutAddress() {
+  const form = document.querySelector("#checkoutForm");
+  const quickAddress = document.querySelector("#quickAddress");
+  const parsed = parseQuickAddress(quickAddress?.value);
+  if (!form || !parsed) return false;
+  for (const [field, value] of Object.entries(parsed)) {
+    if (value && form.elements[field]) form.elements[field].value = value;
+  }
+  return Boolean(parsed.address1 || parsed.city || parsed.postalCode);
 }
 
 function renderCart() {
@@ -691,7 +760,7 @@ async function loadAdmin() {
     ? alertLeads.leads.map((lead) => `
       <div class="row">
         <div>
-          <strong>${escapeHtml(lead.contactName || lead.email)}</strong>
+          <strong>${escapeHtml(alertLeadName(lead))}</strong>
           <p>${escapeHtml(lead.email)}${lead.phone ? ` | ${escapeHtml(lead.phone)}` : ""} | ${escapeHtml(lead.status || "new")}</p>
           <p class="customer-meta">${lead.interests ? `Looking for: ${escapeHtml(lead.interests)} | ` : ""}${lead.updatedAt ? `Updated ${escapeHtml(shortDate(lead.updatedAt))}` : ""}</p>
         </div>
@@ -1042,6 +1111,12 @@ const imageDropHint = document.querySelector("#imageDropHint");
 storeSearch.addEventListener("input", () => renderProducts(Boolean(sessionUser?.canSeePrices)));
 storeCategory.addEventListener("change", () => renderProducts(Boolean(sessionUser?.canSeePrices)));
 document.querySelector("#checkoutForm")?.elements.fulfillmentMethod?.addEventListener("change", () => updateCheckoutPaymentOptions());
+document.querySelector("#fillAddressBtn")?.addEventListener("click", () => {
+  const message = document.querySelector("#checkoutMessage");
+  const filled = fillCheckoutAddress();
+  if (message) message.textContent = filled ? "Address fields filled. Please review before checkout." : "Paste a full address with city/province/postal code first.";
+});
+document.querySelector("#quickAddress")?.addEventListener("change", fillCheckoutAddress);
 
 function updateImageHint() {
   const count = imageInput.files.length;
