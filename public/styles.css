@@ -527,6 +527,84 @@ h2 {
   font-size: 13px;
 }
 
+.checkout-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.cart-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.cart-line p {
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.cart-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.cart-controls button {
+  min-height: 34px;
+}
+
+.cart-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--line);
+  margin-top: 14px;
+  padding-top: 14px;
+  font-size: 18px;
+}
+
+.checkout-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.checkout-form .wide-field {
+  grid-column: 1 / -1;
+}
+
+.checkout-flags {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.checkout-flags label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  padding: 10px;
+}
+
+.checkout-flags input {
+  width: auto;
+}
+
+.order-items {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
 .panel {
   padding: 22px;
 }
@@ -902,7 +980,10 @@ body[data-view="mobile"] h1 {
 
 body[data-view="mobile"] .product-grid,
 body[data-view="mobile"] .stats,
-body[data-view="mobile"] .admin-layout {
+body[data-view="mobile"] .admin-layout,
+body[data-view="mobile"] .checkout-layout,
+body[data-view="mobile"] .checkout-form,
+body[data-view="mobile"] .checkout-flags {
   grid-template-columns: 1fr;
 }
 
@@ -947,6 +1028,14 @@ body[data-view="mobile"] .import-url-form button[type="submit"] {
 
 body[data-view="mobile"] .row {
   grid-template-columns: 1fr;
+}
+
+body[data-view="mobile"] .cart-line {
+  grid-template-columns: 1fr;
+}
+
+body[data-view="mobile"] .cart-controls {
+  justify-content: stretch;
 }
 
 body[data-view="mobile"] .row-actions,

@@ -9,12 +9,12 @@
   <meta property="og:description" content="Browse dealer-ready items and request approved access for pricing.">
   <meta property="og:url" content="https://selltomakemoney.com/">
   <title>selltomakemoney.com Store</title>
-  <link rel="stylesheet" href="/styles.css?v=amazon-colors-2">
+  <link rel="stylesheet" href="/styles.css?v=checkout-1">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#store" data-route="store" aria-label="selltomakemoney.com home">
-      <img src="/assets/logo.svg?v=amazon-colors-2" alt="selltomakemoney.com">
+      <img src="/assets/logo.svg?v=checkout-1" alt="selltomakemoney.com">
     </a>
     <div class="view-switch" aria-label="View links">
       <a href="/desktop" id="desktopViewLink">Desktop</a>
@@ -24,6 +24,7 @@
       <button class="nav-button" data-route="store">Store</button>
       <button class="nav-button signed-out" data-route="login">Login</button>
       <button class="nav-button signed-out" data-route="register">Register</button>
+      <button class="nav-button signed-in hidden" data-route="cart">Cart <span id="cartCount">0</span></button>
       <button class="nav-button admin-only hidden" data-route="admin">Admin</button>
       <button class="nav-button signed-in hidden" id="logoutButton">Logout</button>
     </nav>
@@ -67,6 +68,49 @@
         <button class="primary" type="submit">Register</button>
         <p class="form-message" id="registerMessage"></p>
       </form>
+    </section>
+
+    <section id="cartView" class="view hidden">
+      <div class="section-head compact">
+        <div>
+          <p class="eyebrow">Checkout</p>
+          <h1>Cart and ship-to details.</h1>
+        </div>
+      </div>
+      <div class="checkout-layout">
+        <section class="panel">
+          <h2>Cart</h2>
+          <div id="cartItems" class="stack"></div>
+          <div class="cart-total"><span>Subtotal</span><strong id="cartSubtotal">$0.00</strong></div>
+        </section>
+        <form class="panel checkout-form" id="checkoutForm">
+          <h2>Ship-to / pickup information</h2>
+          <label>Fulfillment method<select name="fulfillmentMethod" required>
+            <option value="ship">Ship to address</option>
+            <option value="pickup">Customer pickup</option>
+          </select></label>
+          <label>Recipient name<input name="recipientName" required autocomplete="name"></label>
+          <label>Company<input name="company" required autocomplete="organization"></label>
+          <label>Phone<input name="phone" required autocomplete="tel"></label>
+          <label>Email<input name="email" type="email" required autocomplete="email"></label>
+          <label>Address line 1<input name="address1" required autocomplete="address-line1"></label>
+          <label>Address line 2<input name="address2" autocomplete="address-line2"></label>
+          <label>City<input name="city" required autocomplete="address-level2"></label>
+          <label>Province / state<input name="region" required autocomplete="address-level1"></label>
+          <label>Postal / ZIP code<input name="postalCode" required autocomplete="postal-code"></label>
+          <label>Country<input name="country" required autocomplete="country-name" value="Canada"></label>
+          <label>Preferred delivery or pickup window<input name="deliveryWindow" required placeholder="Example: weekday mornings, call first"></label>
+          <label class="wide-field">Receiving or pickup instructions<textarea name="receivingInstructions" rows="4" required placeholder="Dock door, pickup contact, loading notes, ID requirements, access details"></textarea></label>
+          <div class="checkout-flags wide-field">
+            <label><input type="checkbox" name="residentialAddress"> Residential address</label>
+            <label><input type="checkbox" name="liftgateRequired"> Liftgate required</label>
+            <label><input type="checkbox" name="contactBeforeDelivery" checked> Contact before delivery/pickup</label>
+          </div>
+          <label class="wide-field">Order notes<textarea name="note" rows="3" placeholder="Optional internal notes for this order"></textarea></label>
+          <button class="primary wide-field" type="submit">Submit checkout request</button>
+          <p class="form-message wide-field" id="checkoutMessage"></p>
+        </form>
+      </div>
     </section>
 
     <section id="adminView" class="view hidden">
@@ -118,10 +162,14 @@
           <h2>Dealer inquiries</h2>
           <div id="inquiriesList" class="stack"></div>
         </section>
+        <section class="panel wide">
+          <h2>Checkout requests</h2>
+          <div id="ordersList" class="stack"></div>
+        </section>
       </div>
     </section>
   </main>
 
-  <script src="/app.js?v=amazon-colors-2"></script>
+  <script src="/app.js?v=checkout-1"></script>
 </body>
 </html>

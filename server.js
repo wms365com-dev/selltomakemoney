@@ -214,11 +214,12 @@ async function downloadImage(imageUrl) {
 
 function emptyJsonStore() {
   return {
-    nextIds: { users: 1, products: 1, inquiries: 1, comparisons: 1 },
+    nextIds: { users: 1, products: 1, inquiries: 1, comparisons: 1, orders: 1 },
     users: [],
     products: [],
     inquiries: [],
-    comparisons: []
+    comparisons: [],
+    orders: []
   };
 }
 
@@ -226,7 +227,9 @@ function readJsonStore() {
   if (!fs.existsSync(DB_PATH)) return emptyJsonStore();
   const data = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
   data.nextIds.comparisons ||= 1;
+  data.nextIds.orders ||= 1;
   data.comparisons ||= [];
+  data.orders ||= [];
   data.products = data.products.map((product) => ({
     brand: "",
     upc: "",
@@ -339,11 +342,21 @@ function createJsonDatabase() {
         return { ...inquiry, email: user.email || "", company: user.company || "", productName: product.name || "", sku: product.sku || "" };
       }).sort((a, b) => b.id - a.id);
     },
+    async createOrder(order) {
+      return insert("orders", { status: "new", ...order });
+    },
+    async listOrders() {
+      return store.orders.map((order) => {
+        const user = store.users.find((item) => item.id === order.userId) || {};
+        return { ...order, email: user.email || "", company: user.company || "", contactName: user.contactName || "" };
+      }).sort((a, b) => b.id - a.id);
+    },
     async summary() {
       return {
         pendingUsers: store.users.filter((user) => user.status === "pending").length,
         products: store.products.length,
-        inquiries: store.inquiries.filter((inquiry) => inquiry.status === "new").length
+        inquiries: store.inquiries.filter((inquiry) => inquiry.status === "new").length,
+        orders: store.orders.filter((order) => order.status === "new").length
       };
     }
   };
@@ -414,6 +427,29 @@ function camelComparison(row) {
   };
 }
 
+function camelOrder(row) {
+  if (!row) return null;
+  const parseJson = (value, fallback) => {
+    if (value == null) return fallback;
+    if (typeof value === "object") return value;
+    try {
+      return JSON.parse(value);
+    } catch (_error) {
+      return fallback;
+    }
+  };
+  return {
+    id: row.id,
+    userId: row.user_id,
+    items: parseJson(row.items, []),
+    shipTo: parseJson(row.ship_to, {}),
+    subtotalCents: row.subtotal_cents,
+    status: row.status,
+    note: row.note,
+    createdAt: row.created_at
+  };
+}
+
 function createPostgresDatabase() {
   const useSsl = process.env.PGSSLMODE !== "disable" && !DATABASE_URL.includes(".railway.internal");
   const pool = new Pool({
@@ -476,10 +512,18 @@ function createPostgresDatabase() {
         ON CONFLICT (id) DO NOTHING
       `, [comparison.id, comparison.productId, comparison.site, comparison.title, comparison.priceCents, comparison.currency, comparison.productUrl, comparison.matchType, comparison.checkedAt, comparison.createdAt || new Date()]);
     }
+    for (const order of old.orders || []) {
+      await query(`
+        INSERT INTO orders (id, user_id, items, ship_to, subtotal_cents, status, note, created_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+        ON CONFLICT (id) DO NOTHING
+      `, [order.id, order.userId, JSON.stringify(order.items || []), JSON.stringify(order.shipTo || {}), order.subtotalCents || 0, order.status || "new", order.note || "", order.createdAt || new Date()]);
+    }
     await query("SELECT setval('users_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM users), 1), 1))");
     await query("SELECT setval('products_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM products), 1), 1))");
     await query("SELECT setval('inquiries_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM inquiries), 1), 1))");
     await query("SELECT setval('price_comparisons_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM price_comparisons), 1), 1))");
+    await query("SELECT setval('orders_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM orders), 1), 1))");
   }
 
   return {
@@ -535,6 +579,16 @@ function createPostgresDatabase() {
           checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+        CREATE TABLE IF NOT EXISTS orders (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id),
+          items JSONB NOT NULL DEFAULT '[]',
+          ship_to JSONB NOT NULL DEFAULT '{}',
+          subtotal_cents INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'new',
+          note TEXT NOT NULL DEFAULT '',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
         CREATE INDEX IF NOT EXISTS idx_products_upc ON products(upc);
         ALTER TABLE products ADD COLUMN IF NOT EXISTS brand TEXT NOT NULL DEFAULT '';
         ALTER TABLE products ADD COLUMN IF NOT EXISTS image_urls TEXT NOT NULL DEFAULT '[]';
@@ -543,6 +597,7 @@ function createPostgresDatabase() {
         ALTER TABLE products ADD COLUMN IF NOT EXISTS recommended_addon_ids TEXT NOT NULL DEFAULT '[]';
         CREATE INDEX IF NOT EXISTS idx_products_search ON products USING gin(to_tsvector('english', name || ' ' || description || ' ' || sku || ' ' || upc || ' ' || brand));
         CREATE INDEX IF NOT EXISTS idx_price_comparisons_product ON price_comparisons(product_id);
+        CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
       `);
       await migrateFromJsonIfEmpty();
     },
@@ -670,12 +725,28 @@ function createPostgresDatabase() {
         ORDER BY inquiries.id DESC
       `)).rows;
     },
+    async createOrder(order) {
+      const result = await query(`
+        INSERT INTO orders (user_id, items, ship_to, subtotal_cents, status, note)
+        VALUES ($1,$2,$3,$4,'new',$5) RETURNING *
+      `, [order.userId, JSON.stringify(order.items), JSON.stringify(order.shipTo), order.subtotalCents, order.note]);
+      return camelOrder(result.rows[0]);
+    },
+    async listOrders() {
+      return (await query(`
+        SELECT orders.*, users.email, users.company, users.contact_name AS "contactName"
+        FROM orders
+        JOIN users ON users.id = orders.user_id
+        ORDER BY orders.id DESC
+      `)).rows.map((row) => ({ ...camelOrder(row), email: row.email, company: row.company, contactName: row.contactName }));
+    },
     async summary() {
       const result = await query(`
         SELECT
           (SELECT COUNT(*) FROM users WHERE status = 'pending')::int AS "pendingUsers",
           (SELECT COUNT(*) FROM products)::int AS products,
-          (SELECT COUNT(*) FROM inquiries WHERE status = 'new')::int AS inquiries
+          (SELECT COUNT(*) FROM inquiries WHERE status = 'new')::int AS inquiries,
+          (SELECT COUNT(*) FROM orders WHERE status = 'new')::int AS orders
       `);
       return result.rows[0];
     }
@@ -829,6 +900,71 @@ async function productPayload(product, showPrice, includeAdminData = false) {
   };
 }
 
+function cleanRequired(value, label, max = 180) {
+  const text = String(value || "").trim();
+  if (!text) throw new Error(`${label} is required.`);
+  return text.slice(0, max);
+}
+
+function cleanOptional(value, max = 600) {
+  return String(value || "").trim().slice(0, max);
+}
+
+async function buildOrder(req) {
+  const rawItems = Array.isArray(req.body.items) ? req.body.items : [];
+  if (!rawItems.length) throw new Error("Add at least one item to the cart.");
+  const quantitiesByProduct = new Map();
+  for (const item of rawItems) {
+    const productId = Number(item.productId);
+    const quantity = Math.max(1, Math.min(999, Math.floor(Number(item.quantity || 1))));
+    if (Number.isInteger(productId) && productId > 0) {
+      quantitiesByProduct.set(productId, (quantitiesByProduct.get(productId) || 0) + quantity);
+    }
+  }
+  if (!quantitiesByProduct.size) throw new Error("Cart items are invalid.");
+  const products = await db.getProductsByIds([...quantitiesByProduct.keys()], { activeOnly: true });
+  if (products.length !== quantitiesByProduct.size) throw new Error("One or more cart items are no longer available.");
+  const items = products.map((product) => {
+    const quantity = quantitiesByProduct.get(Number(product.id));
+    return {
+      productId: product.id,
+      name: product.name,
+      sku: product.sku,
+      upc: product.upc,
+      brand: product.brand,
+      quantity,
+      unitPriceCents: product.priceCents,
+      lineTotalCents: product.priceCents * quantity
+    };
+  });
+  const ship = req.body.shipTo || {};
+  const shipTo = {
+    fulfillmentMethod: cleanRequired(ship.fulfillmentMethod, "Fulfillment method", 40),
+    recipientName: cleanRequired(ship.recipientName, "Recipient name"),
+    company: cleanRequired(ship.company, "Company"),
+    phone: cleanRequired(ship.phone, "Phone", 60),
+    email: cleanRequired(ship.email, "Email", 160),
+    address1: cleanRequired(ship.address1, "Address line 1"),
+    address2: cleanOptional(ship.address2, 180),
+    city: cleanRequired(ship.city, "City", 120),
+    region: cleanRequired(ship.region, "Province/state", 120),
+    postalCode: cleanRequired(ship.postalCode, "Postal/ZIP code", 40),
+    country: cleanRequired(ship.country, "Country", 80),
+    deliveryWindow: cleanRequired(ship.deliveryWindow, "Preferred delivery or pickup window", 160),
+    receivingInstructions: cleanRequired(ship.receivingInstructions, "Receiving or pickup instructions", 700),
+    liftgateRequired: Boolean(ship.liftgateRequired),
+    residentialAddress: Boolean(ship.residentialAddress),
+    contactBeforeDelivery: Boolean(ship.contactBeforeDelivery)
+  };
+  return {
+    userId: req.user.id,
+    items,
+    shipTo,
+    subtotalCents: items.reduce((sum, item) => sum + item.lineTotalCents, 0),
+    note: cleanOptional(req.body.note, 1000)
+  };
+}
+
 app.get("/api/session", async (req, res) => {
   res.json({ user: publicUser(await currentUser(req)) });
 });
@@ -885,6 +1021,16 @@ app.post("/api/inquiries", requireLogin, async (req, res) => {
     note: String(req.body.note || "").trim()
   });
   res.status(201).json({ ok: true });
+});
+
+app.post("/api/orders", requireLogin, async (req, res) => {
+  try {
+    if (req.user.status !== "approved") return res.status(403).json({ error: "Your account is still pending approval." });
+    const order = await db.createOrder(await buildOrder(req));
+    res.status(201).json({ orderId: order.id });
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Could not submit checkout." });
+  }
 });
 
 app.get("/api/admin/summary", requireAdmin, async (_req, res) => {
@@ -1017,6 +1163,10 @@ app.delete("/api/admin/comparisons/:id", requireAdmin, async (req, res) => {
 
 app.get("/api/admin/inquiries", requireAdmin, async (_req, res) => {
   res.json({ inquiries: await db.listInquiries() });
+});
+
+app.get("/api/admin/orders", requireAdmin, async (_req, res) => {
+  res.json({ orders: await db.listOrders() });
 });
 
 app.get("/", (req, res) => {

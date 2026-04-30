@@ -8,6 +8,7 @@ const views = {
   store: document.querySelector("#storeView"),
   login: document.querySelector("#loginView"),
   register: document.querySelector("#registerView"),
+  cart: document.querySelector("#cartView"),
   admin: document.querySelector("#adminView")
 };
 
@@ -17,6 +18,8 @@ const appStatus = document.querySelector("#appStatus");
 const appStatusText = document.querySelector("#appStatusText");
 const minimumStatusMs = 140;
 let statusDepth = 0;
+let productCache = [];
+let cart = JSON.parse(localStorage.getItem("dealerCart") || "[]");
 
 function showStatus(message = "Working...") {
   statusDepth += 1;
@@ -98,6 +101,10 @@ async function api(path, options = {}) {
 function setRoute(route) {
   Object.entries(views).forEach(([name, element]) => element.classList.toggle("hidden", name !== route));
   if (route === "store") loadProducts();
+  if (route === "cart") {
+    if (cart.length && !productCache.length) loadProducts().then(renderCart);
+    else renderCart();
+  }
   if (route === "admin") loadAdmin();
 }
 
@@ -111,6 +118,7 @@ function updateNav() {
   document.querySelectorAll(".signed-in").forEach((item) => item.classList.toggle("hidden", !signedIn));
   document.querySelectorAll(".signed-out").forEach((item) => item.classList.toggle("hidden", signedIn));
   document.querySelectorAll(".admin-only").forEach((item) => item.classList.toggle("hidden", sessionUser?.role !== "admin"));
+  updateCartCount();
 }
 
 function productImage(product) {
@@ -148,6 +156,64 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function money(cents) {
+  return `$${(Number(cents || 0) / 100).toFixed(2)}`;
+}
+
+function saveCart() {
+  localStorage.setItem("dealerCart", JSON.stringify(cart));
+  updateCartCount();
+}
+
+function updateCartCount() {
+  const count = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const cartCount = document.querySelector("#cartCount");
+  if (cartCount) cartCount.textContent = count;
+}
+
+function addToCart(productId) {
+  const existing = cart.find((item) => item.productId === Number(productId));
+  if (existing) existing.quantity += 1;
+  else cart.push({ productId: Number(productId), quantity: 1 });
+  saveCart();
+}
+
+function cartProducts() {
+  return cart.map((item) => {
+    const product = productCache.find((entry) => entry.id === item.productId);
+    return product ? { ...item, product } : null;
+  }).filter(Boolean);
+}
+
+function renderCart() {
+  const items = cartProducts();
+  const cartItems = document.querySelector("#cartItems");
+  const cartSubtotal = document.querySelector("#cartSubtotal");
+  const checkoutMessage = document.querySelector("#checkoutMessage");
+  if (checkoutMessage) checkoutMessage.textContent = "";
+  if (!items.length) {
+    cartItems.innerHTML = `<p>Your cart is empty.</p>`;
+    cartSubtotal.textContent = "$0.00";
+    return;
+  }
+  cartItems.innerHTML = items.map(({ product, quantity }) => `
+    <div class="cart-line">
+      <div>
+        <strong>${escapeHtml(product.name)}</strong>
+        <p>${escapeHtml(product.sku)} ${product.brand ? `| ${escapeHtml(product.brand)}` : ""}</p>
+        <span>${escapeHtml(product.price)} each</span>
+      </div>
+      <div class="cart-controls">
+        <button type="button" data-cart-qty="${product.id}" data-delta="-1">-</button>
+        <strong>${quantity}</strong>
+        <button type="button" data-cart-qty="${product.id}" data-delta="1">+</button>
+        <button type="button" class="danger" data-cart-remove="${product.id}">Remove</button>
+      </div>
+    </div>
+  `).join("");
+  cartSubtotal.textContent = money(items.reduce((sum, item) => sum + item.product.priceCents * item.quantity, 0));
+}
+
 function facebookListingText(product) {
   return [
     product.name,
@@ -168,6 +234,7 @@ async function loadProducts() {
   productGrid.innerHTML = loadingCards();
   await withStatus("Loading products...", async () => {
     const data = await api("/api/products");
+    productCache = data.products;
     priceNote.textContent = data.canSeePrices
       ? "Dealer pricing is visible on your approved account."
       : "Login after approval to see dealer pricing.";
@@ -182,7 +249,7 @@ async function loadProducts() {
           <p>${escapeHtml(product.description)}</p>
           ${product.price ? `<div class="price">${product.price}</div>` : `<div class="locked">Dealer login required for pricing</div>`}
           ${recommendedAddonsBlock(product)}
-          ${product.price ? `<button class="primary" data-inquire="${product.id}">Request quote</button>` : ""}
+          ${product.price ? `<button class="primary" data-add-cart="${product.id}">Add to cart</button>` : ""}
         </div>
       </article>
     `).join("");
@@ -223,17 +290,20 @@ async function loadAdmin() {
   document.querySelector("#usersList").innerHTML = loadingRows(2);
   document.querySelector("#adminProducts").innerHTML = loadingRows(3);
   document.querySelector("#inquiriesList").innerHTML = loadingRows(1);
-  const [summary, users, products, inquiries] = await withStatus("Loading admin data...", () => Promise.all([
+  document.querySelector("#ordersList").innerHTML = loadingRows(2);
+  const [summary, users, products, inquiries, orders] = await withStatus("Loading admin data...", () => Promise.all([
     api("/api/admin/summary"),
     api("/api/admin/users"),
     api("/api/admin/products"),
-    api("/api/admin/inquiries")
+    api("/api/admin/inquiries"),
+    api("/api/admin/orders")
   ]));
 
   document.querySelector("#adminStats").innerHTML = `
     <div class="stat"><strong>${summary.pendingUsers}</strong>Pending dealers</div>
     <div class="stat"><strong>${summary.products}</strong>Products</div>
     <div class="stat"><strong>${summary.inquiries}</strong>New inquiries</div>
+    <div class="stat"><strong>${summary.orders || 0}</strong>Checkout requests</div>
   `;
 
   document.querySelector("#usersList").innerHTML = users.users.map((user) => `
@@ -334,6 +404,24 @@ async function loadAdmin() {
       </div>
     `).join("")
     : "<p>No inquiries yet.</p>";
+
+  document.querySelector("#ordersList").innerHTML = orders.orders.length
+    ? orders.orders.map((order) => `
+      <div class="row order-row">
+        <div>
+          <strong>Order #${order.id} | ${money(order.subtotalCents)}</strong>
+          <p>${escapeHtml(order.company)} | ${escapeHtml(order.email)} | ${escapeHtml(order.status)}</p>
+          <p>${escapeHtml(order.shipTo?.fulfillmentMethod)} for ${escapeHtml(order.shipTo?.recipientName)} | ${escapeHtml(order.shipTo?.phone)}</p>
+          <p>${escapeHtml(order.shipTo?.address1)} ${order.shipTo?.address2 ? `, ${escapeHtml(order.shipTo.address2)}` : ""}, ${escapeHtml(order.shipTo?.city)}, ${escapeHtml(order.shipTo?.region)} ${escapeHtml(order.shipTo?.postalCode)}, ${escapeHtml(order.shipTo?.country)}</p>
+          <p>${escapeHtml(order.shipTo?.deliveryWindow)} | ${escapeHtml(order.shipTo?.receivingInstructions)}</p>
+          <ul class="order-items">
+            ${(order.items || []).map((item) => `<li>${escapeHtml(item.name)} x ${escapeHtml(item.quantity)} (${money(item.lineTotalCents)})</li>`).join("")}
+          </ul>
+          ${order.note ? `<p>Note: ${escapeHtml(order.note)}</p>` : ""}
+        </div>
+      </div>
+    `).join("")
+    : "<p>No checkout requests yet.</p>";
 }
 
 document.addEventListener("click", async (event) => {
@@ -341,6 +429,31 @@ document.addEventListener("click", async (event) => {
   if (route) {
     window.location.hash = route;
     setRoute(route);
+  }
+
+  const addCartId = event.target.closest("[data-add-cart]")?.dataset.addCart;
+  if (addCartId) {
+    addToCart(addCartId);
+    event.target.textContent = "Added";
+    setTimeout(() => {
+      event.target.textContent = "Add to cart";
+    }, 1100);
+  }
+
+  const qtyProductId = event.target.closest("[data-cart-qty]")?.dataset.cartQty;
+  const delta = Number(event.target.closest("[data-cart-qty]")?.dataset.delta || 0);
+  if (qtyProductId && delta) {
+    const item = cart.find((entry) => entry.productId === Number(qtyProductId));
+    if (item) item.quantity = Math.max(1, item.quantity + delta);
+    saveCart();
+    renderCart();
+  }
+
+  const removeProductId = event.target.closest("[data-cart-remove]")?.dataset.cartRemove;
+  if (removeProductId) {
+    cart = cart.filter((item) => item.productId !== Number(removeProductId));
+    saveCart();
+    renderCart();
   }
 
   const userId = event.target.closest("[data-user]")?.dataset.user;
@@ -521,6 +634,58 @@ document.querySelector("#productForm").addEventListener("submit", async (event) 
     message.textContent = "Product added.";
     await loadAdmin();
     await loadProducts();
+  } catch (error) {
+    message.textContent = error.message;
+  } finally {
+    restore();
+  }
+});
+
+document.querySelector("#checkoutForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const message = document.querySelector("#checkoutMessage");
+  const submitButton = event.target.querySelector("button[type='submit']");
+  message.textContent = "";
+  if (!cart.length) {
+    message.textContent = "Add at least one item to the cart.";
+    return;
+  }
+  const restore = setButtonBusy(submitButton, "Submitting...");
+  const form = new FormData(event.target);
+  const body = {
+    items: cart.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+    shipTo: {
+      fulfillmentMethod: form.get("fulfillmentMethod"),
+      recipientName: form.get("recipientName"),
+      company: form.get("company"),
+      phone: form.get("phone"),
+      email: form.get("email"),
+      address1: form.get("address1"),
+      address2: form.get("address2"),
+      city: form.get("city"),
+      region: form.get("region"),
+      postalCode: form.get("postalCode"),
+      country: form.get("country"),
+      deliveryWindow: form.get("deliveryWindow"),
+      receivingInstructions: form.get("receivingInstructions"),
+      residentialAddress: form.has("residentialAddress"),
+      liftgateRequired: form.has("liftgateRequired"),
+      contactBeforeDelivery: form.has("contactBeforeDelivery")
+    },
+    note: form.get("note")
+  };
+  try {
+    const data = await withStatus("Submitting checkout...", () => api("/api/orders", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }));
+    cart = [];
+    saveCart();
+    renderCart();
+    event.target.reset();
+    event.target.elements.country.value = "Canada";
+    event.target.elements.contactBeforeDelivery.checked = true;
+    message.textContent = `Checkout request #${data.orderId} submitted.`;
   } catch (error) {
     message.textContent = error.message;
   } finally {
