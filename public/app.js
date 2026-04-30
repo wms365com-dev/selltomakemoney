@@ -556,6 +556,7 @@ document.addEventListener("click", async (event) => {
   if (route) {
     window.location.hash = route;
     setRoute(route);
+    document.querySelector("#mainMenu")?.removeAttribute("open");
   }
 
   const addCartId = event.target.closest("[data-add-cart]")?.dataset.addCart;
@@ -913,6 +914,7 @@ document.querySelector("#logoutButton").addEventListener("click", async () => {
   await withStatus("Logging out...", () => api("/api/logout", { method: "POST", body: JSON.stringify({}) }));
   sessionUser = null;
   updateNav();
+  document.querySelector("#mainMenu")?.removeAttribute("open");
   setRoute("store");
 });
 

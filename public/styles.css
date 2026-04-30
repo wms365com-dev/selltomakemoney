@@ -87,11 +87,65 @@ select {
   color: var(--ink);
 }
 
-nav {
-  display: flex;
-  flex-wrap: wrap;
+.nav-menu {
+  position: relative;
+}
+
+.nav-menu details {
+  position: relative;
+}
+
+.menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 900;
+  list-style: none;
+  padding: 0 16px;
+}
+
+.menu-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.menu-trigger::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  margin-left: 10px;
+  transform: rotate(45deg) translateY(-2px);
+}
+
+.nav-menu details[open] .menu-trigger {
+  background: var(--gold);
+  color: var(--ink);
+}
+
+.nav-menu details[open] .menu-trigger::after {
+  transform: rotate(225deg) translate(-2px, -2px);
+}
+
+.menu-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 30;
+  display: grid;
   gap: 8px;
-  justify-content: flex-end;
+  min-width: 210px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 44px rgba(19, 25, 33, 0.22);
+  padding: 10px;
 }
 
 .nav-button,
@@ -108,6 +162,11 @@ button {
   padding: 0 14px;
   text-decoration: none;
   transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.menu-panel .nav-button {
+  justify-content: flex-start;
+  width: 100%;
 }
 
 .nav-button:hover,
@@ -1042,26 +1101,25 @@ body[data-view="mobile"] .view-switch a {
   text-align: center;
 }
 
-body[data-view="mobile"] nav {
-  position: fixed;
-  right: 12px;
-  bottom: 12px;
-  left: 12px;
-  z-index: 20;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: rgba(19, 25, 33, 0.96);
-  padding: 8px;
-  box-shadow: 0 12px 30px rgba(23, 33, 28, 0.18);
+body[data-view="mobile"] .nav-menu {
+  order: 2;
+  width: 100%;
+}
+
+body[data-view="mobile"] .menu-trigger {
+  width: 100%;
+  min-height: 48px;
+}
+
+body[data-view="mobile"] .menu-panel {
+  position: static;
+  margin-top: 8px;
+  min-width: 0;
+  width: 100%;
 }
 
 body[data-view="mobile"] .nav-button {
-  min-width: 0;
   min-height: 48px;
-  padding: 0 6px;
 }
 
 body[data-view="mobile"] nav .nav-button,

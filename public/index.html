@@ -9,24 +9,29 @@
   <meta property="og:description" content="Browse dealer-ready items and request approved access for pricing.">
   <meta property="og:url" content="https://selltomakemoney.com/">
   <title>selltomakemoney.com Store</title>
-  <link rel="stylesheet" href="/styles.css?v=listing-sections-1">
+  <link rel="stylesheet" href="/styles.css?v=nav-menu-1">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#store" data-route="store" aria-label="selltomakemoney.com home">
-      <img src="/assets/logo.svg?v=listing-sections-1" alt="selltomakemoney.com">
+      <img src="/assets/logo.svg?v=nav-menu-1" alt="selltomakemoney.com">
     </a>
     <div class="view-switch" aria-label="View links">
       <a href="/desktop" id="desktopViewLink">Desktop</a>
       <a href="/mobile" id="mobileViewLink">Mobile</a>
     </div>
-    <nav>
-      <button class="nav-button" data-route="store">Store</button>
-      <button class="nav-button signed-out" data-route="login">Login</button>
-      <button class="nav-button signed-out" data-route="register">Register</button>
-      <button class="nav-button signed-in hidden" data-route="cart">Cart <span id="cartCount">0</span></button>
-      <button class="nav-button admin-only hidden" data-route="admin">Admin</button>
-      <button class="nav-button signed-in hidden" id="logoutButton">Logout</button>
+    <nav class="nav-menu" aria-label="Main navigation">
+      <details id="mainMenu">
+        <summary class="menu-trigger">Menu</summary>
+        <div class="menu-panel">
+          <button class="nav-button" data-route="store">Store</button>
+          <button class="nav-button signed-out" data-route="login">Login</button>
+          <button class="nav-button signed-out" data-route="register">Register</button>
+          <button class="nav-button signed-in hidden" data-route="cart">Cart <span id="cartCount">0</span></button>
+          <button class="nav-button admin-only hidden" data-route="admin">Admin</button>
+          <button class="nav-button signed-in hidden" id="logoutButton">Logout</button>
+        </div>
+      </details>
     </nav>
   </header>
 
@@ -207,6 +212,6 @@
     </section>
   </main>
 
-  <script src="/app.js?v=listing-sections-1"></script>
+  <script src="/app.js?v=nav-menu-1"></script>
 </body>
 </html>
