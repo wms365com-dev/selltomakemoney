@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Browse the Sell To Make Money dealer catalog and request approved dealer access.">
+  <title>Sell To Make Money Catalog</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="catalog-page">
+  <header class="topbar catalog-topbar">
+    <a class="brand" href="/mobile" aria-label="Sell To Make Money home">
+      <img src="/assets/logo.svg" alt="Sell To Make Money">
+    </a>
+    <nav>
+      <a class="nav-button" href="/mobile">Store</a>
+      <a class="nav-button primary" href="/mobile#register">Request Access</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="catalog-hero">
+      <p class="eyebrow">Shareable catalog</p>
+      <h1>Browse available dealer items.</h1>
+      <p>Pricing is reserved for approved dealer accounts. Register or log in on the main site to see dealer pricing and request quotes.</p>
+      <div class="catalog-actions">
+        <a class="nav-button primary" href="/mobile#register">Request dealer access</a>
+        <a class="nav-button" href="/mobile">Open store</a>
+      </div>
+    </section>
+
+    <section class="catalog-tools" aria-label="Catalog filters">
+      <label>Search catalog<input id="catalogSearch" type="search" placeholder="Search by name, brand, SKU, UPC"></label>
+      <label>Category<select id="catalogCategory"><option value="">All categories</option></select></label>
+    </section>
+
+    <section>
+      <div id="catalogStatus" class="app-status" role="status" aria-live="polite">
+        <span class="spinner" aria-hidden="true"></span>
+        <span>Loading catalog...</span>
+      </div>
+      <div class="product-grid catalog-grid" id="catalogGrid"></div>
+    </section>
+  </main>
+
+  <script src="/catalog.js"></script>
+</body>
+</html>

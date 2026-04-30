@@ -745,6 +745,10 @@ function sendApp(_req, res) {
   res.sendFile(path.join(ROOT, "public", "index.html"));
 }
 
+function sendCatalog(_req, res) {
+  res.sendFile(path.join(ROOT, "public", "catalog.html"));
+}
+
 function publicUser(user) {
   if (!user) return null;
   return {
@@ -1020,6 +1024,7 @@ app.get("/", (req, res) => {
 });
 
 app.get(["/desktop", "/mobile"], sendApp);
+app.get("/catalog", sendCatalog);
 
 app.get("*", sendApp);
 

@@ -101,6 +101,11 @@ function setRoute(route) {
   if (route === "admin") loadAdmin();
 }
 
+function routeFromHash() {
+  const route = window.location.hash.replace("#", "");
+  return views[route] ? route : "store";
+}
+
 function updateNav() {
   const signedIn = Boolean(sessionUser);
   document.querySelectorAll(".signed-in").forEach((item) => item.classList.toggle("hidden", !signedIn));
@@ -333,7 +338,10 @@ async function loadAdmin() {
 
 document.addEventListener("click", async (event) => {
   const route = event.target.closest("[data-route]")?.dataset.route;
-  if (route) setRoute(route);
+  if (route) {
+    window.location.hash = route;
+    setRoute(route);
+  }
 
   const userId = event.target.closest("[data-user]")?.dataset.user;
   const status = event.target.closest("[data-status]")?.dataset.status;
@@ -571,4 +579,6 @@ document.querySelector("#logoutButton").addEventListener("click", async () => {
   setRoute("store");
 });
 
-loadSession().then(loadProducts);
+window.addEventListener("hashchange", () => setRoute(routeFromHash()));
+
+loadSession().then(() => setRoute(routeFromHash()));
