@@ -359,10 +359,10 @@ function renderProducts(canSeePrices = false) {
   const products = filteredProducts(productCache);
   productGrid.innerHTML = products.length ? products.map((product) => `
     <article class="product-card">
-      ${productImage(product, !canSeePrices)}
-      <div class="product-body">
-        <div>
-          <h2>${escapeHtml(product.name)}</h2>
+        ${productImage(product, !canSeePrices)}
+        <div class="product-body">
+          <div>
+          <h2><a class="product-title-link" href="${escapeHtml(product.url || `/products/${product.id}`)}">${escapeHtml(product.name)}</a></h2>
           <p class="sku">${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.category ? `| ${escapeHtml(product.category)}` : ""}</p>
         </div>
         <p>${escapeHtml(product.description)}</p>
@@ -371,7 +371,10 @@ function renderProducts(canSeePrices = false) {
         ${dealerPriceBlock(product)}
         ${shoppingLinksBlock(product)}
         ${recommendedAddonsBlock(product)}
-        <button class="primary" data-add-cart="${product.id}">Add to cart</button>
+        <div class="product-actions">
+          <button class="primary" data-add-cart="${product.id}">Add to cart</button>
+          <a class="nav-button" href="${escapeHtml(product.url || `/products/${product.id}`)}">Details</a>
+        </div>
       </div>
     </article>
   `).join("") : `<div class="panel empty-catalog"><h2>No matching items</h2><p>Try another search or category.</p></div>`;

@@ -129,14 +129,17 @@ function renderCatalog() {
       ${productImage(product)}
       <div class="product-body">
         <div>
-          <h2>${escapeHtml(product.name)}</h2>
+          <h2><a class="product-title-link" href="${escapeHtml(product.url || `/products/${product.id}`)}">${escapeHtml(product.name)}</a></h2>
           <p class="sku">${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.category ? `| ${escapeHtml(product.category)}` : ""}</p>
         </div>
         <p>${escapeHtml(product.description)}</p>
         ${productSpecsSummary(product)}
         <div class="price">${escapeHtml(product.price || "$0.00")}</div>
         ${shoppingLinksBlock(product)}
-        <a class="nav-button primary" href="/mobile#register">Request access</a>
+        <div class="product-actions">
+          <a class="nav-button primary" href="/mobile#cart">Checkout</a>
+          <a class="nav-button" href="${escapeHtml(product.url || `/products/${product.id}`)}">Details</a>
+        </div>
       </div>
     </article>
   `).join("") : `<div class="panel empty-catalog"><h2>No matching items</h2><p>Try another search or category.</p></div>`;

@@ -941,6 +941,30 @@ function sendCatalog(_req, res) {
   res.sendFile(path.join(ROOT, "public", "catalog.html"));
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function productSlug(product) {
+  const base = [product.brand, product.name, product.sku || product.upc]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 90);
+  return base || `product-${product.id}`;
+}
+
+function productPath(product) {
+  return `/products/${product.id}/${productSlug(product)}`;
+}
+
 function publicBaseUrl(req) {
   return process.env.PUBLIC_SITE_URL || (req.get("host")?.includes("localhost") ? `${req.protocol}://${req.get("host")}` : "https://selltomakemoney.com");
 }
@@ -955,12 +979,13 @@ app.get("/robots.txt", (req, res) => {
   ].join("\n"));
 });
 
-app.get("/sitemap.xml", (req, res) => {
+app.get("/sitemap.xml", async (req, res) => {
   const baseUrl = publicBaseUrl(req).replace(/\/$/, "");
-  const urls = ["", "/catalog", "/desktop", "/mobile"];
+  const products = await db.listProducts({ activeOnly: true });
+  const urls = ["", "/catalog", "/desktop", "/mobile", ...products.map(productPath)];
   res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map((url) => `  <url><loc>${baseUrl}${url}</loc><changefreq>daily</changefreq><priority>${url === "" ? "1.0" : "0.8"}</priority></url>`).join("\n")}
+${urls.map((url) => `  <url><loc>${baseUrl}${url}</loc><changefreq>${url.startsWith("/products/") ? "weekly" : "daily"}</changefreq><priority>${url === "" ? "1.0" : url.startsWith("/products/") ? "0.7" : "0.8"}</priority></url>`).join("\n")}
 </urlset>`);
 });
 
@@ -976,6 +1001,107 @@ function publicUser(user) {
     role: user.role,
     canSeePrices: user.status === "approved"
   };
+}
+
+function productSpecsLines(product) {
+  const specs = product.productSpecs || {};
+  const dimensions = [specs.length, specs.width, specs.height].filter(Boolean).join(" x ");
+  return [
+    product.brand ? ["Brand", product.brand] : null,
+    product.sku ? ["SKU", product.sku] : null,
+    product.upc ? ["UPC", product.upc] : null,
+    product.category ? ["Category", product.category] : null,
+    specs.model ? ["Model", specs.model] : null,
+    specs.condition ? ["Condition", specs.condition] : null,
+    specs.color ? ["Color", specs.color] : null,
+    specs.material ? ["Material", specs.material] : null,
+    dimensions ? ["Dimensions", `${dimensions} ${specs.dimensionUnit || ""}`.trim()] : null,
+    specs.weight ? ["Weight", `${specs.weight} ${specs.weightUnit || ""}`.trim()] : null
+  ].filter(Boolean);
+}
+
+function productJsonLd(product, canonicalUrl, imageUrl) {
+  return JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.description,
+    sku: product.sku || undefined,
+    gtin12: product.upc || undefined,
+    brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
+    category: product.category || undefined,
+    image: imageUrl || undefined,
+    offers: {
+      "@type": "Offer",
+      priceCurrency: "CAD",
+      price: (Number(product.priceCents || 0) / 100).toFixed(2),
+      availability: "https://schema.org/InStock",
+      url: canonicalUrl
+    }
+  });
+}
+
+function safeJsonScript(json) {
+  return json.replaceAll("<", "\\u003c");
+}
+
+async function sendProductPage(req, res) {
+  const product = await db.getProduct(Number(req.params.id));
+  if (!product || !product.active) return res.status(404).send("Product not found.");
+  const baseUrl = publicBaseUrl(req).replace(/\/$/, "");
+  const canonicalPath = productPath(product);
+  const canonicalUrl = `${baseUrl}${canonicalPath}`;
+  const mainImage = (product.imageUrls?.[0] || product.imageUrl || "");
+  const absoluteImage = mainImage ? new URL(mainImage, baseUrl).toString() : "";
+  const price = dollars(product.priceCents);
+  const title = `${product.name} | ${price} | selltomakemoney.com`;
+  const description = `${product.brand ? `${product.brand} ` : ""}${product.name}. ${product.description || "Available from selltomakemoney.com."}`.slice(0, 155);
+  const specs = productSpecsLines(product);
+  res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="${escapeHtml(description)}">
+  <meta name="robots" content="index,follow">
+  <link rel="canonical" href="${escapeHtml(canonicalUrl)}">
+  <meta property="og:type" content="product">
+  <meta property="og:site_name" content="selltomakemoney.com">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:description" content="${escapeHtml(description)}">
+  <meta property="og:url" content="${escapeHtml(canonicalUrl)}">
+  ${absoluteImage ? `<meta property="og:image" content="${escapeHtml(absoluteImage)}">` : ""}
+  <meta name="twitter:card" content="${absoluteImage ? "summary_large_image" : "summary"}">
+  <title>${escapeHtml(title)}</title>
+  <script type="application/ld+json">${safeJsonScript(productJsonLd(product, canonicalUrl, absoluteImage))}</script>
+  <link rel="stylesheet" href="/styles.css?v=product-pages-1">
+</head>
+<body>
+  <header class="topbar catalog-topbar">
+    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=product-pages-1" alt="selltomakemoney.com"></a>
+    <nav><a class="nav-button" href="/desktop">Store</a><a class="nav-button" href="/catalog">Catalog</a><a class="nav-button primary" href="/desktop#cart">Checkout</a></nav>
+  </header>
+  <main>
+    <article class="product-detail">
+      <div class="product-detail-media">
+        ${mainImage ? `<img src="${escapeHtml(mainImage)}" alt="${escapeHtml(product.name)}" loading="eager" decoding="async">` : `<div class="product-image">${escapeHtml(product.brand || product.category || "Product")}</div>`}
+      </div>
+      <section class="product-detail-body">
+        <p class="eyebrow">${escapeHtml(product.category || "Available inventory")}</p>
+        <h1>${escapeHtml(product.name)}</h1>
+        <p class="sku">${escapeHtml([product.brand, product.sku, product.upc ? `UPC ${product.upc}` : ""].filter(Boolean).join(" | "))}</p>
+        <div class="price">${escapeHtml(price)}</div>
+        <p>${escapeHtml(product.description)}</p>
+        ${specs.length ? `<dl class="product-spec-list">${specs.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>` : ""}
+        <div class="catalog-actions">
+          <a class="nav-button primary" href="/desktop#cart">Open store to add to cart</a>
+          <a class="nav-button" href="/catalog">Browse catalog</a>
+        </div>
+      </section>
+    </article>
+  </main>
+</body>
+</html>`);
 }
 
 async function currentUser(req) {
@@ -1000,6 +1126,7 @@ async function requireAdmin(req, res, next) {
 async function productPayload(product, showPrice, includeAdminData = false) {
   const payload = {
     id: product.id,
+    url: productPath(product),
     name: product.name,
     sku: product.sku,
     upc: product.upc,
@@ -1379,6 +1506,7 @@ app.get("/", (req, res) => {
   res.redirect(isMobileRequest(req) ? "/mobile" : "/desktop");
 });
 
+app.get("/products/:id/:slug?", sendProductPage);
 app.get(["/desktop", "/mobile"], sendApp);
 app.get("/catalog", sendCatalog);
 
