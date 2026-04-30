@@ -1491,9 +1491,10 @@ body[data-view="mobile"] {
 
 body[data-view="mobile"] .topbar {
   position: sticky;
-  align-items: flex-start;
-  flex-direction: column;
+  align-items: center;
+  flex-direction: row;
   gap: 12px;
+  justify-content: space-between;
   min-height: 0;
   padding: 14px 16px;
 }
@@ -1503,13 +1504,12 @@ body[data-view="mobile"] .brand {
 }
 
 body[data-view="mobile"] .brand img {
-  width: min(220px, 76vw);
+  width: min(190px, 48vw);
 }
 
 body[data-view="mobile"] .header-actions {
-  position: absolute;
-  top: 18px;
-  right: 16px;
+  position: static;
+  flex: 0 0 auto;
   gap: 8px;
 }
 
@@ -1533,10 +1533,10 @@ body[data-view="mobile"] .menu-trigger {
 }
 
 body[data-view="mobile"] .menu-panel {
-  position: static;
-  margin-top: 8px;
+  position: absolute;
+  margin-top: 0;
   min-width: 0;
-  width: 100%;
+  width: min(230px, calc(100vw - 32px));
 }
 
 body[data-view="mobile"] .nav-button {
@@ -1760,5 +1760,12 @@ body[data-view="mobile"] .comparison-form button {
 
   .comparison-form {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  body:not(.catalog-page) .topbar {
+    align-items: center;
+    flex-direction: row;
   }
 }
