@@ -917,7 +917,7 @@ function createPostgresDatabase() {
           (SELECT COUNT(*) FROM products)::int AS products,
           (SELECT COUNT(*) FROM inquiries WHERE status = 'new')::int AS inquiries,
           (SELECT COUNT(*) FROM orders WHERE status = 'new')::int AS orders,
-          (SELECT COUNT(*) FROM (SELECT user_id FROM orders GROUP BY user_id HAVING COUNT(*) > 1) returning)::int AS "returningCustomers"
+          (SELECT COUNT(*) FROM (SELECT user_id FROM orders GROUP BY user_id HAVING COUNT(*) > 1) returning_customers)::int AS "returningCustomers"
       `);
       return result.rows[0];
     }
