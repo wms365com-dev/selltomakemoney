@@ -389,7 +389,17 @@ function createJsonDatabase() {
       return insert("users", user);
     },
     async listUsers() {
-      return [...store.users].sort((a, b) => Number(b.status === "pending") - Number(a.status === "pending"));
+      return [...store.users].map((user) => {
+        const orders = store.orders.filter((order) => Number(order.userId) === Number(user.id));
+        const lastOrder = orders.slice().sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
+        return {
+          ...user,
+          orderCount: orders.length,
+          returningCustomer: orders.length > 1,
+          lastOrderAt: lastOrder?.createdAt || "",
+          totalSpentCents: orders.reduce((sum, order) => sum + Number(order.subtotalCents || 0), 0)
+        };
+      }).sort((a, b) => Number(b.status === "pending") - Number(a.status === "pending"));
     },
     async updateUserStatus(id, status) {
       const user = store.users.find((item) => item.id === Number(id) && item.role !== "admin");
@@ -451,7 +461,20 @@ function createJsonDatabase() {
     async listOrders() {
       return store.orders.map((order) => {
         const user = store.users.find((item) => item.id === order.userId) || {};
-        return { ...order, email: user.email || "", company: user.company || "", contactName: user.contactName || "" };
+        const customerOrders = store.orders
+          .filter((item) => Number(item.userId) === Number(order.userId))
+          .sort((a, b) => Number(a.id) - Number(b.id));
+        const orderIndex = customerOrders.findIndex((item) => Number(item.id) === Number(order.id));
+        return {
+          ...order,
+          email: user.email || "",
+          company: user.company || "",
+          contactName: user.contactName || "",
+          customerOrderCount: customerOrders.length,
+          previousOrderCount: Math.max(0, orderIndex),
+          returningCustomer: orderIndex > 0,
+          customerTotalSpentCents: customerOrders.reduce((sum, item) => sum + Number(item.subtotalCents || 0), 0)
+        };
       }).sort((a, b) => b.id - a.id);
     },
     async summary() {
@@ -459,7 +482,8 @@ function createJsonDatabase() {
         pendingUsers: store.users.filter((user) => user.status === "pending").length,
         products: store.products.length,
         inquiries: store.inquiries.filter((inquiry) => inquiry.status === "new").length,
-        orders: store.orders.filter((order) => order.status === "new").length
+        orders: store.orders.filter((order) => order.status === "new").length,
+        returningCustomers: new Set(store.orders.map((order) => order.userId).filter((userId) => store.orders.filter((order) => order.userId === userId).length > 1)).size
       };
     }
   };
@@ -745,7 +769,20 @@ function createPostgresDatabase() {
       return camelUser(result.rows[0]);
     },
     async listUsers() {
-      return (await query("SELECT * FROM users ORDER BY CASE WHEN status = 'pending' THEN 0 ELSE 1 END, created_at DESC")).rows.map(camelUser);
+      return (await query(`
+        SELECT users.*,
+          COALESCE(customer_orders.order_count, 0)::int AS "orderCount",
+          COALESCE(customer_orders.total_spent_cents, 0)::int AS "totalSpentCents",
+          customer_orders.last_order_at AS "lastOrderAt",
+          (COALESCE(customer_orders.order_count, 0) > 1) AS "returningCustomer"
+        FROM users
+        LEFT JOIN (
+          SELECT user_id, COUNT(*) AS order_count, SUM(subtotal_cents) AS total_spent_cents, MAX(created_at) AS last_order_at
+          FROM orders
+          GROUP BY user_id
+        ) customer_orders ON customer_orders.user_id = users.id
+        ORDER BY CASE WHEN status = 'pending' THEN 0 ELSE 1 END, created_at DESC
+      `)).rows.map((row) => ({ ...camelUser(row), orderCount: row.orderCount, totalSpentCents: row.totalSpentCents, lastOrderAt: row.lastOrderAt, returningCustomer: row.returningCustomer }));
     },
     async updateUserStatus(id, status) {
       const result = await query("UPDATE users SET status = $1 WHERE id = $2 AND role != 'admin' RETURNING *", [status, id]);
@@ -855,11 +892,23 @@ function createPostgresDatabase() {
     },
     async listOrders() {
       return (await query(`
-        SELECT orders.*, users.email, users.company, users.contact_name AS "contactName"
+        SELECT orders.*, users.email, users.company, users.contact_name AS "contactName",
+          COUNT(*) OVER (PARTITION BY orders.user_id)::int AS "customerOrderCount",
+          (ROW_NUMBER() OVER (PARTITION BY orders.user_id ORDER BY orders.id ASC) - 1)::int AS "previousOrderCount",
+          SUM(orders.subtotal_cents) OVER (PARTITION BY orders.user_id)::int AS "customerTotalSpentCents"
         FROM orders
         JOIN users ON users.id = orders.user_id
         ORDER BY orders.id DESC
-      `)).rows.map((row) => ({ ...camelOrder(row), email: row.email, company: row.company, contactName: row.contactName }));
+      `)).rows.map((row) => ({
+        ...camelOrder(row),
+        email: row.email,
+        company: row.company,
+        contactName: row.contactName,
+        customerOrderCount: row.customerOrderCount,
+        previousOrderCount: row.previousOrderCount,
+        returningCustomer: Number(row.previousOrderCount || 0) > 0,
+        customerTotalSpentCents: row.customerTotalSpentCents
+      }));
     },
     async summary() {
       const result = await query(`
@@ -867,7 +916,8 @@ function createPostgresDatabase() {
           (SELECT COUNT(*) FROM users WHERE status = 'pending')::int AS "pendingUsers",
           (SELECT COUNT(*) FROM products)::int AS products,
           (SELECT COUNT(*) FROM inquiries WHERE status = 'new')::int AS inquiries,
-          (SELECT COUNT(*) FROM orders WHERE status = 'new')::int AS orders
+          (SELECT COUNT(*) FROM orders WHERE status = 'new')::int AS orders,
+          (SELECT COUNT(*) FROM (SELECT user_id FROM orders GROUP BY user_id HAVING COUNT(*) > 1) returning)::int AS "returningCustomers"
       `);
       return result.rows[0];
     }
@@ -1074,11 +1124,11 @@ async function sendProductPage(req, res) {
   <meta name="twitter:card" content="${absoluteImage ? "summary_large_image" : "summary"}">
   <title>${escapeHtml(title)}</title>
   <script type="application/ld+json">${safeJsonScript(productJsonLd(product, canonicalUrl, absoluteImage))}</script>
-  <link rel="stylesheet" href="/styles.css?v=mississauga-pickup-1">
+  <link rel="stylesheet" href="/styles.css?v=return-customers-1">
 </head>
 <body>
   <header class="topbar catalog-topbar">
-    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=mississauga-pickup-1" alt="selltomakemoney.com"></a>
+    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=return-customers-1" alt="selltomakemoney.com"></a>
     <nav><a class="nav-button" href="/desktop">Store</a><a class="nav-button" href="/catalog">Catalog</a><a class="nav-button primary" href="/desktop#cart">Checkout</a></nav>
   </header>
   <main>

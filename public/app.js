@@ -206,6 +206,12 @@ function money(cents) {
   return `$${(Number(cents || 0) / 100).toFixed(2)}`;
 }
 
+function shortDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString();
+}
+
 function saveCart() {
   localStorage.setItem("dealerCart", JSON.stringify(cart));
   updateCartCount();
@@ -471,6 +477,7 @@ async function loadAdmin() {
     <div class="stat"><strong>${summary.products}</strong>Products</div>
     <div class="stat"><strong>${summary.inquiries}</strong>New inquiries</div>
     <div class="stat"><strong>${summary.orders || 0}</strong>Checkout requests</div>
+    <div class="stat"><strong>${summary.returningCustomers || 0}</strong>Returning customers</div>
   `;
 
   document.querySelector("#usersList").innerHTML = users.users.map((user) => `
@@ -478,6 +485,12 @@ async function loadAdmin() {
       <div>
         <strong>${escapeHtml(user.company || user.email)}</strong>
         <p>${escapeHtml(user.contactName)} | ${escapeHtml(user.email)} | ${escapeHtml(user.status)}</p>
+        <p class="customer-meta">
+          <span class="${user.returningCustomer ? "returning-badge" : "new-badge"}">${user.returningCustomer ? "Returning customer" : "New customer"}</span>
+          ${Number(user.orderCount || 0)} order${Number(user.orderCount || 0) === 1 ? "" : "s"}
+          ${user.lastOrderAt ? `| Last order ${escapeHtml(shortDate(user.lastOrderAt))}` : ""}
+          ${Number(user.totalSpentCents || 0) ? `| Lifetime ${money(user.totalSpentCents)}` : ""}
+        </p>
       </div>
       <div class="row-actions">
         ${user.role === "admin" ? "" : `
@@ -610,6 +623,12 @@ async function loadAdmin() {
         <div>
           <strong>Order #${order.id} | ${money(order.subtotalCents)}</strong>
           <p>${escapeHtml(order.company)} | ${escapeHtml(order.email)} | ${escapeHtml(order.status)}</p>
+          <p class="customer-meta">
+            <span class="${order.returningCustomer ? "returning-badge" : "new-badge"}">${order.returningCustomer ? "Returning customer" : "First order"}</span>
+            ${Number(order.customerOrderCount || 1)} lifetime order${Number(order.customerOrderCount || 1) === 1 ? "" : "s"}
+            ${Number(order.previousOrderCount || 0) ? `| ${Number(order.previousOrderCount)} previous` : ""}
+            ${Number(order.customerTotalSpentCents || 0) ? `| Lifetime ${money(order.customerTotalSpentCents)}` : ""}
+          </p>
           <p>${escapeHtml(order.shipTo?.fulfillmentMethod)} | ${escapeHtml(order.shipTo?.paymentMethod || "etransfer")} ${order.shipTo?.pickupLocation ? `| Pickup: ${escapeHtml(order.shipTo.pickupLocation)}` : ""} for ${escapeHtml(order.shipTo?.recipientName)} | ${escapeHtml(order.shipTo?.phone)}</p>
           <p>${escapeHtml(order.shipTo?.address1)} ${order.shipTo?.address2 ? `, ${escapeHtml(order.shipTo.address2)}` : ""}, ${escapeHtml(order.shipTo?.city)}, ${escapeHtml(order.shipTo?.region)} ${escapeHtml(order.shipTo?.postalCode)}, ${escapeHtml(order.shipTo?.country)}</p>
           <p>${escapeHtml(order.shipTo?.deliveryWindow)} | ${escapeHtml(order.shipTo?.receivingInstructions)}</p>

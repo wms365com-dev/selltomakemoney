@@ -1222,6 +1222,33 @@ select {
   color: var(--danger);
 }
 
+.customer-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.returning-badge,
+.new-badge {
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  padding: 5px 8px;
+}
+
+.returning-badge {
+  background: rgba(0, 113, 133, 0.1);
+  color: #007185;
+}
+
+.new-badge {
+  background: rgba(254, 189, 105, 0.28);
+  color: var(--warn);
+}
+
 body[data-view="desktop"] .listing-section-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
