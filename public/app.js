@@ -263,11 +263,36 @@ function facebookListingText(product) {
     product.upc ? `UPC: ${product.upc}` : "",
     `Qty available: ${product.quantityOnHand ?? 0}`,
     product.category ? `Category: ${product.category}` : "",
+    product.productSpecs?.condition ? `Condition: ${product.productSpecs.condition}` : "",
+    product.productSpecs?.length && product.productSpecs?.width && product.productSpecs?.height ? `Dimensions: ${product.productSpecs.length} x ${product.productSpecs.width} x ${product.productSpecs.height} ${product.productSpecs.dimensionUnit || ""}`.trim() : "",
+    product.productSpecs?.weight ? `Weight: ${product.productSpecs.weight} ${product.productSpecs.weightUnit || ""}`.trim() : "",
     "",
     product.description || "",
     "",
     "Message me if interested."
   ].filter((line, index, lines) => line || lines[index - 1] !== "").join("\n").trim();
+}
+
+function specValue(product, key) {
+  return escapeHtml(product.productSpecs?.[key] || "");
+}
+
+function specSelect(product, key, value, label) {
+  return `<option value="${value}" ${product.productSpecs?.[key] === value ? "selected" : ""}>${label}</option>`;
+}
+
+function productSpecsSummary(product) {
+  const specs = product.productSpecs || {};
+  const dimensions = [specs.length, specs.width, specs.height].filter(Boolean).join(" x ");
+  const lines = [
+    dimensions ? `Dims: ${dimensions} ${specs.dimensionUnit || ""}`.trim() : "",
+    specs.weight ? `Weight: ${specs.weight} ${specs.weightUnit || ""}`.trim() : "",
+    specs.condition ? `Condition: ${specs.condition}` : "",
+    specs.color ? `Color: ${specs.color}` : "",
+    specs.material ? `Material: ${specs.material}` : "",
+    specs.model ? `Model: ${specs.model}` : ""
+  ].filter(Boolean);
+  return lines.length ? `<p class="spec-summary">${lines.map(escapeHtml).join(" | ")}</p>` : "";
 }
 
 function renderLookupResults(data, quantityOnHand) {
@@ -315,6 +340,7 @@ async function loadProducts() {
             <p class="sku">${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.category ? `| ${escapeHtml(product.category)}` : ""}</p>
           </div>
           <p>${escapeHtml(product.description)}</p>
+          ${productSpecsSummary(product)}
           ${product.price ? `<div class="price">${product.price}</div>` : `<div class="locked">Dealer login required for pricing</div>`}
           ${shoppingLinksBlock(product)}
           ${recommendedAddonsBlock(product)}
@@ -405,24 +431,55 @@ async function loadAdmin() {
       <div>
         <strong>${escapeHtml(product.name)}</strong>
         <p>${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.upc ? `| UPC ${escapeHtml(product.upc)}` : ""} | Qty ${escapeHtml(product.quantityOnHand ?? 0)} | ${product.price} | ${product.active ? "Active" : "Hidden"}</p>
+        ${productSpecsSummary(product)}
         ${product.sourceUrl ? `<p><a class="source-link" href="${escapeHtml(product.sourceUrl)}" target="_blank" rel="noopener">Source listing</a></p>` : ""}
         <details class="edit-listing">
           <summary>Edit listing</summary>
           <form class="product-edit-form" data-product-edit="${product.id}">
-            <label>Name<input name="name" value="${escapeHtml(product.name)}" required autocomplete="off"></label>
-            <label>Brand<input name="brand" value="${escapeHtml(product.brand)}" autocomplete="organization"></label>
-            <label>SKU<input name="sku" value="${escapeHtml(product.sku)}"></label>
-            <label>UPC<input name="upc" value="${escapeHtml(product.upc)}" inputmode="numeric"></label>
-            <label>Category<input name="category" value="${escapeHtml(product.category)}"></label>
-            <label>Qty on hand<input name="quantityOnHand" type="number" min="0" step="1" value="${escapeHtml(product.quantityOnHand ?? 0)}"></label>
-            <label>Price<input name="price" type="number" min="0" step="0.01" value="${escapeHtml(((product.priceCents || 0) / 100).toFixed(2))}" required></label>
-            <label>Status<select name="active">
-              <option value="true" ${product.active ? "selected" : ""}>Active</option>
-              <option value="false" ${product.active ? "" : "selected"}>Hidden</option>
-            </select></label>
-            <label class="wide-field">Description<textarea name="description" rows="3">${escapeHtml(product.description)}</textarea></label>
-            <label class="wide-field">Source URL<input name="sourceUrl" type="url" value="${escapeHtml(product.sourceUrl)}" placeholder="Optional"></label>
-            <label class="wide-field">Replace images<input name="images" type="file" accept="image/*" multiple><small>Leave empty to keep current photos.</small></label>
+            <details class="listing-section" open>
+              <summary>Product identity</summary>
+              <div class="listing-section-grid">
+                <label>Name<input name="name" value="${escapeHtml(product.name)}" required autocomplete="off"></label>
+                <label>Brand<input name="brand" value="${escapeHtml(product.brand)}" autocomplete="organization"></label>
+                <label>SKU<input name="sku" value="${escapeHtml(product.sku)}"></label>
+                <label>UPC<input name="upc" value="${escapeHtml(product.upc)}" inputmode="numeric"></label>
+                <label>Category<input name="category" value="${escapeHtml(product.category)}"></label>
+                <label>Model<input name="model" value="${specValue(product, "model")}" autocomplete="off"></label>
+              </div>
+            </details>
+            <details class="listing-section" open>
+              <summary>Inventory and pricing</summary>
+              <div class="listing-section-grid">
+                <label>Qty on hand<input name="quantityOnHand" type="number" min="0" step="1" value="${escapeHtml(product.quantityOnHand ?? 0)}"></label>
+                <label>Price<input name="price" type="number" min="0" step="0.01" value="${escapeHtml(((product.priceCents || 0) / 100).toFixed(2))}" required></label>
+                <label>Status<select name="active">
+                  <option value="true" ${product.active ? "selected" : ""}>Active</option>
+                  <option value="false" ${product.active ? "" : "selected"}>Hidden</option>
+                </select></label>
+                <label>Condition<input name="condition" value="${specValue(product, "condition")}" placeholder="New, open box, used"></label>
+                <label>Color<input name="color" value="${specValue(product, "color")}"></label>
+              </div>
+            </details>
+            <details class="listing-section">
+              <summary>Dimensions and shipping specs</summary>
+              <div class="listing-section-grid">
+                <label>Length<input name="length" type="number" min="0" step="0.01" value="${specValue(product, "length")}" inputmode="decimal"></label>
+                <label>Width<input name="width" type="number" min="0" step="0.01" value="${specValue(product, "width")}" inputmode="decimal"></label>
+                <label>Height<input name="height" type="number" min="0" step="0.01" value="${specValue(product, "height")}" inputmode="decimal"></label>
+                <label>Dimension unit<select name="dimensionUnit">${specSelect(product, "dimensionUnit", "in", "in")}${specSelect(product, "dimensionUnit", "cm", "cm")}</select></label>
+                <label>Weight<input name="weight" type="number" min="0" step="0.01" value="${specValue(product, "weight")}" inputmode="decimal"></label>
+                <label>Weight unit<select name="weightUnit">${specSelect(product, "weightUnit", "lb", "lb")}${specSelect(product, "weightUnit", "kg", "kg")}</select></label>
+                <label>Material<input name="material" value="${specValue(product, "material")}"></label>
+              </div>
+            </details>
+            <details class="listing-section" open>
+              <summary>Description and media</summary>
+              <div class="listing-section-grid">
+                <label class="wide-field">Description<textarea name="description" rows="3">${escapeHtml(product.description)}</textarea></label>
+                <label class="wide-field">Source URL<input name="sourceUrl" type="url" value="${escapeHtml(product.sourceUrl)}" placeholder="Optional"></label>
+                <label class="wide-field">Replace images<input name="images" type="file" accept="image/*" multiple><small>Leave empty to keep current photos.</small></label>
+              </div>
+            </details>
             <fieldset class="addon-picker wide-field">
               <legend>Recommended add-ons</legend>
               ${addonChoices(product) || "<p>No other products available yet.</p>"}

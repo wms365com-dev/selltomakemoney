@@ -62,6 +62,20 @@ function shoppingLinksBlock(product) {
   `;
 }
 
+function productSpecsSummary(product) {
+  const specs = product.productSpecs || {};
+  const dimensions = [specs.length, specs.width, specs.height].filter(Boolean).join(" x ");
+  const lines = [
+    dimensions ? `Dims: ${dimensions} ${specs.dimensionUnit || ""}`.trim() : "",
+    specs.weight ? `Weight: ${specs.weight} ${specs.weightUnit || ""}`.trim() : "",
+    specs.condition ? `Condition: ${specs.condition}` : "",
+    specs.color ? `Color: ${specs.color}` : "",
+    specs.material ? `Material: ${specs.material}` : "",
+    specs.model ? `Model: ${specs.model}` : ""
+  ].filter(Boolean);
+  return lines.length ? `<p class="spec-summary">${lines.map(escapeHtml).join(" | ")}</p>` : "";
+}
+
 function renderCategories(products) {
   const categories = [...new Set(products.map((product) => product.category).filter(Boolean))].sort();
   catalogCategory.innerHTML = `<option value="">All categories</option>${categories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("")}`;
@@ -85,6 +99,7 @@ function renderCatalog() {
           <p class="sku">${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.category ? `| ${escapeHtml(product.category)}` : ""}</p>
         </div>
         <p>${escapeHtml(product.description)}</p>
+        ${productSpecsSummary(product)}
         <div class="locked">Dealer login required for pricing</div>
         ${shoppingLinksBlock(product)}
         <a class="nav-button primary" href="/mobile#register">Request access</a>

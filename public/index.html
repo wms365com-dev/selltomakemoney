@@ -9,12 +9,12 @@
   <meta property="og:description" content="Browse dealer-ready items and request approved access for pricing.">
   <meta property="og:url" content="https://selltomakemoney.com/">
   <title>selltomakemoney.com Store</title>
-  <link rel="stylesheet" href="/styles.css?v=affiliate-links-1">
+  <link rel="stylesheet" href="/styles.css?v=listing-sections-1">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#store" data-route="store" aria-label="selltomakemoney.com home">
-      <img src="/assets/logo.svg?v=affiliate-links-1" alt="selltomakemoney.com">
+      <img src="/assets/logo.svg?v=listing-sections-1" alt="selltomakemoney.com">
     </a>
     <div class="view-switch" aria-label="View links">
       <a href="/desktop" id="desktopViewLink">Desktop</a>
@@ -142,21 +142,51 @@
           </form>
           <div id="upcLookupResults" class="lookup-results"></div>
           <form id="productForm" class="product-form">
-            <label>Name<input name="name" required autocomplete="off"></label>
-            <label>Brand<input name="brand" autocomplete="organization"></label>
-            <label>SKU<input name="sku"></label>
-            <label>UPC<input name="upc" inputmode="numeric"></label>
-            <label>Category<input name="category"></label>
-            <label>Qty on hand<input name="quantityOnHand" type="number" min="0" step="1" value="0"></label>
-            <label>Price<input name="price" type="number" min="0" step="0.01" required></label>
-            <label>Description<textarea name="description" rows="4"></textarea></label>
-            <label class="dropzone" id="imageDropzone">
-              <span>Images</span>
-              <input id="productImages" name="images" type="file" accept="image/*" multiple>
-              <strong>Drop images here or click to choose</strong>
-              <small id="imageDropHint">You can add multiple product photos at once.</small>
-            </label>
-            <label>Source URL<input name="sourceUrl" type="url" placeholder="Optional"></label>
+            <details class="listing-section" open>
+              <summary>Product identity</summary>
+              <div class="listing-section-grid">
+                <label>Name<input name="name" required autocomplete="off"></label>
+                <label>Brand<input name="brand" autocomplete="organization"></label>
+                <label>SKU<input name="sku"></label>
+                <label>UPC<input name="upc" inputmode="numeric"></label>
+                <label>Category<input name="category"></label>
+                <label>Model<input name="model" autocomplete="off"></label>
+              </div>
+            </details>
+            <details class="listing-section" open>
+              <summary>Inventory and pricing</summary>
+              <div class="listing-section-grid">
+                <label>Qty on hand<input name="quantityOnHand" type="number" min="0" step="1" value="0"></label>
+                <label>Price<input name="price" type="number" min="0" step="0.01" required></label>
+                <label>Condition<input name="condition" placeholder="New, open box, used"></label>
+                <label>Color<input name="color"></label>
+              </div>
+            </details>
+            <details class="listing-section">
+              <summary>Dimensions and shipping specs</summary>
+              <div class="listing-section-grid">
+                <label>Length<input name="length" type="number" min="0" step="0.01" inputmode="decimal"></label>
+                <label>Width<input name="width" type="number" min="0" step="0.01" inputmode="decimal"></label>
+                <label>Height<input name="height" type="number" min="0" step="0.01" inputmode="decimal"></label>
+                <label>Dimension unit<select name="dimensionUnit"><option value="in">in</option><option value="cm">cm</option></select></label>
+                <label>Weight<input name="weight" type="number" min="0" step="0.01" inputmode="decimal"></label>
+                <label>Weight unit<select name="weightUnit"><option value="lb">lb</option><option value="kg">kg</option></select></label>
+                <label>Material<input name="material"></label>
+              </div>
+            </details>
+            <details class="listing-section" open>
+              <summary>Description and media</summary>
+              <div class="listing-section-grid">
+                <label class="wide-field">Description<textarea name="description" rows="4"></textarea></label>
+                <label class="dropzone wide-field" id="imageDropzone">
+                  <span>Images</span>
+                  <input id="productImages" name="images" type="file" accept="image/*" multiple>
+                  <strong>Drop images here or click to choose</strong>
+                  <small id="imageDropHint">You can add multiple product photos at once.</small>
+                </label>
+                <label class="wide-field">Source URL<input name="sourceUrl" type="url" placeholder="Optional"></label>
+              </div>
+            </details>
             <button class="primary" type="submit">Add product</button>
             <p class="form-message" id="productMessage"></p>
           </form>
@@ -177,6 +207,6 @@
     </section>
   </main>
 
-  <script src="/app.js?v=affiliate-links-1"></script>
+  <script src="/app.js?v=listing-sections-1"></script>
 </body>
 </html>

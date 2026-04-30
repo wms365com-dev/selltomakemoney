@@ -662,6 +662,39 @@ form,
   gap: 14px;
 }
 
+.listing-section {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.listing-section summary {
+  cursor: pointer;
+  background: linear-gradient(180deg, #fff, var(--bg-strong));
+  color: var(--nav);
+  font-weight: 900;
+  list-style-position: inside;
+  padding: 13px 14px;
+}
+
+.listing-section[open] summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.listing-section-grid {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.spec-summary {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
 .import-url-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 130px auto;
@@ -969,13 +1002,10 @@ select {
   color: var(--danger);
 }
 
-body[data-view="desktop"] .product-form {
+body[data-view="desktop"] .listing-section-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-body[data-view="desktop"] .product-form label:nth-child(8),
-body[data-view="desktop"] .product-form label:nth-child(9),
-body[data-view="desktop"] .product-form label:nth-child(10),
 body[data-view="desktop"] .product-form button,
 body[data-view="desktop"] .product-form .form-message {
   grid-column: 1 / -1;
