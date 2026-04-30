@@ -445,6 +445,27 @@ h2 {
   font-weight: 900;
 }
 
+.shopping-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.shopping-links a {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--nav);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 7px 10px;
+  text-decoration: none;
+}
+
+.shopping-links a:hover {
+  background: var(--bg-strong);
+  border-color: rgba(254, 189, 105, 0.7);
+}
+
 .locked {
   display: inline-flex;
   width: fit-content;

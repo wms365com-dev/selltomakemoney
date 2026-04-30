@@ -968,7 +968,8 @@ async function productPayload(product, showPrice, includeAdminData = false) {
     active: Boolean(product.active),
     recommendedAddonIds: product.recommendedAddonIds || [],
     priceCents: showPrice ? product.priceCents : null,
-    price: showPrice ? dollars(product.priceCents) : null
+    price: showPrice ? dollars(product.priceCents) : null,
+    searchLinks: searchLinks(product)
   };
   const recommendedAddons = await db.getProductsByIds(product.recommendedAddonIds || [], { activeOnly: !includeAdminData });
   payload.recommendedAddons = recommendedAddons.map((addon) => ({
@@ -996,8 +997,7 @@ async function productPayload(product, showPrice, includeAdminData = false) {
       productUrl: comparison.productUrl,
       matchType: comparison.matchType,
       checkedAt: comparison.checkedAt
-    })),
-    searchLinks: searchLinks(product)
+    }))
   };
 }
 

@@ -53,6 +53,15 @@ function productText(product) {
   return [product.name, product.brand, product.sku, product.upc, product.category, product.description].join(" ").toLowerCase();
 }
 
+function shoppingLinksBlock(product) {
+  if (!product.searchLinks?.length) return "";
+  return `
+    <div class="shopping-links" aria-label="Compare on other sites">
+      ${product.searchLinks.map((link) => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener">${escapeHtml(link.site)}</a>`).join("")}
+    </div>
+  `;
+}
+
 function renderCategories(products) {
   const categories = [...new Set(products.map((product) => product.category).filter(Boolean))].sort();
   catalogCategory.innerHTML = `<option value="">All categories</option>${categories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("")}`;
@@ -77,6 +86,7 @@ function renderCatalog() {
         </div>
         <p>${escapeHtml(product.description)}</p>
         <div class="locked">Dealer login required for pricing</div>
+        ${shoppingLinksBlock(product)}
         <a class="nav-button primary" href="/mobile#register">Request access</a>
       </div>
     </article>

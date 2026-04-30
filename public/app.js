@@ -178,6 +178,15 @@ function recommendedAddonsBlock(product) {
   `;
 }
 
+function shoppingLinksBlock(product) {
+  if (!product.searchLinks?.length || product.price) return "";
+  return `
+    <div class="shopping-links" aria-label="Compare on other sites">
+      ${product.searchLinks.map((link) => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener">${escapeHtml(link.site)}</a>`).join("")}
+    </div>
+  `;
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -307,6 +316,7 @@ async function loadProducts() {
           </div>
           <p>${escapeHtml(product.description)}</p>
           ${product.price ? `<div class="price">${product.price}</div>` : `<div class="locked">Dealer login required for pricing</div>`}
+          ${shoppingLinksBlock(product)}
           ${recommendedAddonsBlock(product)}
           ${product.price ? `<button class="primary" data-add-cart="${product.id}">Add to cart</button>` : ""}
         </div>
