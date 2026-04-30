@@ -1579,19 +1579,23 @@ app.post("/api/register", async (req, res) => {
 });
 
 app.post("/api/alerts", async (req, res) => {
-  const email = String(req.body.email || "").toLowerCase().trim();
-  const firstName = cleanOptional(req.body.firstName, 80);
-  const lastName = cleanOptional(req.body.lastName, 80);
-  const fallbackContactName = cleanOptional(req.body.contactName, 160);
-  const contactName = [firstName, lastName].filter(Boolean).join(" ") || fallbackContactName;
-  const phone = cleanOptional(req.body.phone, 80);
-  const interests = cleanOptional(req.body.interests, 500);
-  const source = cleanOptional(req.body.source || "store", 80);
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ error: "Enter a valid email for alerts." });
+  try {
+    const email = String(req.body.email || "").toLowerCase().trim();
+    const firstName = cleanRequired(req.body.firstName, "First name", 80);
+    const lastName = cleanRequired(req.body.lastName, "Last name", 80);
+    const fallbackContactName = cleanOptional(req.body.contactName, 160);
+    const contactName = [firstName, lastName].filter(Boolean).join(" ") || fallbackContactName;
+    const phone = cleanOptional(req.body.phone, 80);
+    const interests = cleanOptional(req.body.interests, 500);
+    const source = cleanOptional(req.body.source || "store", 80);
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: "Enter a valid email for alerts." });
+    }
+    await db.createAlertLead({ email, firstName, lastName, contactName, phone, interests, source });
+    res.status(201).json({ ok: true, message: "You are on the alert list. We will send updates when new items are available." });
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Could not save alert signup." });
   }
-  await db.createAlertLead({ email, firstName, lastName, contactName, phone, interests, source });
-  res.status(201).json({ ok: true, message: "You are on the alert list. We will send updates when new items are available." });
 });
 
 app.post("/api/login", async (req, res) => {

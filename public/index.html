@@ -140,8 +140,8 @@
           <p>Leave your info and what you are looking for. You do not need an account to get alerts.</p>
         </div>
         <form id="alertSignupForm" class="alert-signup-form">
-          <label>First name<input name="firstName" autocomplete="given-name" placeholder="Optional"></label>
-          <label>Last name<input name="lastName" autocomplete="family-name" placeholder="Optional"></label>
+          <label>First name<input name="firstName" autocomplete="given-name" placeholder="First name" required></label>
+          <label>Last name<input name="lastName" autocomplete="family-name" placeholder="Last name" required></label>
           <label>Email<input name="email" type="email" autocomplete="email" required placeholder="you@example.com"></label>
           <label>Phone<input name="phone" autocomplete="tel" placeholder="Optional"></label>
           <label class="wide-field">What are you looking for?<input name="interests" placeholder="Scooters, tools, electronics, deals under $500..."></label>
@@ -159,8 +159,8 @@
         <h2 id="exitAlertTitle">Want first notice on new deals?</h2>
         <p>Drop your email and what you are looking for. No account needed.</p>
         <form id="exitAlertForm" class="alert-signup-form compact-alert-form">
-          <label>First name<input name="firstName" autocomplete="given-name" placeholder="Optional"></label>
-          <label>Last name<input name="lastName" autocomplete="family-name" placeholder="Optional"></label>
+          <label>First name<input name="firstName" autocomplete="given-name" placeholder="First name" required></label>
+          <label>Last name<input name="lastName" autocomplete="family-name" placeholder="Last name" required></label>
           <label>Email<input name="email" type="email" autocomplete="email" required placeholder="you@example.com"></label>
           <label class="wide-field">What are you looking for?<input name="interests" placeholder="Scooters, tools, electronics..."></label>
           <input name="source" type="hidden" value="exit-popup">
@@ -433,6 +433,6 @@
     <div>Copyright &copy; <span data-year>2026</span> selltomakemoney.com. All rights reserved.</div>
   </footer>
 
-  <script src="/app.js?v=category-required-1"></script>
+  <script src="/app.js?v=alert-name-required-1"></script>
 </body>
 </html>
