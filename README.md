@@ -40,6 +40,7 @@ Recommended Railway variables:
 ```text
 SESSION_SECRET=use-a-long-random-secret
 ADMIN_PASSWORD=change-this-before-first-production-run
+AMAZON_AFFILIATE_TAG=dealerstore-20
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 ```
 
@@ -50,3 +51,5 @@ Uploaded product images are stored in `uploads/`; for production permanence, mou
 ## Price comparisons
 
 Products support UPCs and saved competitor price comparisons. Admin users can add comparison rows for Amazon, Walmart, eBay, Google Shopping, or any other site. The storefront shows those comparison prices publicly while keeping your dealer price hidden until the dealer is approved and logged in.
+
+Amazon search links include the affiliate tracking tag from `AMAZON_AFFILIATE_TAG`, defaulting to `dealerstore-20`.

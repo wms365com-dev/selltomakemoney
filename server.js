@@ -19,6 +19,7 @@ const DATABASE_URL = process.env.DATABASE_URL;
 const SESSION_SECRET = process.env.SESSION_SECRET || "replace-this-before-production";
 const ADMIN_EMAIL = "k.prathab@gmail.com";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "DealerStore!2026";
+const AMAZON_AFFILIATE_TAG = process.env.AMAZON_AFFILIATE_TAG || "dealerstore-20";
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
@@ -33,11 +34,16 @@ function slugSearch(product) {
   return encodeURIComponent(product.upc || product.sku || `${product.name} ${product.description || ""}`.trim());
 }
 
+function amazonSearchUrl(query) {
+  const tag = encodeURIComponent(AMAZON_AFFILIATE_TAG);
+  return `https://www.amazon.com/s?k=${query}&tag=${tag}`;
+}
+
 function searchLinks(product) {
   const query = slugSearch(product);
   return [
     { site: "Google Shopping", url: `https://www.google.com/search?tbm=shop&q=${query}` },
-    { site: "Amazon", url: `https://www.amazon.com/s?k=${query}` },
+    { site: "Amazon", url: amazonSearchUrl(query) },
     { site: "Walmart", url: `https://www.walmart.com/search?q=${query}` },
     { site: "eBay", url: `https://www.ebay.com/sch/i.html?_nkw=${query}` }
   ];
@@ -274,7 +280,7 @@ async function searchListingsByUpc(upc) {
     candidates: enriched,
     searchLinks: [
       { site: "Google Shopping", url: `https://www.google.com/search?tbm=shop&q=${query}` },
-      { site: "Amazon", url: `https://www.amazon.com/s?k=${query}` },
+      { site: "Amazon", url: amazonSearchUrl(query) },
       { site: "Walmart", url: `https://www.walmart.com/search?q=${query}` },
       { site: "eBay", url: `https://www.ebay.com/sch/i.html?_nkw=${query}` }
     ]
