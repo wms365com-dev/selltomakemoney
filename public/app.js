@@ -233,6 +233,29 @@ async function loadAdmin() {
         <strong>${escapeHtml(product.name)}</strong>
         <p>${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.upc ? `| UPC ${escapeHtml(product.upc)}` : ""} | Qty ${escapeHtml(product.quantityOnHand ?? 0)} | ${product.price} | ${product.active ? "Active" : "Hidden"}</p>
         ${product.sourceUrl ? `<p><a class="source-link" href="${escapeHtml(product.sourceUrl)}" target="_blank" rel="noopener">Source listing</a></p>` : ""}
+        <details class="edit-listing">
+          <summary>Edit listing</summary>
+          <form class="product-edit-form" data-product-edit="${product.id}">
+            <label>Name<input name="name" value="${escapeHtml(product.name)}" required autocomplete="off"></label>
+            <label>Brand<input name="brand" value="${escapeHtml(product.brand)}" autocomplete="organization"></label>
+            <label>SKU<input name="sku" value="${escapeHtml(product.sku)}"></label>
+            <label>UPC<input name="upc" value="${escapeHtml(product.upc)}" inputmode="numeric"></label>
+            <label>Category<input name="category" value="${escapeHtml(product.category)}"></label>
+            <label>Qty on hand<input name="quantityOnHand" type="number" min="0" step="1" value="${escapeHtml(product.quantityOnHand ?? 0)}"></label>
+            <label>Price<input name="price" type="number" min="0" step="0.01" value="${escapeHtml(((product.priceCents || 0) / 100).toFixed(2))}" required></label>
+            <label>Status<select name="active">
+              <option value="true" ${product.active ? "selected" : ""}>Active</option>
+              <option value="false" ${product.active ? "" : "selected"}>Hidden</option>
+            </select></label>
+            <label class="wide-field">Description<textarea name="description" rows="3">${escapeHtml(product.description)}</textarea></label>
+            <label class="wide-field">Source URL<input name="sourceUrl" type="url" value="${escapeHtml(product.sourceUrl)}" placeholder="Optional"></label>
+            <label class="wide-field">Replace images<input name="images" type="file" accept="image/*" multiple><small>Leave empty to keep current photos.</small></label>
+            <div class="row-actions wide-field">
+              <button class="primary" type="submit">Save changes</button>
+            </div>
+            <p class="form-message wide-field"></p>
+          </form>
+        </details>
         <details class="facebook-listing">
           <summary>List on Facebook</summary>
           <textarea readonly rows="9" id="facebookListing${product.id}">${escapeHtml(facebookListingText(product))}</textarea>
@@ -465,6 +488,30 @@ document.querySelector("#productForm").addEventListener("submit", async (event) 
 });
 
 document.addEventListener("submit", async (event) => {
+  const editForm = event.target.closest("[data-product-edit]");
+  if (editForm) {
+    event.preventDefault();
+    const productId = editForm.dataset.productEdit;
+    const message = editForm.querySelector(".form-message");
+    const submitButton = editForm.querySelector("button[type='submit']");
+    const restore = setButtonBusy(submitButton, "Saving...");
+    message.textContent = "";
+    try {
+      await withStatus("Saving listing...", () => api(`/api/admin/products/${productId}`, {
+        method: "PATCH",
+        body: new FormData(editForm)
+      }));
+      message.textContent = "Listing updated.";
+      await loadAdmin();
+      await loadProducts();
+    } catch (error) {
+      message.textContent = error.message;
+    } finally {
+      restore();
+    }
+    return;
+  }
+
   const form = event.target.closest("[data-comparison-form]");
   if (!form) return;
   event.preventDefault();

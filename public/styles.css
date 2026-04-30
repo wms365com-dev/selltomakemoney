@@ -568,10 +568,34 @@ select {
   padding: 10px;
 }
 
+.edit-listing {
+  border: 1px solid rgba(29, 107, 84, 0.2);
+  border-radius: 8px;
+  background: rgba(29, 107, 84, 0.04);
+  margin: 10px 0;
+  padding: 10px;
+}
+
+.edit-listing summary,
 .facebook-listing summary {
   color: var(--accent);
   cursor: pointer;
   font-weight: 800;
+}
+
+.product-edit-form {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.product-edit-form .wide-field {
+  grid-column: 1 / -1;
+}
+
+.product-edit-form small {
+  color: var(--muted);
+  font-weight: 700;
 }
 
 .facebook-listing textarea {
@@ -794,6 +818,10 @@ body[data-view="mobile"] .row-actions button {
 body[data-view="mobile"] .comparison-form {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+body[data-view="mobile"] .product-edit-form {
+  grid-template-columns: 1fr;
 }
 
 body[data-view="mobile"] .comparison-form input[name="site"],
