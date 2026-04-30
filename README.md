@@ -1,6 +1,6 @@
-# Dealer Store
+# selltomakemoney.com
 
-A single dealer storefront based on the ShopifyLite idea: visitors can browse products, but only approved logged-in dealers can see pricing.
+A single dealer storefront for selltomakemoney.com: visitors can browse products, but only approved logged-in dealers can see pricing.
 
 ## Run locally
 

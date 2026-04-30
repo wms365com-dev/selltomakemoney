@@ -80,7 +80,7 @@ async function fetchText(url) {
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
-        "user-agent": "DealerStoreImporter/1.0 (+https://selltomakemoney-production.up.railway.app)",
+        "user-agent": "selltomakemoney.com Importer/1.0 (+https://selltomakemoney.com)",
         "accept": "text/html,application/xhtml+xml"
       }
     });
@@ -194,7 +194,7 @@ async function downloadImage(imageUrl) {
   try {
     const response = await fetch(parsed, {
       signal: controller.signal,
-      headers: { "user-agent": "DealerStoreImporter/1.0" }
+      headers: { "user-agent": "selltomakemoney.com Importer/1.0" }
     });
     if (!response.ok) return "";
     const contentType = response.headers.get("content-type") || "";
@@ -1033,7 +1033,7 @@ async function start() {
   await db.seedAdmin();
   await db.seedProducts();
   app.listen(PORT, () => {
-    console.log(`Dealer store running at http://localhost:${PORT} using ${db.type} storage`);
+    console.log(`selltomakemoney.com running at http://localhost:${PORT} using ${db.type} storage`);
   });
 }
 

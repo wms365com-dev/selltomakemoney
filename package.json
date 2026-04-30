@@ -1,7 +1,7 @@
 {
   "name": "dealer-store",
   "version": "1.0.0",
-  "description": "Single dealer storefront with price-gated catalog and admin approvals.",
+  "description": "selltomakemoney.com dealer storefront with price-gated catalog and admin approvals.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
