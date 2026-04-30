@@ -230,6 +230,34 @@ function facebookListingText(product) {
   ].filter((line, index, lines) => line || lines[index - 1] !== "").join("\n").trim();
 }
 
+function renderLookupResults(data, quantityOnHand) {
+  const results = document.querySelector("#upcLookupResults");
+  const links = data.searchLinks.map((link) => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener">${escapeHtml(link.site)}</a>`).join("");
+  const candidates = data.candidates.length
+    ? data.candidates.map((item) => `
+      <div class="lookup-result">
+        ${item.imageUrl ? `<img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.name)}" loading="lazy" decoding="async">` : `<div class="lookup-image-fallback">UPC</div>`}
+        <div>
+          <strong>${escapeHtml(item.name)}</strong>
+          <p>${escapeHtml(item.site)} ${item.brand ? `| ${escapeHtml(item.brand)}` : ""} ${item.price ? `| ${escapeHtml(item.price)}` : ""}</p>
+          ${item.description ? `<p>${escapeHtml(item.description.slice(0, 220))}</p>` : ""}
+          <div class="row-actions">
+            <a class="source-link" href="${escapeHtml(item.url)}" target="_blank" rel="noopener">Open result</a>
+            <button type="button" data-import-candidate="${escapeHtml(item.url)}" data-import-qty="${escapeHtml(quantityOnHand)}">Import this listing</button>
+          </div>
+        </div>
+      </div>
+    `).join("")
+    : `<p>No extractable listing pages found. Try one of the search links below.</p>`;
+  results.innerHTML = `
+    <div class="lookup-summary">
+      <strong>UPC ${escapeHtml(data.upc)}</strong>
+      <div class="comparison-links">${links}</div>
+    </div>
+    ${candidates}
+  `;
+}
+
 async function loadProducts() {
   productGrid.innerHTML = loadingCards();
   await withStatus("Loading products...", async () => {
@@ -516,6 +544,29 @@ document.addEventListener("click", async (event) => {
       event.target.textContent = "Copy listing text";
     }, 1600);
   }
+
+  const importCandidateUrl = event.target.closest("[data-import-candidate]")?.dataset.importCandidate;
+  if (importCandidateUrl) {
+    const button = event.target.closest("[data-import-candidate]");
+    const restore = setButtonBusy(button, "Importing...");
+    try {
+      const data = await withStatus("Importing listing...", () => api("/api/admin/import-url", {
+        method: "POST",
+        body: JSON.stringify({
+          url: importCandidateUrl,
+          quantityOnHand: button.dataset.importQty || 1
+        })
+      }));
+      document.querySelector("#upcLookupMessage").textContent = data.imported.savedImage ? "Imported with image saved." : "Imported. No image was available to save.";
+      document.querySelector("#upcLookupResults").innerHTML = "";
+      await loadAdmin();
+      await loadProducts();
+    } catch (error) {
+      document.querySelector("#upcLookupMessage").textContent = error.message;
+    } finally {
+      restore();
+    }
+  }
 });
 
 document.querySelector("#loginForm").addEventListener("submit", async (event) => {
@@ -581,6 +632,28 @@ document.querySelector("#importUrlForm").addEventListener("submit", async (event
     await loadAdmin();
     await loadProducts();
   } catch (error) {
+    message.textContent = error.message;
+  } finally {
+    restore();
+  }
+});
+
+document.querySelector("#upcLookupForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const message = document.querySelector("#upcLookupMessage");
+  const results = document.querySelector("#upcLookupResults");
+  const submitButton = event.target.querySelector("button[type='submit']");
+  const form = new FormData(event.target);
+  message.textContent = "";
+  results.innerHTML = loadingRows(2);
+  const restore = setButtonBusy(submitButton, "Searching...");
+  try {
+    const upc = encodeURIComponent(form.get("upc"));
+    const data = await withStatus("Searching UPC...", () => api(`/api/admin/upc-lookup?upc=${upc}`));
+    renderLookupResults(data, form.get("quantityOnHand") || 1);
+    message.textContent = data.candidates.length ? "Choose the best match to import." : "No extractable matches found yet.";
+  } catch (error) {
+    results.innerHTML = "";
     message.textContent = error.message;
   } finally {
     restore();

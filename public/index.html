@@ -9,12 +9,12 @@
   <meta property="og:description" content="Browse dealer-ready items and request approved access for pricing.">
   <meta property="og:url" content="https://selltomakemoney.com/">
   <title>selltomakemoney.com Store</title>
-  <link rel="stylesheet" href="/styles.css?v=checkout-1">
+  <link rel="stylesheet" href="/styles.css?v=upc-lookup-1">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#store" data-route="store" aria-label="selltomakemoney.com home">
-      <img src="/assets/logo.svg?v=checkout-1" alt="selltomakemoney.com">
+      <img src="/assets/logo.svg?v=upc-lookup-1" alt="selltomakemoney.com">
     </a>
     <div class="view-switch" aria-label="View links">
       <a href="/desktop" id="desktopViewLink">Desktop</a>
@@ -134,6 +134,13 @@
             <button type="submit">Import URL</button>
             <p class="form-message" id="importUrlMessage"></p>
           </form>
+          <form id="upcLookupForm" class="import-url-form upc-lookup-form">
+            <label>Find listing by UPC / GTIN<input name="upc" inputmode="numeric" placeholder="Scan or paste UPC" required autocomplete="off"></label>
+            <label>Qty on hand<input name="quantityOnHand" type="number" min="0" step="1" value="1"></label>
+            <button type="submit">Search UPC</button>
+            <p class="form-message" id="upcLookupMessage"></p>
+          </form>
+          <div id="upcLookupResults" class="lookup-results"></div>
           <form id="productForm" class="product-form">
             <label>Name<input name="name" required autocomplete="off"></label>
             <label>Brand<input name="brand" autocomplete="organization"></label>
@@ -170,6 +177,6 @@
     </section>
   </main>
 
-  <script src="/app.js?v=checkout-1"></script>
+  <script src="/app.js?v=upc-lookup-1"></script>
 </body>
 </html>

@@ -186,6 +186,101 @@ function parseRecommendedAddonIds(value, productId = 0) {
     .filter((id) => Number.isInteger(id) && id > 0 && id !== Number(productId)))];
 }
 
+function cleanUpc(value) {
+  const upc = String(value || "").replace(/\D/g, "");
+  if (upc.length < 8 || upc.length > 14) throw new Error("Enter a valid UPC, EAN, or GTIN.");
+  return upc;
+}
+
+function decodeSearchUrl(value) {
+  try {
+    const parsed = new URL(value);
+    if (parsed.hostname.includes("duckduckgo.com") && parsed.searchParams.get("uddg")) {
+      return parsed.searchParams.get("uddg");
+    }
+    return parsed.toString();
+  } catch (_error) {
+    return "";
+  }
+}
+
+async function searchListingsByUpc(upc) {
+  const query = encodeURIComponent(`${upc} product`);
+  const searchUrl = `https://duckduckgo.com/html/?q=${query}`;
+  const seen = new Set();
+  const candidates = [];
+
+  const addSearchCandidates = (html, selectors, blockedHosts = []) => {
+    const $ = cheerio.load(html);
+    selectors.forEach((selector) => {
+      $(selector).each((_index, element) => {
+        const href = decodeSearchUrl($(element).attr("href") || "");
+        if (!href || seen.has(href)) return;
+        let parsed;
+        try {
+          parsed = new URL(href);
+        } catch (_error) {
+          return;
+        }
+        if (!["http:", "https:"].includes(parsed.protocol)) return;
+        if (blockedHosts.some((host) => parsed.hostname.includes(host))) return;
+        seen.add(href);
+        candidates.push({
+          url: href,
+          site: parsed.hostname.replace(/^www\./, ""),
+          title: $(element).text().replace(/\s+/g, " ").trim().slice(0, 180)
+        });
+      });
+    });
+  };
+
+  try {
+    addSearchCandidates(await fetchText(searchUrl), [".result__a", "a.result__url", "a[href]"], ["duckduckgo.com"]);
+  } catch (_error) {
+    // Search providers can throttle automated requests; fall back to another public search page.
+  }
+  if (!candidates.length) {
+    try {
+      addSearchCandidates(await fetchText(`https://www.bing.com/search?q=${query}`), ["li.b_algo h2 a", "a[href]"], ["bing.com", "microsoft.com"]);
+    } catch (_error) {
+      // Manual marketplace links are still returned below.
+    }
+  }
+
+  const enriched = [];
+  for (const candidate of candidates.slice(0, 8)) {
+    let listing = null;
+    try {
+      const pageHtml = await fetchText(candidate.url);
+      listing = extractListing(pageHtml, candidate.url);
+    } catch (_error) {
+      listing = null;
+    }
+    enriched.push({
+      ...candidate,
+      name: listing?.name || candidate.title || candidate.site,
+      brand: listing?.brand || "",
+      sku: listing?.sku || "",
+      upc: listing?.upc || upc,
+      description: listing?.description || "",
+      price: listing?.priceCents ? dollars(listing.priceCents, listing.currency) : "",
+      imageUrl: listing?.remoteImageUrl || "",
+      importable: Boolean(listing?.name)
+    });
+  }
+  return {
+    upc,
+    searchUrl,
+    candidates: enriched,
+    searchLinks: [
+      { site: "Google Shopping", url: `https://www.google.com/search?tbm=shop&q=${query}` },
+      { site: "Amazon", url: `https://www.amazon.com/s?k=${query}` },
+      { site: "Walmart", url: `https://www.walmart.com/search?q=${query}` },
+      { site: "eBay", url: `https://www.ebay.com/sch/i.html?_nkw=${query}` }
+    ]
+  };
+}
+
 async function downloadImage(imageUrl) {
   if (!imageUrl) return "";
   const parsed = await assertSafeImportUrl(imageUrl);
@@ -1101,6 +1196,15 @@ app.patch("/api/admin/products/:id", requireAdmin, productImageUpload, async (re
     active: req.body.active !== "false"
   });
   res.json({ product: await productPayload(product, true, true) });
+});
+
+app.get("/api/admin/upc-lookup", requireAdmin, async (req, res) => {
+  try {
+    const upc = cleanUpc(req.query.upc);
+    res.json(await searchListingsByUpc(upc));
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Could not search for that UPC." });
+  }
 });
 
 app.post("/api/admin/import-url", requireAdmin, async (req, res) => {
