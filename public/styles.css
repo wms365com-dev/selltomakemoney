@@ -22,8 +22,9 @@
 body {
   margin: 0;
   background:
-    linear-gradient(180deg, rgba(35, 47, 62, 0.1), rgba(243, 244, 246, 0.98) 360px),
-    repeating-linear-gradient(135deg, rgba(255, 153, 0, 0.055) 0 1px, transparent 1px 18px);
+    linear-gradient(180deg, rgba(35, 47, 62, 0.16), rgba(243, 244, 246, 0.98) 420px),
+    radial-gradient(circle at top right, rgba(254, 189, 105, 0.24), transparent 360px),
+    #f3f4f6;
   color: var(--ink);
   font-family: Arial, Helvetica, sans-serif;
 }
@@ -308,13 +309,13 @@ button.button-busy {
   gap: 28px;
   overflow: hidden;
   border: 1px solid rgba(35, 47, 62, 0.14);
-  border-radius: 14px;
+  border-radius: 8px;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(243, 245, 247, 0.96)),
-    linear-gradient(90deg, rgba(254, 189, 105, 0.24), transparent);
+    linear-gradient(120deg, rgba(255, 255, 255, 0.98), rgba(244, 247, 249, 0.94) 58%, rgba(254, 189, 105, 0.32)),
+    linear-gradient(90deg, rgba(35, 47, 62, 0.08), transparent);
   margin-bottom: 24px;
-  padding: 28px;
-  box-shadow: 0 18px 42px rgba(23, 33, 28, 0.08);
+  padding: clamp(24px, 4vw, 42px);
+  box-shadow: 0 20px 48px rgba(19, 25, 33, 0.1);
 }
 
 .catalog-page {
@@ -322,17 +323,22 @@ button.button-busy {
 }
 
 .catalog-topbar nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   align-items: center;
+  justify-content: flex-end;
 }
 
 .catalog-hero {
   display: grid;
   gap: 14px;
   border: 1px solid rgba(35, 47, 62, 0.14);
-  border-radius: 12px;
-  background: linear-gradient(135deg, #ffffff, #f5f0e7);
+  border-radius: 8px;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.98), rgba(244, 247, 249, 0.94) 60%, rgba(254, 189, 105, 0.28));
   margin-bottom: 18px;
-  padding: 28px;
+  padding: clamp(24px, 4vw, 42px);
   box-shadow: 0 16px 36px rgba(23, 33, 28, 0.08);
 }
 
@@ -352,7 +358,8 @@ button.button-busy {
   gap: 10px;
 }
 
-.catalog-tools {
+.catalog-tools,
+.store-tools {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(180px, 260px);
   gap: 12px;
@@ -389,6 +396,31 @@ button.button-busy {
     linear-gradient(90deg, transparent 18%, rgba(35, 47, 62, 0.14) 18% 20%, transparent 20% 43%, rgba(35, 47, 62, 0.14) 43% 45%, transparent 45% 70%, rgba(35, 47, 62, 0.14) 70% 72%, transparent 72%),
     linear-gradient(180deg, transparent 48%, rgba(255, 153, 0, 0.3) 48% 53%, transparent 53%);
   opacity: 0.7;
+}
+
+.hero-copy {
+  max-width: 620px;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1.5;
+  margin: 12px 0 0;
+}
+
+.hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.hero-badges span {
+  border: 1px solid rgba(35, 47, 62, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--nav);
+  font-size: 12px;
+  font-weight: 900;
+  padding: 8px 11px;
 }
 
 .eyebrow {
@@ -428,8 +460,8 @@ h2 {
 
 .product-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
 }
 
 .product-card,
@@ -442,6 +474,7 @@ h2 {
 
 .product-card {
   overflow: hidden;
+  display: grid;
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
@@ -453,7 +486,7 @@ h2 {
 .product-image {
   display: grid;
   place-items: center;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 1 / 1;
   background:
     linear-gradient(135deg, rgba(35, 47, 62, 0.12), rgba(254, 189, 105, 0.26)),
     var(--bg-strong);
@@ -488,8 +521,28 @@ h2 {
 
 .product-body {
   display: grid;
+  align-content: start;
   gap: 12px;
-  padding: 18px;
+  padding: 18px 18px 20px;
+}
+
+.product-body h2 {
+  display: -webkit-box;
+  min-height: 52px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.product-body > p:not(.sku):not(.spec-summary) {
+  display: -webkit-box;
+  min-height: 42px;
+  color: var(--muted);
+  line-height: 1.42;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .sku {
@@ -1169,6 +1222,7 @@ body[data-view="mobile"] h1 {
   font-size: 34px;
 }
 
+body[data-view="mobile"] .store-tools,
 body[data-view="mobile"] .product-grid,
 body[data-view="mobile"] .stats,
 body[data-view="mobile"] .admin-layout,
@@ -1293,7 +1347,8 @@ body[data-view="mobile"] .comparison-form button {
     flex: 1;
   }
 
-  .catalog-tools {
+  .catalog-tools,
+  .store-tools {
     grid-template-columns: 1fr;
   }
 }

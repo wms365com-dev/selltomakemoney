@@ -4,6 +4,8 @@ const catalogSearch = document.querySelector("#catalogSearch");
 const catalogCategory = document.querySelector("#catalogCategory");
 let catalogProducts = [];
 let catalogRotatorTimer = null;
+const initialCatalogSearch = new URLSearchParams(window.location.search).get("search") || "";
+if (initialCatalogSearch) catalogSearch.value = initialCatalogSearch;
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -76,6 +78,38 @@ function productSpecsSummary(product) {
   return lines.length ? `<p class="spec-summary">${lines.map(escapeHtml).join(" | ")}</p>` : "";
 }
 
+function updateCatalogStructuredData(products) {
+  document.querySelector("#catalogStructuredData")?.remove();
+  const script = document.createElement("script");
+  script.type = "application/ld+json";
+  script.id = "catalogStructuredData";
+  script.textContent = JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    itemListElement: products.slice(0, 24).map((product, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      item: {
+        "@type": "Product",
+        name: product.name,
+        brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
+        sku: product.sku || undefined,
+        gtin12: product.upc || undefined,
+        image: product.imageUrl ? new URL(product.imageUrl, window.location.origin).toString() : undefined,
+        description: product.description || undefined,
+        offers: {
+          "@type": "Offer",
+          priceCurrency: "CAD",
+          price: product.priceCents == null ? undefined : (Number(product.priceCents) / 100).toFixed(2),
+          availability: "https://schema.org/InStock",
+          url: window.location.href
+        }
+      }
+    }))
+  });
+  document.head.appendChild(script);
+}
+
 function renderCategories(products) {
   const categories = [...new Set(products.map((product) => product.category).filter(Boolean))].sort();
   catalogCategory.innerHTML = `<option value="">All categories</option>${categories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("")}`;
@@ -116,6 +150,7 @@ async function loadCatalog() {
     if (!response.ok) throw new Error(data.error || "Could not load catalog.");
     catalogProducts = data.products || [];
     renderCategories(catalogProducts);
+    updateCatalogStructuredData(catalogProducts);
     renderCatalog();
   } catch (error) {
     catalogGrid.innerHTML = `<div class="panel empty-catalog"><h2>Catalog unavailable</h2><p>${escapeHtml(error.message)}</p></div>`;

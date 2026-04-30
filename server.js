@@ -941,6 +941,29 @@ function sendCatalog(_req, res) {
   res.sendFile(path.join(ROOT, "public", "catalog.html"));
 }
 
+function publicBaseUrl(req) {
+  return process.env.PUBLIC_SITE_URL || (req.get("host")?.includes("localhost") ? `${req.protocol}://${req.get("host")}` : "https://selltomakemoney.com");
+}
+
+app.get("/robots.txt", (req, res) => {
+  const baseUrl = publicBaseUrl(req).replace(/\/$/, "");
+  res.type("text/plain").send([
+    "User-agent: *",
+    "Allow: /",
+    `Sitemap: ${baseUrl}/sitemap.xml`,
+    ""
+  ].join("\n"));
+});
+
+app.get("/sitemap.xml", (req, res) => {
+  const baseUrl = publicBaseUrl(req).replace(/\/$/, "");
+  const urls = ["", "/catalog", "/desktop", "/mobile"];
+  res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.map((url) => `  <url><loc>${baseUrl}${url}</loc><changefreq>daily</changefreq><priority>${url === "" ? "1.0" : "0.8"}</priority></url>`).join("\n")}
+</urlset>`);
+});
+
 function publicUser(user) {
   if (!user) return null;
   return {

@@ -14,6 +14,8 @@ const views = {
 
 const productGrid = document.querySelector("#productGrid");
 const priceNote = document.querySelector("#priceNote");
+const storeSearch = document.querySelector("#storeSearch");
+const storeCategory = document.querySelector("#storeCategory");
 const appStatus = document.querySelector("#appStatus");
 const appStatusText = document.querySelector("#appStatusText");
 const minimumStatusMs = 140;
@@ -300,6 +302,82 @@ function productSpecsSummary(product) {
   return lines.length ? `<p class="spec-summary">${lines.map(escapeHtml).join(" | ")}</p>` : "";
 }
 
+function productText(product) {
+  return [product.name, product.brand, product.sku, product.upc, product.category, product.description].join(" ").toLowerCase();
+}
+
+function renderStoreCategories(products) {
+  const categories = [...new Set(products.map((product) => product.category).filter(Boolean))].sort();
+  const current = storeCategory.value;
+  storeCategory.innerHTML = `<option value="">All categories</option>${categories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("")}`;
+  if (categories.includes(current)) storeCategory.value = current;
+}
+
+function filteredProducts(products) {
+  const search = storeSearch.value.trim().toLowerCase();
+  const category = storeCategory.value;
+  return products.filter((product) => {
+    const matchesSearch = !search || productText(product).includes(search);
+    const matchesCategory = !category || product.category === category;
+    return matchesSearch && matchesCategory;
+  });
+}
+
+function updateStoreStructuredData(products) {
+  document.querySelector("#storeStructuredData")?.remove();
+  const script = document.createElement("script");
+  script.type = "application/ld+json";
+  script.id = "storeStructuredData";
+  script.textContent = JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    itemListElement: products.slice(0, 24).map((product, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      item: {
+        "@type": "Product",
+        name: product.name,
+        brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
+        sku: product.sku || undefined,
+        gtin12: product.upc || undefined,
+        image: product.imageUrl ? new URL(product.imageUrl, window.location.origin).toString() : undefined,
+        description: product.description || undefined,
+        offers: {
+          "@type": "Offer",
+          priceCurrency: "CAD",
+          price: product.priceCents == null ? undefined : (Number(product.priceCents) / 100).toFixed(2),
+          availability: "https://schema.org/InStock",
+          url: window.location.href
+        }
+      }
+    }))
+  });
+  document.head.appendChild(script);
+}
+
+function renderProducts(canSeePrices = false) {
+  const products = filteredProducts(productCache);
+  productGrid.innerHTML = products.length ? products.map((product) => `
+    <article class="product-card">
+      ${productImage(product, !canSeePrices)}
+      <div class="product-body">
+        <div>
+          <h2>${escapeHtml(product.name)}</h2>
+          <p class="sku">${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.category ? `| ${escapeHtml(product.category)}` : ""}</p>
+        </div>
+        <p>${escapeHtml(product.description)}</p>
+        ${productSpecsSummary(product)}
+        <div class="price">${escapeHtml(product.price || "$0.00")}</div>
+        ${dealerPriceBlock(product)}
+        ${shoppingLinksBlock(product)}
+        ${recommendedAddonsBlock(product)}
+        <button class="primary" data-add-cart="${product.id}">Add to cart</button>
+      </div>
+    </article>
+  `).join("") : `<div class="panel empty-catalog"><h2>No matching items</h2><p>Try another search or category.</p></div>`;
+  startProductImageRotators();
+}
+
 function renderLookupResults(data, quantityOnHand) {
   const results = document.querySelector("#upcLookupResults");
   const links = data.searchLinks.map((link) => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener">${escapeHtml(link.site)}</a>`).join("");
@@ -333,28 +411,12 @@ async function loadProducts() {
   await withStatus("Loading products...", async () => {
     const data = await api("/api/products");
     productCache = data.products;
+    renderStoreCategories(productCache);
+    updateStoreStructuredData(productCache);
     priceNote.textContent = data.canSeePrices
       ? "Dealer pricing is visible on your approved account."
       : "Public pricing is visible. Login after approval to see dealer pricing.";
-    productGrid.innerHTML = data.products.map((product) => `
-      <article class="product-card">
-        ${productImage(product, !data.canSeePrices)}
-        <div class="product-body">
-          <div>
-            <h2>${escapeHtml(product.name)}</h2>
-            <p class="sku">${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.category ? `| ${escapeHtml(product.category)}` : ""}</p>
-          </div>
-          <p>${escapeHtml(product.description)}</p>
-          ${productSpecsSummary(product)}
-          <div class="price">${escapeHtml(product.price || "$0.00")}</div>
-          ${dealerPriceBlock(product)}
-          ${shoppingLinksBlock(product)}
-          ${recommendedAddonsBlock(product)}
-          <button class="primary" data-add-cart="${product.id}">Add to cart</button>
-        </div>
-      </article>
-    `).join("");
-    startProductImageRotators();
+    renderProducts(data.canSeePrices);
   });
 }
 
@@ -770,6 +832,9 @@ document.querySelector("#upcLookupForm").addEventListener("submit", async (event
 const imageInput = document.querySelector("#productImages");
 const imageDropzone = document.querySelector("#imageDropzone");
 const imageDropHint = document.querySelector("#imageDropHint");
+
+storeSearch.addEventListener("input", () => renderProducts(Boolean(sessionUser?.canSeePrices)));
+storeCategory.addEventListener("change", () => renderProducts(Boolean(sessionUser?.canSeePrices)));
 
 function updateImageHint() {
   const count = imageInput.files.length;

@@ -3,18 +3,46 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="selltomakemoney.com dealer catalog with approved-account pricing.">
+  <meta name="description" content="Shop selltomakemoney.com for public deals on scooters, electronics, inventory finds, and dealer-ready items with checkout and pickup or shipping requests.">
+  <meta name="robots" content="index,follow">
+  <meta name="theme-color" content="#131921">
+  <link rel="canonical" href="https://selltomakemoney.com/">
   <meta property="og:site_name" content="selltomakemoney.com">
-  <meta property="og:title" content="selltomakemoney.com Store">
-  <meta property="og:description" content="Browse dealer-ready items and request approved access for pricing.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="selltomakemoney.com Store | Deals, Inventory Finds, Dealer Items">
+  <meta property="og:description" content="Browse public pricing, compare retail links, and request checkout for available selltomakemoney.com inventory.">
   <meta property="og:url" content="https://selltomakemoney.com/">
-  <title>selltomakemoney.com Store</title>
-  <link rel="stylesheet" href="/styles.css?v=public-pricing-1">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="selltomakemoney.com Store">
+  <meta name="twitter:description" content="Shop public deals and dealer-ready inventory from selltomakemoney.com.">
+  <title>selltomakemoney.com Store | Public Deals and Dealer Inventory</title>
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "selltomakemoney.com",
+      "url": "https://selltomakemoney.com/",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://selltomakemoney.com/catalog?search={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+  </script>
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "selltomakemoney.com",
+      "url": "https://selltomakemoney.com/"
+    }
+  </script>
+  <link rel="stylesheet" href="/styles.css?v=seo-polish-1">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#store" data-route="store" aria-label="selltomakemoney.com home">
-      <img src="/assets/logo.svg?v=public-pricing-1" alt="selltomakemoney.com">
+      <img src="/assets/logo.svg?v=seo-polish-1" alt="selltomakemoney.com">
     </a>
     <div class="view-switch" aria-label="View links">
       <a href="/desktop" id="desktopViewLink">Desktop</a>
@@ -44,11 +72,21 @@
     <section id="storeView" class="view">
       <div class="section-head">
         <div>
-          <p class="eyebrow">Dealer catalog</p>
-          <h1>selltomakemoney.com dealer catalog.</h1>
+          <p class="eyebrow">Public deals and dealer inventory</p>
+          <h1>Shop inventory that helps fund real projects.</h1>
+          <p class="hero-copy">Browse available items, compare retail links, and request checkout for shipping or pickup.</p>
+          <div class="hero-badges" aria-label="Store highlights">
+            <span>Public pricing</span>
+            <span>Checkout requests</span>
+            <span>Pickup or shipping</span>
+          </div>
         </div>
         <p class="price-note" id="priceNote">Public pricing is visible. Approved dealers can also see dealer pricing.</p>
       </div>
+      <section class="store-tools" aria-label="Store filters">
+        <label>Search inventory<input id="storeSearch" type="search" placeholder="Search by item, brand, SKU, UPC"></label>
+        <label>Category<select id="storeCategory"><option value="">All categories</option></select></label>
+      </section>
       <div class="product-grid" id="productGrid"></div>
     </section>
 
@@ -213,6 +251,6 @@
     </section>
   </main>
 
-  <script src="/app.js?v=public-pricing-1"></script>
+  <script src="/app.js?v=seo-polish-1"></script>
 </body>
 </html>
