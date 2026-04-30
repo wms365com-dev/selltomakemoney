@@ -644,11 +644,11 @@ select {
 .addon-picker {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 8px;
+  gap: 6px;
   border: 1px solid var(--line);
   border-radius: 8px;
   margin: 0;
-  padding: 12px;
+  padding: 10px;
 }
 
 .addon-picker legend {
@@ -666,7 +666,7 @@ select {
   border-radius: 8px;
   background: #fff;
   color: var(--ink);
-  padding: 9px;
+  padding: 8px;
 }
 
 .addon-choice input {
@@ -897,6 +897,10 @@ body[data-view="mobile"] .comparison-form {
 }
 
 body[data-view="mobile"] .product-edit-form {
+  grid-template-columns: 1fr;
+}
+
+body[data-view="mobile"] .addon-picker {
   grid-template-columns: 1fr;
 }
 

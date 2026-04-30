@@ -15,7 +15,7 @@ const productGrid = document.querySelector("#productGrid");
 const priceNote = document.querySelector("#priceNote");
 const appStatus = document.querySelector("#appStatus");
 const appStatusText = document.querySelector("#appStatusText");
-const minimumStatusMs = 320;
+const minimumStatusMs = 140;
 let statusDepth = 0;
 
 function showStatus(message = "Working...") {
@@ -111,7 +111,7 @@ function updateNav() {
 function productImage(product) {
   const imageUrl = product.imageUrls?.[0] || product.imageUrl;
   if (imageUrl) {
-    return `<div class="product-image"><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(product.name)}"></div>`;
+    return `<div class="product-image"><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async"></div>`;
   }
   return `<div class="product-image">${escapeHtml(product.brand || product.category || "Dealer")}</div>`;
 }

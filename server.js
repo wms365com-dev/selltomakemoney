@@ -726,8 +726,15 @@ app.use(session({
     maxAge: 1000 * 60 * 60 * 24 * 7
   }
 }));
-app.use("/uploads", express.static(UPLOAD_DIR));
-app.use(express.static(path.join(ROOT, "public"), { index: false }));
+app.use("/uploads", express.static(UPLOAD_DIR, {
+  etag: true,
+  setHeaders: (res) => res.setHeader("Cache-Control", "public, max-age=604800")
+}));
+app.use(express.static(path.join(ROOT, "public"), {
+  index: false,
+  etag: true,
+  setHeaders: (res) => res.setHeader("Cache-Control", "public, max-age=3600")
+}));
 
 function isMobileRequest(req) {
   const ua = req.get("user-agent") || "";
