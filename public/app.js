@@ -93,8 +93,11 @@ async function api(path, options = {}) {
     headers: options.body instanceof FormData ? {} : { "Content-Type": "application/json" },
     ...options
   });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "Request failed.");
+  const contentType = response.headers.get("content-type") || "";
+  const data = contentType.includes("application/json")
+    ? await response.json().catch(() => ({}))
+    : { error: await response.text().catch(() => "") };
+  if (!response.ok) throw new Error(data.error || `${response.status} ${response.statusText}` || "Request failed.");
   return data;
 }
 

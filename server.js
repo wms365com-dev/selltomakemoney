@@ -866,7 +866,7 @@ const upload = multer({
       cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
     }
   }),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 15 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (!file.mimetype.startsWith("image/")) return cb(new Error("Only image uploads are allowed."));
     cb(null, true);
@@ -1155,24 +1155,28 @@ const productImageUpload = upload.fields([
 ]);
 
 app.post("/api/admin/products", requireAdmin, productImageUpload, async (req, res) => {
-  if (!req.body.name) return res.status(400).json({ error: "Product name is required." });
-  const imageUrls = uploadedImageUrls(req);
-  const product = await db.createProduct({
-    name: String(req.body.name || "").trim(),
-    sku: String(req.body.sku || "").trim(),
-    upc: String(req.body.upc || "").trim(),
-    brand: String(req.body.brand || "").trim(),
-    category: String(req.body.category || "").trim(),
-    description: String(req.body.description || "").trim(),
-    priceCents: Math.round(Number(req.body.price || 0) * 100),
-    imageUrl: imageUrls[0] || "",
-    imageUrls,
-    sourceUrl: String(req.body.sourceUrl || "").trim(),
-    quantityOnHand: Math.max(0, Math.floor(Number(req.body.quantityOnHand || 0))),
-    recommendedAddonIds: parseRecommendedAddonIds(req.body.recommendedAddonIds),
-    active: req.body.active !== "false"
-  });
-  res.status(201).json({ id: product.id });
+  try {
+    if (!req.body.name) return res.status(400).json({ error: "Product name is required." });
+    const imageUrls = uploadedImageUrls(req);
+    const product = await db.createProduct({
+      name: String(req.body.name || "").trim(),
+      sku: String(req.body.sku || "").trim(),
+      upc: String(req.body.upc || "").trim(),
+      brand: String(req.body.brand || "").trim(),
+      category: String(req.body.category || "").trim(),
+      description: String(req.body.description || "").trim(),
+      priceCents: Math.round(Number(req.body.price || 0) * 100),
+      imageUrl: imageUrls[0] || "",
+      imageUrls,
+      sourceUrl: String(req.body.sourceUrl || "").trim(),
+      quantityOnHand: Math.max(0, Math.floor(Number(req.body.quantityOnHand || 0))),
+      recommendedAddonIds: parseRecommendedAddonIds(req.body.recommendedAddonIds),
+      active: req.body.active !== "false"
+    });
+    res.status(201).json({ id: product.id });
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Could not add product." });
+  }
 });
 
 app.patch("/api/admin/products/:id", requireAdmin, productImageUpload, async (req, res) => {
@@ -1271,6 +1275,19 @@ app.get("/api/admin/inquiries", requireAdmin, async (_req, res) => {
 
 app.get("/api/admin/orders", requireAdmin, async (_req, res) => {
   res.json({ orders: await db.listOrders() });
+});
+
+app.use("/api", (error, _req, res, _next) => {
+  if (error instanceof multer.MulterError) {
+    const message = error.code === "LIMIT_FILE_SIZE"
+      ? "One or more images is too large. Upload images under 15 MB each."
+      : error.message;
+    return res.status(400).json({ error: message });
+  }
+  if (error) {
+    return res.status(400).json({ error: error.message || "Request failed." });
+  }
+  res.status(500).json({ error: "Request failed." });
 });
 
 app.get("/", (req, res) => {
