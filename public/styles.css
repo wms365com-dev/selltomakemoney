@@ -504,6 +504,17 @@ h2 {
   font-weight: 900;
 }
 
+.dealer-price {
+  width: fit-content;
+  border: 1px solid rgba(0, 113, 133, 0.24);
+  border-radius: 999px;
+  background: rgba(0, 113, 133, 0.08);
+  color: #007185;
+  font-size: 13px;
+  font-weight: 900;
+  padding: 7px 10px;
+}
+
 .shopping-links {
   display: flex;
   flex-wrap: wrap;

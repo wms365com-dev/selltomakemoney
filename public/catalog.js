@@ -100,7 +100,7 @@ function renderCatalog() {
         </div>
         <p>${escapeHtml(product.description)}</p>
         ${productSpecsSummary(product)}
-        <div class="locked">Dealer login required for pricing</div>
+        <div class="price">${escapeHtml(product.price || "$0.00")}</div>
         ${shoppingLinksBlock(product)}
         <a class="nav-button primary" href="/mobile#register">Request access</a>
       </div>

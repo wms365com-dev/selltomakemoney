@@ -337,6 +337,7 @@ function readJsonStore() {
     sourceUrl: "",
     quantityOnHand: 0,
     productSpecs: product.productSpecs || {},
+    dealerPriceCents: product.dealerPriceCents ?? null,
     imageUrls: product.imageUrls || (product.imageUrl ? [product.imageUrl] : []),
     recommendedAddonIds: product.recommendedAddonIds || [],
     ...product
@@ -509,6 +510,7 @@ function camelProduct(row) {
     brand: row.brand,
     description: row.description,
     priceCents: row.price_cents,
+    dealerPriceCents: row.dealer_price_cents,
     imageUrl: row.image_url,
     imageUrls,
     sourceUrl: row.source_url,
@@ -586,8 +588,8 @@ function createPostgresDatabase() {
     }
     for (const product of old.products) {
       await query(`
-        INSERT INTO products (id, name, sku, upc, brand, category, description, price_cents, image_url, image_urls, source_url, quantity_on_hand, product_specs, active, recommended_addon_ids, created_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+        INSERT INTO products (id, name, sku, upc, brand, category, description, price_cents, dealer_price_cents, image_url, image_urls, source_url, quantity_on_hand, product_specs, active, recommended_addon_ids, created_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
         ON CONFLICT (id) DO NOTHING
       `, [
         product.id,
@@ -598,6 +600,7 @@ function createPostgresDatabase() {
         product.category,
         product.description,
         product.priceCents,
+        product.dealerPriceCents ?? null,
         product.imageUrl,
         JSON.stringify(product.imageUrls || (product.imageUrl ? [product.imageUrl] : [])),
         product.sourceUrl || "",
@@ -660,6 +663,7 @@ function createPostgresDatabase() {
           category TEXT NOT NULL DEFAULT '',
           description TEXT NOT NULL DEFAULT '',
           price_cents INTEGER NOT NULL DEFAULT 0,
+          dealer_price_cents INTEGER,
           image_url TEXT NOT NULL DEFAULT '',
           image_urls TEXT NOT NULL DEFAULT '[]',
           source_url TEXT NOT NULL DEFAULT '',
@@ -706,6 +710,7 @@ function createPostgresDatabase() {
         ALTER TABLE products ADD COLUMN IF NOT EXISTS source_url TEXT NOT NULL DEFAULT '';
         ALTER TABLE products ADD COLUMN IF NOT EXISTS quantity_on_hand INTEGER NOT NULL DEFAULT 0;
         ALTER TABLE products ADD COLUMN IF NOT EXISTS product_specs TEXT NOT NULL DEFAULT '{}';
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS dealer_price_cents INTEGER;
         ALTER TABLE products ADD COLUMN IF NOT EXISTS recommended_addon_ids TEXT NOT NULL DEFAULT '[]';
         CREATE INDEX IF NOT EXISTS idx_products_search ON products USING gin(to_tsvector('english', name || ' ' || description || ' ' || sku || ' ' || upc || ' ' || brand));
         CREATE INDEX IF NOT EXISTS idx_price_comparisons_product ON price_comparisons(product_id);
@@ -764,8 +769,8 @@ function createPostgresDatabase() {
     },
     async createProduct(product) {
       const result = await query(`
-        INSERT INTO products (name, sku, upc, brand, category, description, price_cents, image_url, image_urls, source_url, quantity_on_hand, product_specs, active, recommended_addon_ids)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *
+        INSERT INTO products (name, sku, upc, brand, category, description, price_cents, dealer_price_cents, image_url, image_urls, source_url, quantity_on_hand, product_specs, active, recommended_addon_ids)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *
       `, [
         product.name,
         product.sku,
@@ -774,6 +779,7 @@ function createPostgresDatabase() {
         product.category,
         product.description,
         product.priceCents,
+        product.dealerPriceCents ?? null,
         product.imageUrl,
         JSON.stringify(product.imageUrls || (product.imageUrl ? [product.imageUrl] : [])),
         product.sourceUrl || "",
@@ -786,8 +792,8 @@ function createPostgresDatabase() {
     },
     async updateProduct(id, product) {
       const result = await query(`
-        UPDATE products SET name=$1, sku=$2, upc=$3, brand=$4, category=$5, description=$6, price_cents=$7, image_url=$8, image_urls=$9, source_url=$10, quantity_on_hand=$11, product_specs=$12, active=$13, recommended_addon_ids=$14
-        WHERE id=$15 RETURNING *
+        UPDATE products SET name=$1, sku=$2, upc=$3, brand=$4, category=$5, description=$6, price_cents=$7, dealer_price_cents=$8, image_url=$9, image_urls=$10, source_url=$11, quantity_on_hand=$12, product_specs=$13, active=$14, recommended_addon_ids=$15
+        WHERE id=$16 RETURNING *
       `, [
         product.name,
         product.sku,
@@ -796,6 +802,7 @@ function createPostgresDatabase() {
         product.category,
         product.description,
         product.priceCents,
+        product.dealerPriceCents ?? null,
         product.imageUrl,
         JSON.stringify(product.imageUrls || (product.imageUrl ? [product.imageUrl] : [])),
         product.sourceUrl || "",
@@ -981,8 +988,10 @@ async function productPayload(product, showPrice, includeAdminData = false) {
     productSpecs: product.productSpecs || {},
     active: Boolean(product.active),
     recommendedAddonIds: product.recommendedAddonIds || [],
-    priceCents: showPrice ? product.priceCents : null,
-    price: showPrice ? dollars(product.priceCents) : null,
+    priceCents: product.priceCents,
+    price: dollars(product.priceCents),
+    dealerPriceCents: showPrice ? product.dealerPriceCents : null,
+    dealerPrice: showPrice ? dollars(product.dealerPriceCents) : null,
     searchLinks: searchLinks(product)
   };
   const recommendedAddons = await db.getProductsByIds(product.recommendedAddonIds || [], { activeOnly: !includeAdminData });
@@ -993,7 +1002,8 @@ async function productPayload(product, showPrice, includeAdminData = false) {
     brand: addon.brand,
     imageUrl: addon.imageUrl,
     imageUrls: addon.imageUrls || (addon.imageUrl ? [addon.imageUrl] : []),
-    price: showPrice ? dollars(addon.priceCents) : null
+    price: dollars(addon.priceCents),
+    dealerPrice: showPrice ? dollars(addon.dealerPriceCents) : null
   }));
   if (!includeAdminData) return payload;
   const comparisons = await db.listComparisons(product.id);
@@ -1027,6 +1037,12 @@ function cleanOptional(value, max = 600) {
 
 function cleanSpec(value, max = 80) {
   return String(value || "").trim().slice(0, max);
+}
+
+function centsFromInput(value, fallback = null) {
+  if (value === undefined || value === null || value === "") return fallback;
+  const amount = Number(value);
+  return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : fallback;
 }
 
 function productSpecsFromBody(body, fallback = {}) {
@@ -1205,7 +1221,8 @@ app.post("/api/admin/products", requireAdmin, productImageUpload, async (req, re
       brand: String(req.body.brand || "").trim(),
       category: String(req.body.category || "").trim(),
       description: String(req.body.description || "").trim(),
-      priceCents: Math.round(Number(req.body.price || 0) * 100),
+      priceCents: centsFromInput(req.body.price, 0),
+      dealerPriceCents: centsFromInput(req.body.dealerPrice),
       imageUrl: imageUrls[0] || "",
       imageUrls,
       sourceUrl: String(req.body.sourceUrl || "").trim(),
@@ -1232,7 +1249,8 @@ app.patch("/api/admin/products/:id", requireAdmin, productImageUpload, async (re
     brand: String(req.body.brand || "").trim(),
     category: String(req.body.category || "").trim(),
     description: String(req.body.description || "").trim(),
-    priceCents: Math.round(Number(req.body.price || existing.priceCents / 100) * 100),
+    priceCents: centsFromInput(req.body.price, existing.priceCents),
+    dealerPriceCents: centsFromInput(req.body.dealerPrice, existing.dealerPriceCents),
     imageUrl: imageUrls[0] || "",
     imageUrls,
     sourceUrl: String(req.body.sourceUrl || existing.sourceUrl || "").trim(),
@@ -1268,7 +1286,8 @@ app.post("/api/admin/import-url", requireAdmin, async (req, res) => {
       brand: listing.brand,
       category: listing.category,
       description: listing.description,
-      priceCents: listing.priceCents,
+      priceCents: listing.priceCents || 0,
+      dealerPriceCents: null,
       imageUrl,
       imageUrls,
       sourceUrl: listing.sourceUrl,

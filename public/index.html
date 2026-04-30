@@ -9,12 +9,12 @@
   <meta property="og:description" content="Browse dealer-ready items and request approved access for pricing.">
   <meta property="og:url" content="https://selltomakemoney.com/">
   <title>selltomakemoney.com Store</title>
-  <link rel="stylesheet" href="/styles.css?v=nav-menu-1">
+  <link rel="stylesheet" href="/styles.css?v=public-pricing-1">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#store" data-route="store" aria-label="selltomakemoney.com home">
-      <img src="/assets/logo.svg?v=nav-menu-1" alt="selltomakemoney.com">
+      <img src="/assets/logo.svg?v=public-pricing-1" alt="selltomakemoney.com">
     </a>
     <div class="view-switch" aria-label="View links">
       <a href="/desktop" id="desktopViewLink">Desktop</a>
@@ -27,7 +27,7 @@
           <button class="nav-button" data-route="store">Store</button>
           <button class="nav-button signed-out" data-route="login">Login</button>
           <button class="nav-button signed-out" data-route="register">Register</button>
-          <button class="nav-button signed-in hidden" data-route="cart">Cart <span id="cartCount">0</span></button>
+          <button class="nav-button" data-route="cart">Cart <span id="cartCount">0</span></button>
           <button class="nav-button admin-only hidden" data-route="admin">Admin</button>
           <button class="nav-button signed-in hidden" id="logoutButton">Logout</button>
         </div>
@@ -47,7 +47,7 @@
           <p class="eyebrow">Dealer catalog</p>
           <h1>selltomakemoney.com dealer catalog.</h1>
         </div>
-        <p class="price-note" id="priceNote">Login after approval to see dealer pricing.</p>
+        <p class="price-note" id="priceNote">Public pricing is visible. Approved dealers can also see dealer pricing.</p>
       </div>
       <div class="product-grid" id="productGrid"></div>
     </section>
@@ -162,7 +162,8 @@
               <summary>Inventory and pricing</summary>
               <div class="listing-section-grid">
                 <label>Qty on hand<input name="quantityOnHand" type="number" min="0" step="1" value="0"></label>
-                <label>Price<input name="price" type="number" min="0" step="0.01" required></label>
+                <label>Public price<input name="price" type="number" min="0" step="0.01" required></label>
+                <label>Dealer price<input name="dealerPrice" type="number" min="0" step="0.01" placeholder="Optional"></label>
                 <label>Condition<input name="condition" placeholder="New, open box, used"></label>
                 <label>Color<input name="color"></label>
               </div>
@@ -212,6 +213,6 @@
     </section>
   </main>
 
-  <script src="/app.js?v=nav-menu-1"></script>
+  <script src="/app.js?v=public-pricing-1"></script>
 </body>
 </html>

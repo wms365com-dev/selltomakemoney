@@ -179,12 +179,16 @@ function recommendedAddonsBlock(product) {
 }
 
 function shoppingLinksBlock(product) {
-  if (!product.searchLinks?.length || product.price) return "";
+  if (!product.searchLinks?.length) return "";
   return `
     <div class="shopping-links" aria-label="Compare on other sites">
       ${product.searchLinks.map((link) => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener">${escapeHtml(link.site)}</a>`).join("")}
     </div>
   `;
+}
+
+function dealerPriceBlock(product) {
+  return product.dealerPrice ? `<div class="dealer-price">Dealer price ${escapeHtml(product.dealerPrice)}</div>` : "";
 }
 
 function escapeHtml(value) {
@@ -258,6 +262,7 @@ function facebookListingText(product) {
   return [
     product.name,
     product.price ? `Price: ${product.price}` : "",
+    product.dealerPrice ? `Dealer price: ${product.dealerPrice}` : "",
     product.brand ? `Brand: ${product.brand}` : "",
     product.sku ? `SKU: ${product.sku}` : "",
     product.upc ? `UPC: ${product.upc}` : "",
@@ -330,7 +335,7 @@ async function loadProducts() {
     productCache = data.products;
     priceNote.textContent = data.canSeePrices
       ? "Dealer pricing is visible on your approved account."
-      : "Login after approval to see dealer pricing.";
+      : "Public pricing is visible. Login after approval to see dealer pricing.";
     productGrid.innerHTML = data.products.map((product) => `
       <article class="product-card">
         ${productImage(product, !data.canSeePrices)}
@@ -341,10 +346,11 @@ async function loadProducts() {
           </div>
           <p>${escapeHtml(product.description)}</p>
           ${productSpecsSummary(product)}
-          ${product.price ? `<div class="price">${product.price}</div>` : `<div class="locked">Dealer login required for pricing</div>`}
+          <div class="price">${escapeHtml(product.price || "$0.00")}</div>
+          ${dealerPriceBlock(product)}
           ${shoppingLinksBlock(product)}
           ${recommendedAddonsBlock(product)}
-          ${product.price ? `<button class="primary" data-add-cart="${product.id}">Add to cart</button>` : ""}
+          <button class="primary" data-add-cart="${product.id}">Add to cart</button>
         </div>
       </article>
     `).join("");
@@ -430,7 +436,7 @@ async function loadAdmin() {
     <div class="row">
       <div>
         <strong>${escapeHtml(product.name)}</strong>
-        <p>${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.upc ? `| UPC ${escapeHtml(product.upc)}` : ""} | Qty ${escapeHtml(product.quantityOnHand ?? 0)} | ${product.price} | ${product.active ? "Active" : "Hidden"}</p>
+        <p>${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.upc ? `| UPC ${escapeHtml(product.upc)}` : ""} | Qty ${escapeHtml(product.quantityOnHand ?? 0)} | Public ${product.price} ${product.dealerPrice ? `| Dealer ${escapeHtml(product.dealerPrice)}` : ""} | ${product.active ? "Active" : "Hidden"}</p>
         ${productSpecsSummary(product)}
         ${product.sourceUrl ? `<p><a class="source-link" href="${escapeHtml(product.sourceUrl)}" target="_blank" rel="noopener">Source listing</a></p>` : ""}
         <details class="edit-listing">
@@ -451,7 +457,8 @@ async function loadAdmin() {
               <summary>Inventory and pricing</summary>
               <div class="listing-section-grid">
                 <label>Qty on hand<input name="quantityOnHand" type="number" min="0" step="1" value="${escapeHtml(product.quantityOnHand ?? 0)}"></label>
-                <label>Price<input name="price" type="number" min="0" step="0.01" value="${escapeHtml(((product.priceCents || 0) / 100).toFixed(2))}" required></label>
+                <label>Public price<input name="price" type="number" min="0" step="0.01" value="${escapeHtml(((product.priceCents || 0) / 100).toFixed(2))}" required></label>
+                <label>Dealer price<input name="dealerPrice" type="number" min="0" step="0.01" value="${product.dealerPriceCents == null ? "" : escapeHtml((product.dealerPriceCents / 100).toFixed(2))}" placeholder="Optional"></label>
                 <label>Status<select name="active">
                   <option value="true" ${product.active ? "selected" : ""}>Active</option>
                   <option value="false" ${product.active ? "" : "selected"}>Hidden</option>
