@@ -3,13 +3,13 @@
   <desc id="desc">A dealer catalog logo with an STM monogram and upward market line.</desc>
   <defs>
     <linearGradient id="markFill" x1="8" y1="8" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#0f7b5f"/>
-      <stop offset="1" stop-color="#143f34"/>
+      <stop stop-color="#232f3e"/>
+      <stop offset="1" stop-color="#131921"/>
     </linearGradient>
   </defs>
   <rect x="4" y="4" width="64" height="64" rx="14" fill="url(#markFill)"/>
-  <path d="M17 45h10l7-13 8 8 11-18h8" fill="none" stroke="#f6d66b" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M54 20h7v7" fill="none" stroke="#f6d66b" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="82" y="31" fill="#17211c" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="800">sellto</text>
-  <text x="82" y="55" fill="#1d6b54" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="900">makemoney.com</text>
+  <path d="M17 45h10l7-13 8 8 11-18h8" fill="none" stroke="#ff9900" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M54 20h7v7" fill="none" stroke="#ff9900" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="82" y="31" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="800">sellto</text>
+  <text x="82" y="55" fill="#ff9900" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="900">makemoney.com</text>
 </svg>

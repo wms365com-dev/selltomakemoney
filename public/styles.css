@@ -1,16 +1,18 @@
 :root {
   color-scheme: light;
-  --bg: #f5f7f4;
-  --bg-strong: #e9efe9;
-  --ink: #17211c;
-  --muted: #637069;
-  --line: #d8ded8;
+  --bg: #f3f4f6;
+  --bg-strong: #e7ebef;
+  --ink: #131921;
+  --muted: #5d6873;
+  --line: #d6dbe1;
   --panel: #ffffff;
-  --accent: #1d6b54;
-  --accent-dark: #124b3a;
-  --gold: #d9ad3f;
-  --warn: #b96d1f;
+  --accent: #ff9900;
+  --accent-dark: #e47911;
+  --gold: #febd69;
+  --warn: #b96b00;
   --danger: #a33b35;
+  --nav: #131921;
+  --nav-soft: #232f3e;
 }
 
 * {
@@ -20,8 +22,8 @@
 body {
   margin: 0;
   background:
-    linear-gradient(180deg, rgba(233, 239, 233, 0.92), rgba(245, 247, 244, 0.98) 360px),
-    repeating-linear-gradient(135deg, rgba(29, 107, 84, 0.06) 0 1px, transparent 1px 18px);
+    linear-gradient(180deg, rgba(35, 47, 62, 0.1), rgba(243, 244, 246, 0.98) 360px),
+    repeating-linear-gradient(135deg, rgba(255, 153, 0, 0.055) 0 1px, transparent 1px 18px);
   color: var(--ink);
   font-family: Arial, Helvetica, sans-serif;
 }
@@ -43,8 +45,8 @@ select {
   gap: 20px;
   min-height: 78px;
   padding: 0 28px;
-  background: rgba(255, 255, 255, 0.96);
-  border-bottom: 1px solid var(--line);
+  background: linear-gradient(90deg, var(--nav), var(--nav-soft));
+  border-bottom: 3px solid var(--gold);
   backdrop-filter: blur(10px);
 }
 
@@ -64,15 +66,15 @@ select {
 .view-switch {
   display: flex;
   gap: 4px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 8px;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.08);
   padding: 3px;
 }
 
 .view-switch a {
   border-radius: 5px;
-  color: var(--muted);
+  color: #e8edf3;
   font-size: 13px;
   font-weight: 800;
   line-height: 1;
@@ -81,8 +83,8 @@ select {
 }
 
 .view-switch a.active {
-  background: var(--accent);
-  color: #fff;
+  background: var(--gold);
+  color: var(--ink);
 }
 
 nav {
@@ -98,7 +100,7 @@ button {
   align-items: center;
   justify-content: center;
   min-height: 40px;
-  border: 1px solid var(--line);
+  border: 1px solid #c9ced6;
   border-radius: 6px;
   background: #fff;
   color: var(--ink);
@@ -110,19 +112,19 @@ button {
 
 .nav-button:hover,
 button:hover {
-  border-color: rgba(29, 107, 84, 0.38);
+  border-color: rgba(255, 153, 0, 0.72);
   transform: translateY(-1px);
 }
 
 .primary {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
+  border-color: #d78600;
+  background: linear-gradient(180deg, var(--gold), var(--accent));
+  color: var(--ink);
   font-weight: 700;
 }
 
 .primary:hover {
-  background: var(--accent-dark);
+  background: linear-gradient(180deg, #ffd088, var(--accent-dark));
 }
 
 main {
@@ -146,11 +148,11 @@ main {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  border: 1px solid rgba(29, 107, 84, 0.22);
+  border: 1px solid rgba(255, 153, 0, 0.34);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 12px 30px rgba(23, 33, 28, 0.14);
-  color: var(--accent-dark);
+  color: var(--nav);
   font-weight: 800;
   margin-bottom: 16px;
   padding: 10px 14px;
@@ -160,7 +162,7 @@ main {
 .button-spinner {
   width: 18px;
   height: 18px;
-  border: 3px solid rgba(29, 107, 84, 0.22);
+  border: 3px solid rgba(255, 153, 0, 0.26);
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -246,18 +248,18 @@ button.button-busy {
   justify-content: space-between;
   gap: 28px;
   overflow: hidden;
-  border: 1px solid rgba(29, 107, 84, 0.16);
+  border: 1px solid rgba(35, 47, 62, 0.14);
   border-radius: 14px;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(236, 243, 239, 0.94)),
-    linear-gradient(90deg, rgba(217, 173, 63, 0.16), transparent);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(243, 245, 247, 0.96)),
+    linear-gradient(90deg, rgba(254, 189, 105, 0.24), transparent);
   margin-bottom: 24px;
   padding: 28px;
   box-shadow: 0 18px 42px rgba(23, 33, 28, 0.08);
 }
 
 .catalog-page {
-  background: #f7f9f6;
+  background: #f3f4f6;
 }
 
 .catalog-topbar nav {
@@ -267,9 +269,9 @@ button.button-busy {
 .catalog-hero {
   display: grid;
   gap: 14px;
-  border: 1px solid rgba(29, 107, 84, 0.16);
+  border: 1px solid rgba(35, 47, 62, 0.14);
   border-radius: 12px;
-  background: linear-gradient(135deg, #ffffff, #edf4ef);
+  background: linear-gradient(135deg, #ffffff, #f5f0e7);
   margin-bottom: 18px;
   padding: 28px;
   box-shadow: 0 16px 36px rgba(23, 33, 28, 0.08);
@@ -322,17 +324,17 @@ button.button-busy {
   top: 18px;
   width: 144px;
   height: 76px;
-  border: 1px solid rgba(29, 107, 84, 0.16);
+  border: 1px solid rgba(35, 47, 62, 0.16);
   border-radius: 12px;
   background:
-    linear-gradient(90deg, transparent 18%, rgba(29, 107, 84, 0.14) 18% 20%, transparent 20% 43%, rgba(29, 107, 84, 0.14) 43% 45%, transparent 45% 70%, rgba(29, 107, 84, 0.14) 70% 72%, transparent 72%),
-    linear-gradient(180deg, transparent 48%, rgba(217, 173, 63, 0.28) 48% 53%, transparent 53%);
+    linear-gradient(90deg, transparent 18%, rgba(35, 47, 62, 0.14) 18% 20%, transparent 20% 43%, rgba(35, 47, 62, 0.14) 43% 45%, transparent 45% 70%, rgba(35, 47, 62, 0.14) 70% 72%, transparent 72%),
+    linear-gradient(180deg, transparent 48%, rgba(255, 153, 0, 0.3) 48% 53%, transparent 53%);
   opacity: 0.7;
 }
 
 .eyebrow {
   margin: 0 0 8px;
-  color: var(--accent);
+  color: var(--accent-dark);
   font-size: 13px;
   font-weight: 800;
   letter-spacing: 0;
@@ -350,6 +352,7 @@ h1 {
   margin-bottom: 0;
   font-size: clamp(34px, 5vw, 58px);
   line-height: 1.04;
+  overflow-wrap: anywhere;
 }
 
 h2 {
@@ -393,9 +396,9 @@ h2 {
   place-items: center;
   aspect-ratio: 4 / 3;
   background:
-    linear-gradient(135deg, rgba(29, 107, 84, 0.12), rgba(217, 173, 63, 0.16)),
+    linear-gradient(135deg, rgba(35, 47, 62, 0.12), rgba(254, 189, 105, 0.26)),
     var(--bg-strong);
-  color: var(--accent-dark);
+  color: var(--nav);
   font-weight: 800;
   text-align: center;
   padding: 18px;
@@ -420,7 +423,7 @@ h2 {
 }
 
 .price {
-  color: var(--accent);
+  color: #b12704;
   font-size: 22px;
   font-weight: 900;
 }
@@ -444,7 +447,7 @@ h2 {
 }
 
 .recommended-title {
-  color: var(--accent-dark);
+  color: var(--nav);
   font-size: 13px;
   font-weight: 900;
   text-transform: uppercase;
@@ -460,9 +463,9 @@ h2 {
   display: grid;
   gap: 2px;
   min-width: 150px;
-  border: 1px solid rgba(29, 107, 84, 0.18);
+  border: 1px solid rgba(255, 153, 0, 0.28);
   border-radius: 8px;
-  background: rgba(29, 107, 84, 0.05);
+  background: rgba(254, 189, 105, 0.12);
   padding: 9px 10px;
 }
 
@@ -476,7 +479,7 @@ h2 {
 }
 
 .addon-pill strong {
-  color: var(--accent);
+  color: #b12704;
 }
 
 .comparison-box {
@@ -512,7 +515,7 @@ h2 {
 .comparison-box a,
 .comparison-links a,
 .source-link {
-  color: var(--accent);
+  color: #007185;
   font-weight: 700;
   text-decoration: none;
 }
@@ -529,7 +532,7 @@ h2 {
 }
 
 .admin-add-product {
-  border-color: rgba(29, 107, 84, 0.24);
+  border-color: rgba(255, 153, 0, 0.36);
 }
 
 .auth-panel {
@@ -559,9 +562,9 @@ form,
 }
 
 .dropzone {
-  border: 2px dashed rgba(29, 107, 84, 0.34);
+  border: 2px dashed rgba(255, 153, 0, 0.5);
   border-radius: 8px;
-  background: rgba(29, 107, 84, 0.05);
+  background: rgba(254, 189, 105, 0.14);
   cursor: pointer;
   padding: 14px;
 }
@@ -573,7 +576,7 @@ form,
 }
 
 .dropzone strong {
-  color: var(--accent-dark);
+  color: var(--nav);
 }
 
 .dropzone small {
@@ -583,7 +586,7 @@ form,
 
 .dropzone.drag-over {
   border-color: var(--accent);
-  background: rgba(29, 107, 84, 0.12);
+  background: rgba(254, 189, 105, 0.26);
 }
 
 label {
@@ -670,16 +673,16 @@ select {
 }
 
 .edit-listing {
-  border: 1px solid rgba(29, 107, 84, 0.2);
+  border: 1px solid rgba(255, 153, 0, 0.28);
   border-radius: 8px;
-  background: rgba(29, 107, 84, 0.04);
+  background: rgba(254, 189, 105, 0.1);
   margin: 10px 0;
   padding: 10px;
 }
 
 .edit-listing summary,
 .facebook-listing summary {
-  color: var(--accent);
+  color: #007185;
   cursor: pointer;
   font-weight: 800;
 }
@@ -720,7 +723,7 @@ select {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  border: 1px solid rgba(29, 107, 84, 0.14);
+  border: 1px solid rgba(35, 47, 62, 0.14);
   border-radius: 8px;
   background: #fff;
   color: var(--ink);
@@ -850,7 +853,7 @@ body[data-view="mobile"] nav {
   gap: 6px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(19, 25, 33, 0.96);
   padding: 8px;
   box-shadow: 0 12px 30px rgba(23, 33, 28, 0.18);
 }
@@ -859,6 +862,12 @@ body[data-view="mobile"] .nav-button {
   min-width: 0;
   min-height: 48px;
   padding: 0 6px;
+}
+
+body[data-view="mobile"] nav .nav-button,
+body[data-view="mobile"] nav button {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: #fff;
 }
 
 body[data-view="mobile"] main {
