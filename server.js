@@ -330,13 +330,14 @@ async function downloadImage(imageUrl) {
 
 function emptyJsonStore() {
   return {
-    nextIds: { users: 1, products: 1, inquiries: 1, comparisons: 1, orders: 1, alertLeads: 1 },
+    nextIds: { users: 1, products: 1, inquiries: 1, comparisons: 1, orders: 1, alertLeads: 1, bugReports: 1 },
     users: [],
     products: [],
     inquiries: [],
     comparisons: [],
     orders: [],
-    alertLeads: []
+    alertLeads: [],
+    bugReports: []
   };
 }
 
@@ -346,9 +347,11 @@ function readJsonStore() {
   data.nextIds.comparisons ||= 1;
   data.nextIds.orders ||= 1;
   data.nextIds.alertLeads ||= 1;
+  data.nextIds.bugReports ||= 1;
   data.comparisons ||= [];
   data.orders ||= [];
   data.alertLeads ||= [];
+  data.bugReports ||= [];
   data.products = data.products.map((product) => ({
     brand: "",
     upc: "",
@@ -418,6 +421,12 @@ function createJsonDatabase() {
     },
     async listAlertLeads() {
       return [...store.alertLeads].sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
+    },
+    async createBugReport(report) {
+      return insert("bugReports", { ...report, status: "new" });
+    },
+    async listBugReports() {
+      return [...store.bugReports].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
     },
     async listUsers() {
       return [...store.users].map((user) => {
@@ -525,6 +534,7 @@ function createJsonDatabase() {
         inquiries: store.inquiries.filter((inquiry) => inquiry.status === "new").length,
         orders: store.orders.filter((order) => order.status === "new").length,
         alertLeads: store.alertLeads.length,
+        bugReports: store.bugReports.filter((report) => report.status === "new").length,
         returningCustomers: new Set(store.orders.map((order) => order.userId).filter((userId) => store.orders.filter((order) => order.userId === userId).length > 1)).size
       };
     }
@@ -560,6 +570,23 @@ function camelAlertLead(row) {
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at
+  };
+}
+
+function camelBugReport(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    type: row.type,
+    priority: row.priority,
+    title: row.title,
+    details: row.details,
+    pageUrl: row.page_url || row.pageUrl || "",
+    email: row.email,
+    userId: row.user_id || row.userId || null,
+    userEmail: row.user_email || row.userEmail || "",
+    status: row.status,
+    createdAt: row.created_at || row.createdAt
   };
 }
 
@@ -800,6 +827,19 @@ function createPostgresDatabase() {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+        CREATE TABLE IF NOT EXISTS bug_reports (
+          id SERIAL PRIMARY KEY,
+          type TEXT NOT NULL DEFAULT 'bug',
+          priority TEXT NOT NULL DEFAULT 'normal',
+          title TEXT NOT NULL,
+          details TEXT NOT NULL,
+          page_url TEXT NOT NULL DEFAULT '',
+          email TEXT NOT NULL DEFAULT '',
+          user_id INTEGER REFERENCES users(id),
+          user_email TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'new',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
         CREATE INDEX IF NOT EXISTS idx_products_upc ON products(upc);
         ALTER TABLE products ADD COLUMN IF NOT EXISTS brand TEXT NOT NULL DEFAULT '';
         ALTER TABLE products ADD COLUMN IF NOT EXISTS image_urls TEXT NOT NULL DEFAULT '[]';
@@ -814,6 +854,7 @@ function createPostgresDatabase() {
         CREATE INDEX IF NOT EXISTS idx_price_comparisons_product ON price_comparisons(product_id);
         CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
         CREATE INDEX IF NOT EXISTS idx_alert_leads_created ON alert_leads(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_bug_reports_created ON bug_reports(created_at DESC);
       `);
       await migrateFromJsonIfEmpty();
     },
@@ -861,6 +902,16 @@ function createPostgresDatabase() {
     },
     async listAlertLeads() {
       return (await query("SELECT * FROM alert_leads ORDER BY updated_at DESC, created_at DESC LIMIT 200")).rows.map(camelAlertLead);
+    },
+    async createBugReport(report) {
+      const result = await query(`
+        INSERT INTO bug_reports (type, priority, title, details, page_url, email, user_id, user_email, status)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'new') RETURNING *
+      `, [report.type, report.priority, report.title, report.details, report.pageUrl, report.email, report.userId, report.userEmail]);
+      return camelBugReport(result.rows[0]);
+    },
+    async listBugReports() {
+      return (await query("SELECT * FROM bug_reports ORDER BY created_at DESC LIMIT 200")).rows.map(camelBugReport);
     },
     async listUsers() {
       return (await query(`
@@ -1023,6 +1074,7 @@ function createPostgresDatabase() {
           (SELECT COUNT(*) FROM inquiries WHERE status = 'new')::int AS inquiries,
           (SELECT COUNT(*) FROM orders WHERE status = 'new')::int AS orders,
           (SELECT COUNT(*) FROM alert_leads)::int AS "alertLeads",
+          (SELECT COUNT(*) FROM bug_reports WHERE status = 'new')::int AS "bugReports",
           (SELECT COUNT(*) FROM (SELECT user_id FROM orders GROUP BY user_id HAVING COUNT(*) > 1) returning_customers)::int AS "returningCustomers"
       `);
       return result.rows[0];
@@ -1598,6 +1650,27 @@ app.post("/api/alerts", async (req, res) => {
   }
 });
 
+app.post("/api/bug-reports", async (req, res) => {
+  try {
+    const user = await currentUser(req);
+    const type = ["bug", "feature", "usability"].includes(cleanOptional(req.body.type, 40)) ? cleanOptional(req.body.type, 40) : "bug";
+    const priority = ["low", "normal", "high"].includes(cleanOptional(req.body.priority, 40)) ? cleanOptional(req.body.priority, 40) : "normal";
+    const report = await db.createBugReport({
+      type,
+      priority,
+      title: cleanRequired(req.body.title, "Title", 160),
+      details: cleanRequired(req.body.details, "Details", 2000),
+      pageUrl: cleanOptional(req.body.pageUrl, 500),
+      email: cleanOptional(req.body.email || user?.email || "", 160).toLowerCase(),
+      userId: user?.id || null,
+      userEmail: user?.email || ""
+    });
+    res.status(201).json({ ok: true, id: report.id, message: "Thanks. The report has been saved for admin review." });
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Could not save report." });
+  }
+});
+
 app.post("/api/login", async (req, res) => {
   const user = await db.getUserByEmail(String(req.body.email || "").toLowerCase().trim());
   if (!user || !(await bcrypt.compare(req.body.password || "", user.passwordHash))) {
@@ -1653,6 +1726,10 @@ app.get("/api/admin/users", requireAdmin, async (_req, res) => {
 
 app.get("/api/admin/alert-leads", requireAdmin, async (_req, res) => {
   res.json({ leads: await db.listAlertLeads() });
+});
+
+app.get("/api/admin/bug-reports", requireAdmin, async (_req, res) => {
+  res.json({ reports: await db.listBugReports() });
 });
 
 app.patch("/api/admin/users/:id", requireAdmin, async (req, res) => {

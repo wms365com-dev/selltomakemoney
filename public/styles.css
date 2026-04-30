@@ -637,6 +637,20 @@ h2 {
   line-height: 1.45;
 }
 
+.floating-report-button {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  z-index: 60;
+  border: 0;
+  border-radius: 999px;
+  background: #0073e6;
+  color: #fff;
+  box-shadow: 0 16px 36px rgba(0, 115, 230, 0.32);
+  font-weight: 900;
+  padding: 16px 24px;
+}
+
 .modal-close {
   position: absolute;
   top: 12px;
@@ -1704,6 +1718,14 @@ body[data-view="mobile"] .site-footer {
   align-items: flex-start;
   flex-direction: column;
   padding: 18px 20px;
+}
+
+body[data-view="mobile"] .floating-report-button {
+  right: 14px;
+  bottom: 14px;
+  width: calc(100% - 28px);
+  border-radius: 8px;
+  padding: 14px;
 }
 
 body[data-view="mobile"] .secure-checkout-strip {

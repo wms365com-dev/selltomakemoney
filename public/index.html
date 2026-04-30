@@ -73,6 +73,7 @@
             <button class="nav-button signed-out" data-route="register">Register</button>
             <a class="nav-button" href="/dealers">Dealer Info</a>
             <button class="nav-button" data-route="cart">Cart</button>
+            <button class="nav-button" type="button" data-open-bug-report>Report Bug / Request Feature</button>
             <button class="nav-button admin-only hidden" data-route="admin">Admin</button>
             <button class="nav-button signed-in hidden" id="logoutButton">Logout</button>
           </div>
@@ -166,6 +167,33 @@
           <input name="source" type="hidden" value="exit-popup">
           <button class="primary" type="submit">Send me alerts</button>
           <p class="form-message" id="exitAlertMessage"></p>
+        </form>
+      </div>
+    </div>
+
+    <div class="exit-alert-modal hidden" id="bugReportModal" role="dialog" aria-modal="true" aria-labelledby="bugReportTitle">
+      <div class="exit-alert-card">
+        <button class="modal-close" type="button" data-close-bug-report aria-label="Close bug report form">×</button>
+        <p class="eyebrow">Help improve the site</p>
+        <h2 id="bugReportTitle">Report Bug / Request Feature</h2>
+        <p>Tell us what happened or what would make the store easier to use.</p>
+        <form id="bugReportForm" class="alert-signup-form compact-alert-form">
+          <label>Type<select name="type" required>
+            <option value="bug">Bug</option>
+            <option value="feature">Feature request</option>
+            <option value="usability">Usability issue</option>
+          </select></label>
+          <label>Priority<select name="priority" required>
+            <option value="normal">Normal</option>
+            <option value="high">High</option>
+            <option value="low">Low</option>
+          </select></label>
+          <label class="wide-field">Title<input name="title" required maxlength="160" placeholder="Short summary"></label>
+          <label class="wide-field">Details<textarea name="details" rows="5" required placeholder="What did you expect, what happened, and what page were you on?"></textarea></label>
+          <label class="wide-field">Contact email<input name="email" type="email" autocomplete="email" placeholder="Optional"></label>
+          <input name="pageUrl" type="hidden" id="bugReportPageUrl">
+          <button class="primary" type="submit">Send report</button>
+          <p class="form-message" id="bugReportMessage"></p>
         </form>
       </div>
     </div>
@@ -417,9 +445,15 @@
           <h2>Checkout requests</h2>
           <div id="ordersList" class="stack"></div>
         </section>
+        <section class="panel wide">
+          <h2>Bug reports / feature requests</h2>
+          <div id="bugReportsList" class="stack"></div>
+        </section>
       </div>
     </section>
   </main>
+
+  <button class="floating-report-button" type="button" data-open-bug-report>Report Bug / Request Feature</button>
 
   <footer class="site-footer">
     <div class="footer-trust">
@@ -433,6 +467,6 @@
     <div>Copyright &copy; <span data-year>2026</span> selltomakemoney.com. All rights reserved.</div>
   </footer>
 
-  <script src="/app.js?v=alert-name-required-1"></script>
+  <script src="/app.js?v=bug-report-1"></script>
 </body>
 </html>

@@ -635,13 +635,15 @@ async function loadAdmin() {
   document.querySelector("#inquiriesList").innerHTML = loadingRows(1);
   document.querySelector("#alertLeadsList").innerHTML = loadingRows(1);
   document.querySelector("#ordersList").innerHTML = loadingRows(2);
-  const [summary, users, products, inquiries, alertLeads, orders] = await withStatus("Loading admin data...", () => Promise.all([
+  document.querySelector("#bugReportsList").innerHTML = loadingRows(2);
+  const [summary, users, products, inquiries, alertLeads, orders, bugReports] = await withStatus("Loading admin data...", () => Promise.all([
     api("/api/admin/summary"),
     api("/api/admin/users"),
     api("/api/admin/products"),
     api("/api/admin/inquiries"),
     api("/api/admin/alert-leads"),
-    api("/api/admin/orders")
+    api("/api/admin/orders"),
+    api("/api/admin/bug-reports")
   ]));
 
   document.querySelector("#adminStats").innerHTML = `
@@ -650,6 +652,7 @@ async function loadAdmin() {
     <div class="stat"><strong>${summary.inquiries}</strong>New inquiries</div>
     <div class="stat"><strong>${summary.alertLeads || 0}</strong>Alert signups</div>
     <div class="stat"><strong>${summary.orders || 0}</strong>Checkout requests</div>
+    <div class="stat"><strong>${summary.bugReports || 0}</strong>Bug reports</div>
     <div class="stat"><strong>${summary.returningCustomers || 0}</strong>Returning customers</div>
   `;
 
@@ -847,9 +850,34 @@ async function loadAdmin() {
       </div>
     `).join("")
     : "<p>No checkout requests yet.</p>";
+
+  document.querySelector("#bugReportsList").innerHTML = bugReports.reports.length
+    ? bugReports.reports.map((report) => `
+      <div class="row">
+        <div>
+          <strong>${escapeHtml(report.title)}</strong>
+          <p>${escapeHtml(report.type)} | ${escapeHtml(report.priority)} | ${escapeHtml(report.status || "new")} ${report.email ? `| ${escapeHtml(report.email)}` : ""}</p>
+          <p class="customer-meta">${escapeHtml(report.details)}</p>
+          <p class="customer-meta">${report.pageUrl ? `Page: ${escapeHtml(report.pageUrl)} | ` : ""}${report.createdAt ? `Created ${escapeHtml(shortDate(report.createdAt))}` : ""}</p>
+        </div>
+      </div>
+    `).join("")
+    : "<p>No bug reports yet.</p>";
 }
 
 document.addEventListener("click", async (event) => {
+  if (event.target.closest("[data-open-bug-report]")) {
+    const modal = document.querySelector("#bugReportModal");
+    const pageUrl = document.querySelector("#bugReportPageUrl");
+    if (pageUrl) pageUrl.value = window.location.href;
+    modal?.classList.remove("hidden");
+    document.querySelector("#mainMenu")?.removeAttribute("open");
+  }
+
+  if (event.target.closest("[data-close-bug-report]")) {
+    document.querySelector("#bugReportModal")?.classList.add("hidden");
+  }
+
   const route = event.target.closest("[data-route]")?.dataset.route;
   if (route) {
     window.location.hash = route;
@@ -1077,6 +1105,30 @@ document.querySelector("#exitAlertForm").addEventListener("submit", async (event
   event.preventDefault();
   const ok = await submitAlertForm(event.target, document.querySelector("#exitAlertMessage"));
   if (ok) setTimeout(() => closeExitAlert(true), 900);
+});
+
+document.querySelector("#bugReportForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const message = document.querySelector("#bugReportMessage");
+  const submitButton = event.target.querySelector("button[type='submit']");
+  if (message) message.textContent = "";
+  const restore = setButtonBusy(submitButton, "Sending...");
+  try {
+    document.querySelector("#bugReportPageUrl").value = window.location.href;
+    const form = new FormData(event.target);
+    const data = await withStatus("Sending report...", () => api("/api/bug-reports", {
+      method: "POST",
+      body: JSON.stringify(Object.fromEntries(form))
+    }));
+    if (message) message.textContent = data.message;
+    event.target.reset();
+    setTimeout(() => document.querySelector("#bugReportModal")?.classList.add("hidden"), 900);
+    if (sessionUser?.role === "admin") loadAdmin();
+  } catch (error) {
+    if (message) message.textContent = error.message;
+  } finally {
+    restore();
+  }
 });
 
 function showExitAlert() {
