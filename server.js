@@ -1074,11 +1074,11 @@ async function sendProductPage(req, res) {
   <meta name="twitter:card" content="${absoluteImage ? "summary_large_image" : "summary"}">
   <title>${escapeHtml(title)}</title>
   <script type="application/ld+json">${safeJsonScript(productJsonLd(product, canonicalUrl, absoluteImage))}</script>
-  <link rel="stylesheet" href="/styles.css?v=public-account-checkout-1">
+  <link rel="stylesheet" href="/styles.css?v=mississauga-pickup-1">
 </head>
 <body>
   <header class="topbar catalog-topbar">
-    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=public-account-checkout-1" alt="selltomakemoney.com"></a>
+    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=mississauga-pickup-1" alt="selltomakemoney.com"></a>
     <nav><a class="nav-button" href="/desktop">Store</a><a class="nav-button" href="/catalog">Catalog</a><a class="nav-button primary" href="/desktop#cart">Checkout</a></nav>
   </header>
   <main>
@@ -1095,7 +1095,7 @@ async function sendProductPage(req, res) {
         ${specs.length ? `<dl class="product-spec-list">${specs.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>` : ""}
         <div class="checkout-notice">
           <strong>Checkout requires an account.</strong>
-          <span>Payment is by e-transfer or cash on pickup only. Credit cards are not accepted.</span>
+          <span>Payment is by e-transfer or cash on pickup only. Pickup is currently in Mississauga. Credit cards are not accepted.</span>
         </div>
         <div class="catalog-actions">
           <a class="nav-button primary" href="/desktop">Open store to add to cart</a>
@@ -1247,10 +1247,11 @@ async function buildOrder(req) {
   const paymentMethod = cleanRequired(ship.paymentMethod, "Payment method", 40);
   if (!["ship", "pickup"].includes(fulfillmentMethod)) throw new Error("Choose shipping or customer pickup.");
   if (!["etransfer", "cash_pickup"].includes(paymentMethod)) throw new Error("Choose e-transfer or cash on pickup. Credit cards are not accepted.");
-  if (paymentMethod === "cash_pickup" && fulfillmentMethod !== "pickup") throw new Error("Cash payment is only available for customer pickup.");
+  if (paymentMethod === "cash_pickup" && fulfillmentMethod !== "pickup") throw new Error("Cash payment is only available for customer pickup in Mississauga.");
   const shipTo = {
     fulfillmentMethod,
     paymentMethod,
+    pickupLocation: fulfillmentMethod === "pickup" ? "Mississauga, Ontario" : "",
     recipientName: cleanRequired(ship.recipientName, "Recipient name"),
     company: cleanRequired(ship.company, "Company"),
     phone: cleanRequired(ship.phone, "Phone", 60),

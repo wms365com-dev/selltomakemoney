@@ -37,12 +37,12 @@
       "url": "https://selltomakemoney.com/"
     }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=public-account-checkout-1">
+  <link rel="stylesheet" href="/styles.css?v=mississauga-pickup-1">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#store" data-route="store" aria-label="selltomakemoney.com home">
-      <img src="/assets/logo.svg?v=public-account-checkout-1" alt="selltomakemoney.com">
+      <img src="/assets/logo.svg?v=mississauga-pickup-1" alt="selltomakemoney.com">
     </a>
     <div class="view-switch" aria-label="View links">
       <a href="/desktop" id="desktopViewLink">Desktop</a>
@@ -79,8 +79,8 @@
             <span>Public pricing</span>
             <span>Account checkout</span>
             <span>E-transfer</span>
-            <span>Cash pickup</span>
-            <span>Pickup or shipping</span>
+            <span>Cash pickup in Mississauga</span>
+            <span>Mississauga pickup or shipping</span>
           </div>
         </div>
         <p class="price-note" id="priceNote">Public pricing is visible. Create an account before checkout. No credit cards accepted.</p>
@@ -119,7 +119,7 @@
       <div class="section-head compact">
         <div>
           <p class="eyebrow">Checkout</p>
-          <h1>Cart and ship-to details.</h1>
+          <h1>Cart and fulfillment details.</h1>
         </div>
       </div>
       <div class="checkout-layout">
@@ -140,15 +140,15 @@
           </div>
           <div class="checkout-notice wide-field">
             <strong>Payment methods</strong>
-            <span>Payment is by e-transfer or cash on customer pickup only. Credit cards are not accepted.</span>
+            <span>Payment is by e-transfer or cash on customer pickup only. Pickup is currently in Mississauga only. Credit cards are not accepted.</span>
           </div>
           <label>Fulfillment method<select name="fulfillmentMethod" required>
             <option value="ship">Ship to address</option>
-            <option value="pickup">Customer pickup</option>
+            <option value="pickup">Customer pickup in Mississauga</option>
           </select></label>
           <label>Payment method<select name="paymentMethod" required>
             <option value="etransfer">E-transfer</option>
-            <option value="cash_pickup">Cash on pickup</option>
+            <option value="cash_pickup">Cash on pickup in Mississauga</option>
           </select></label>
           <label>Recipient name<input name="recipientName" required autocomplete="name"></label>
           <label>Company<input name="company" required autocomplete="organization"></label>
@@ -160,12 +160,12 @@
           <label>Province / state<input name="region" required autocomplete="address-level1"></label>
           <label>Postal / ZIP code<input name="postalCode" required autocomplete="postal-code"></label>
           <label>Country<input name="country" required autocomplete="country-name" value="Canada"></label>
-          <label>Preferred delivery or pickup window<input name="deliveryWindow" required placeholder="Example: weekday mornings, call first"></label>
-          <label class="wide-field">Receiving or pickup instructions<textarea name="receivingInstructions" rows="4" required placeholder="Dock door, pickup contact, loading notes, ID requirements, access details"></textarea></label>
+          <label>Preferred delivery or Mississauga pickup window<input name="deliveryWindow" required placeholder="Example: weekday mornings, call first"></label>
+          <label class="wide-field">Receiving or Mississauga pickup instructions<textarea name="receivingInstructions" rows="4" required placeholder="Shipping notes, pickup contact, ID requirements, access details"></textarea></label>
           <div class="checkout-flags wide-field">
             <label><input type="checkbox" name="residentialAddress"> Residential address</label>
             <label><input type="checkbox" name="liftgateRequired"> Liftgate required</label>
-            <label><input type="checkbox" name="contactBeforeDelivery" checked> Contact before delivery/pickup</label>
+            <label><input type="checkbox" name="contactBeforeDelivery" checked> Contact before delivery or Mississauga pickup</label>
           </div>
           <label class="wide-field">Order notes<textarea name="note" rows="3" placeholder="Optional internal notes for this order"></textarea></label>
           <button class="primary wide-field" type="submit">Submit checkout request</button>
@@ -269,6 +269,6 @@
     </section>
   </main>
 
-  <script src="/app.js?v=public-account-checkout-1"></script>
+  <script src="/app.js?v=mississauga-pickup-1"></script>
 </body>
 </html>

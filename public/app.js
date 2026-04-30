@@ -418,7 +418,7 @@ async function loadProducts() {
     updateStoreStructuredData(productCache);
     priceNote.textContent = data.canSeePrices
       ? "Dealer pricing is visible on your approved account."
-      : "Public pricing is visible. Create an account before checkout. Payment is e-transfer or cash on pickup.";
+      : "Public pricing is visible. Create an account before checkout. Pickup is currently in Mississauga only.";
     renderProducts(data.canSeePrices);
   });
 }
@@ -610,7 +610,7 @@ async function loadAdmin() {
         <div>
           <strong>Order #${order.id} | ${money(order.subtotalCents)}</strong>
           <p>${escapeHtml(order.company)} | ${escapeHtml(order.email)} | ${escapeHtml(order.status)}</p>
-          <p>${escapeHtml(order.shipTo?.fulfillmentMethod)} | ${escapeHtml(order.shipTo?.paymentMethod || "etransfer")} for ${escapeHtml(order.shipTo?.recipientName)} | ${escapeHtml(order.shipTo?.phone)}</p>
+          <p>${escapeHtml(order.shipTo?.fulfillmentMethod)} | ${escapeHtml(order.shipTo?.paymentMethod || "etransfer")} ${order.shipTo?.pickupLocation ? `| Pickup: ${escapeHtml(order.shipTo.pickupLocation)}` : ""} for ${escapeHtml(order.shipTo?.recipientName)} | ${escapeHtml(order.shipTo?.phone)}</p>
           <p>${escapeHtml(order.shipTo?.address1)} ${order.shipTo?.address2 ? `, ${escapeHtml(order.shipTo.address2)}` : ""}, ${escapeHtml(order.shipTo?.city)}, ${escapeHtml(order.shipTo?.region)} ${escapeHtml(order.shipTo?.postalCode)}, ${escapeHtml(order.shipTo?.country)}</p>
           <p>${escapeHtml(order.shipTo?.deliveryWindow)} | ${escapeHtml(order.shipTo?.receivingInstructions)}</p>
           <ul class="order-items">
@@ -937,7 +937,7 @@ document.querySelector("#checkoutForm").addEventListener("submit", async (event)
     message.textContent = `Checkout request #${data.orderId} submitted.`;
   } catch (error) {
     if (error.message === "Please login first.") {
-      message.innerHTML = `Please login or create an account before checkout. Payment is e-transfer or cash on pickup only.`;
+      message.innerHTML = `Please login or create an account before checkout. Payment is e-transfer or cash on pickup in Mississauga only.`;
     } else {
       message.textContent = error.message;
     }
