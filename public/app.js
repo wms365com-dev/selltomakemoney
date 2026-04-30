@@ -20,6 +20,7 @@ const minimumStatusMs = 140;
 let statusDepth = 0;
 let productCache = [];
 let cart = JSON.parse(localStorage.getItem("dealerCart") || "[]");
+let productRotatorTimer = null;
 
 function showStatus(message = "Working...") {
   statusDepth += 1;
@@ -124,12 +125,39 @@ function updateNav() {
   updateCartCount();
 }
 
-function productImage(product) {
-  const imageUrl = product.imageUrls?.[0] || product.imageUrl;
+function productImage(product, rotateImages = false) {
+  const imageUrls = [...new Set([...(product.imageUrls || []), product.imageUrl].filter(Boolean))];
+  const imageUrl = imageUrls[0];
+  if (rotateImages && imageUrls.length > 1) {
+    return `
+      <div class="product-image product-image-rotator" data-image-rotator>
+        ${imageUrls.map((url, index) => `<img class="${index === 0 ? "active" : ""}" src="${escapeHtml(url)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async">`).join("")}
+      </div>
+    `;
+  }
   if (imageUrl) {
     return `<div class="product-image"><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async"></div>`;
   }
   return `<div class="product-image">${escapeHtml(product.brand || product.category || "Dealer")}</div>`;
+}
+
+function startProductImageRotators() {
+  if (productRotatorTimer) {
+    clearInterval(productRotatorTimer);
+    productRotatorTimer = null;
+  }
+  const rotators = [...document.querySelectorAll("[data-image-rotator]")].map((rotator) => ({
+    images: [...rotator.querySelectorAll("img")],
+    index: 0
+  })).filter((rotator) => rotator.images.length > 1);
+  if (!rotators.length) return;
+  productRotatorTimer = setInterval(() => {
+    rotators.forEach((rotator) => {
+      rotator.images[rotator.index].classList.remove("active");
+      rotator.index = (rotator.index + 1) % rotator.images.length;
+      rotator.images[rotator.index].classList.add("active");
+    });
+  }, 3200);
 }
 
 function recommendedAddonsBlock(product) {
@@ -271,7 +299,7 @@ async function loadProducts() {
       : "Login after approval to see dealer pricing.";
     productGrid.innerHTML = data.products.map((product) => `
       <article class="product-card">
-        ${productImage(product)}
+        ${productImage(product, !data.canSeePrices)}
         <div class="product-body">
           <div>
             <h2>${escapeHtml(product.name)}</h2>
@@ -284,6 +312,7 @@ async function loadProducts() {
         </div>
       </article>
     `).join("");
+    startProductImageRotators();
   });
 }
 

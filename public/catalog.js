@@ -3,6 +3,7 @@ const catalogStatus = document.querySelector("#catalogStatus");
 const catalogSearch = document.querySelector("#catalogSearch");
 const catalogCategory = document.querySelector("#catalogCategory");
 let catalogProducts = [];
+let catalogRotatorTimer = null;
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -14,11 +15,38 @@ function escapeHtml(value) {
 }
 
 function productImage(product) {
-  const imageUrl = product.imageUrls?.[0] || product.imageUrl;
+  const imageUrls = [...new Set([...(product.imageUrls || []), product.imageUrl].filter(Boolean))];
+  const imageUrl = imageUrls[0];
+  if (imageUrls.length > 1) {
+    return `
+      <div class="product-image product-image-rotator" data-image-rotator>
+        ${imageUrls.map((url, index) => `<img class="${index === 0 ? "active" : ""}" src="${escapeHtml(url)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async">`).join("")}
+      </div>
+    `;
+  }
   if (imageUrl) {
     return `<div class="product-image"><img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async"></div>`;
   }
   return `<div class="product-image">${escapeHtml(product.brand || product.category || "Dealer")}</div>`;
+}
+
+function startImageRotators() {
+  if (catalogRotatorTimer) {
+    clearInterval(catalogRotatorTimer);
+    catalogRotatorTimer = null;
+  }
+  const rotators = [...document.querySelectorAll("[data-image-rotator]")].map((rotator) => ({
+    images: [...rotator.querySelectorAll("img")],
+    index: 0
+  })).filter((rotator) => rotator.images.length > 1);
+  if (!rotators.length) return;
+  catalogRotatorTimer = setInterval(() => {
+    rotators.forEach((rotator) => {
+      rotator.images[rotator.index].classList.remove("active");
+      rotator.index = (rotator.index + 1) % rotator.images.length;
+      rotator.images[rotator.index].classList.add("active");
+    });
+  }, 3200);
 }
 
 function productText(product) {
@@ -53,6 +81,7 @@ function renderCatalog() {
       </div>
     </article>
   `).join("") : `<div class="panel empty-catalog"><h2>No matching items</h2><p>Try another search or category.</p></div>`;
+  startImageRotators();
 }
 
 async function loadCatalog() {
