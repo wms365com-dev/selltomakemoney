@@ -412,6 +412,46 @@ async function downloadImage(imageUrl) {
   }
 }
 
+function slugifyFilePart(value, fallback = "product-image") {
+  const slug = String(value || "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 90);
+  return slug || fallback;
+}
+
+function imageUrlToUploadPath(imageUrl) {
+  const filename = path.basename(String(imageUrl || ""));
+  if (!filename) return "";
+  return path.join(UPLOAD_DIR, filename);
+}
+
+function resolveSeoImageFilename(productName, version, ext) {
+  const base = `${slugifyFilePart(productName)}-v${version}`;
+  const safeExt = String(ext || ".jpg").startsWith(".") ? String(ext || ".jpg").toLowerCase() : `.${String(ext || "jpg").toLowerCase()}`;
+  let candidate = `${base}${safeExt}`;
+  let counter = 2;
+  while (fs.existsSync(path.join(UPLOAD_DIR, candidate))) {
+    candidate = `${base}-${counter}${safeExt}`;
+    counter += 1;
+  }
+  return candidate;
+}
+
+function renameImagesForSeo(imageUrls, productName) {
+  return (imageUrls || []).map((imageUrl, index) => {
+    const currentPath = imageUrlToUploadPath(imageUrl);
+    if (!currentPath || !fs.existsSync(currentPath)) return imageUrl;
+    const ext = path.extname(currentPath) || ".jpg";
+    const targetFilename = resolveSeoImageFilename(productName, index + 1, ext);
+    const targetPath = path.join(UPLOAD_DIR, targetFilename);
+    if (currentPath !== targetPath) fs.renameSync(currentPath, targetPath);
+    return `/uploads/${targetFilename}`;
+  });
+}
+
 function emptyJsonStore() {
   return {
     nextIds: { users: 1, products: 1, inquiries: 1, comparisons: 1, orders: 1, alertLeads: 1, bugReports: 1 },
@@ -1652,29 +1692,6 @@ function dollarsNumber(cents) {
   return Number.isFinite(amount) ? Math.round(amount) / 100 : null;
 }
 
-function exportProductRecord(product) {
-  return {
-    id: product.id,
-    name: product.name || "",
-    sku: product.sku || "",
-    upc: product.upc || "",
-    brand: product.brand || "",
-    category: product.category || "",
-    description: product.description || "",
-    price: dollarsNumber(product.priceCents) ?? 0,
-    dealerPrice: dollarsNumber(product.dealerPriceCents),
-    imageUrl: product.imageUrl || "",
-    imageUrls: product.imageUrls || (product.imageUrl ? [product.imageUrl] : []),
-    sourceUrl: product.sourceUrl || "",
-    quantityOnHand: Math.max(0, Math.floor(Number(product.quantityOnHand || 0))),
-    active: Boolean(product.active),
-    recommendedAddonIds: product.recommendedAddonIds || [],
-    productSpecs: {
-      ...(product.productSpecs || {})
-    }
-  };
-}
-
 function csvEscape(value) {
   const text = String(value ?? "");
   if (!/[",\n\r]/.test(text)) return text;
@@ -1732,13 +1749,6 @@ function exportProductsCsv(products) {
     lines.push(row.join(","));
   }
   return `\uFEFF${lines.join("\r\n")}`;
-}
-
-function importProductsFromJson(data) {
-  if (!data || typeof data !== "object") throw new Error("Upload a valid product export file.");
-  const products = Array.isArray(data.products) ? data.products : (Array.isArray(data) ? data : null);
-  if (!products || !products.length) throw new Error("No products were found in the import file.");
-  return products;
 }
 
 function importField(source, fallbackValue, ...keys) {
@@ -2046,25 +2056,17 @@ app.get("/api/admin/products", requireAdmin, async (_req, res) => {
 
 app.get("/api/admin/products/export", requireAdmin, async (_req, res) => {
   const products = await db.listProducts();
-  if (String(_req.query.format || "").toLowerCase() === "csv") {
-    const filename = `selltomakemoney-products-${new Date().toISOString().slice(0, 10)}.csv`;
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.type("text/csv; charset=utf-8").send(exportProductsCsv(products));
-    return;
-  }
-  res.setHeader("Content-Disposition", `attachment; filename="selltomakemoney-products-${new Date().toISOString().slice(0, 10)}.json"`);
-  res.json({
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    products: products.map(exportProductRecord)
-  });
+  const filename = `selltomakemoney-products-${new Date().toISOString().slice(0, 10)}.csv`;
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.type("text/csv; charset=utf-8").send(exportProductsCsv(products));
 });
 
 app.post("/api/admin/products/import", requireAdmin, async (req, res) => {
   try {
-    const importedProducts = String(req.body.format || "").toLowerCase() === "csv"
-      ? importProductsFromCsv(req.body.text)
-      : importProductsFromJson(req.body);
+    if (String(req.body.format || "").toLowerCase() !== "csv") {
+      throw new Error("Upload a CSV product file.");
+    }
+    const importedProducts = importProductsFromCsv(req.body.text);
     const existingProducts = await db.listProducts();
     let created = 0;
     let updated = 0;
@@ -2131,16 +2133,18 @@ const productImageUpload = upload.any();
 app.post("/api/admin/products", requireAdmin, productImageUpload, async (req, res) => {
   try {
     if (!req.body.name) return res.status(400).json({ error: "Product name is required." });
+    const productName = String(req.body.name || "").trim();
     let imageUrls = uploadedImageUrls(req);
     if (!imageUrls.length && req.body.remoteImageUrl) {
       const downloadedImage = await downloadImage(String(req.body.remoteImageUrl || "").trim());
       if (downloadedImage) imageUrls = [downloadedImage];
     }
+    imageUrls = renameImagesForSeo(imageUrls, productName);
     const quantityOnHand = Math.max(0, Math.floor(Number(req.body.quantityOnHand || 0)));
     const productSpecs = appendStockHistory(productSpecsFromBody(req.body), 0, quantityOnHand, "created");
     const category = normalizeCategory(req.body.category, { required: true });
     const product = await db.createProduct({
-      name: String(req.body.name || "").trim(),
+      name: productName,
       sku: String(req.body.sku || "").trim(),
       upc: String(req.body.upc || "").trim(),
       brand: String(req.body.brand || "").trim(),
@@ -2165,17 +2169,19 @@ app.post("/api/admin/products", requireAdmin, productImageUpload, async (req, re
 app.patch("/api/admin/products/:id", requireAdmin, productImageUpload, async (req, res) => {
   const existing = await db.getProduct(Number(req.params.id));
   if (!existing) return res.status(404).json({ error: "Product not found." });
+  const productName = String(req.body.name || existing.name || "").trim();
   let newImageUrls = uploadedImageUrls(req);
   if (!newImageUrls.length && req.body.remoteImageUrl) {
     const downloadedImage = await downloadImage(String(req.body.remoteImageUrl || "").trim());
     if (downloadedImage) newImageUrls = [downloadedImage];
   }
+  if (newImageUrls.length) newImageUrls = renameImagesForSeo(newImageUrls, productName);
   const imageUrls = newImageUrls.length ? newImageUrls : (existing.imageUrls || (existing.imageUrl ? [existing.imageUrl] : []));
   const quantityOnHand = Math.max(0, Math.floor(Number(req.body.quantityOnHand ?? existing.quantityOnHand ?? 0)));
   const productSpecs = appendStockHistory(productSpecsFromBody(req.body, existing.productSpecs || {}), existing.quantityOnHand, quantityOnHand);
   const category = normalizeCategory(req.body.category, { fallback: existing.category, required: true });
   const product = await db.updateProduct(existing.id, {
-    name: String(req.body.name || existing.name).trim(),
+    name: productName,
     sku: String(req.body.sku || "").trim(),
     upc: String(req.body.upc || "").trim(),
     brand: String(req.body.brand || "").trim(),

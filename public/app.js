@@ -222,8 +222,8 @@ function adminProductListItem(product, isSelected = false) {
   return `
     <button type="button" class="admin-product-list-item ${isSelected ? "selected" : ""}" data-select-product="${product.id}">
       <strong>${escapeHtml(product.name)}</strong>
-      <span>${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku || product.category || "No SKU")}</span>
-      <span>Qty ${escapeHtml(product.quantityOnHand ?? 0)} | ${product.active ? "Active" : "Hidden"}</span>
+      <span>${escapeHtml(product.category || "No category")}${product.brand ? ` | ${escapeHtml(product.brand)}` : ""}</span>
+      <span>${product.price || "$0.00"} | Qty ${escapeHtml(product.quantityOnHand ?? 0)} | ${product.active ? "Live" : "Hidden"}</span>
     </button>
   `;
 }
@@ -370,202 +370,52 @@ function buildProductUpdateFormData(product, overrides = {}) {
   return data;
 }
 
-function adminProductDetailMarkup(product, products) {
-  const addonChoices = addonChoicesMarkup(product, products);
+function adminProductDetailMarkup(product, _products) {
   return `
     <div class="admin-product-detail-card">
       <div class="admin-product-detail-head">
         <button type="button" class="nav-button admin-product-back" data-back-products>Back to list</button>
         <div>
           <h3>${escapeHtml(product.name)}</h3>
-          <p>${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.upc ? `| UPC ${escapeHtml(product.upc)}` : ""} | Qty ${escapeHtml(product.quantityOnHand ?? 0)} | Public ${product.price} ${product.dealerPrice ? `| Dealer ${escapeHtml(product.dealerPrice)}` : ""} | ${product.active ? "Active" : "Hidden"}</p>
-          <p class="mini-note">Listing: ${escapeHtml(product.productSpecs?.listingStatus || "draft")} | Marketplace: ${escapeHtml(product.productSpecs?.marketplaceStatus || "not_listed")} | Short link: ${escapeHtml(absoluteUrl(product.shortUrl || product.url))}</p>
-          ${productSpecsSummary(product)}
-          ${product.sourceUrl ? `<p><a class="source-link" href="${escapeHtml(product.sourceUrl)}" target="_blank" rel="noopener">Source listing</a></p>` : ""}
+          <p>${product.price || "$0.00"} | Qty ${escapeHtml(product.quantityOnHand ?? 0)} | ${escapeHtml(product.category || "No category")} | ${product.active ? "Live" : "Hidden"}</p>
         </div>
       </div>
-      <form class="product-edit-form product-edit-shell" data-product-edit="${product.id}">
-        <div class="admin-editor-toolbar">
-          <div>
-            <strong>Editing workspace</strong>
-            <p>Keep the main selling details up to date first, then use the side tools for marketplace copy, competitor checks, and stock review.</p>
-          </div>
-          <div class="row-actions">
-            <button class="primary" type="submit">Save changes</button>
-          </div>
+      <form class="product-edit-form simple-product-form" data-product-edit="${product.id}">
+        <div class="simple-field-grid">
+          <label>Title<input name="name" value="${escapeHtml(product.name)}" required autocomplete="off"></label>
+          <label>Price<input name="price" type="number" min="0" step="0.01" value="${escapeHtml(((product.priceCents || 0) / 100).toFixed(2))}" required></label>
+          <label>Category<select name="category" required>${categorySelect(product.category)}</select></label>
+          <label>Condition<select name="condition">${conditionSelect(product)}</select></label>
+          <label>Quantity<input name="quantityOnHand" type="number" min="0" step="1" value="${escapeHtml(product.quantityOnHand ?? 0)}"></label>
+          <label>Fulfillment<select name="fulfillmentType">
+            <option value="pickup_only" ${product.productSpecs?.fulfillmentType === "ships_or_pickup" ? "" : "selected"}>Pickup only</option>
+            <option value="ships_or_pickup" ${product.productSpecs?.fulfillmentType === "ships_or_pickup" ? "selected" : ""}>Can be shipped or picked up</option>
+          </select></label>
+          <label>Brand<input name="brand" value="${escapeHtml(product.brand)}" autocomplete="organization"></label>
+          <label>SKU<input name="sku" value="${escapeHtml(product.sku)}"></label>
+          <label>UPC<input name="upc" value="${escapeHtml(product.upc)}" inputmode="numeric"></label>
+          <label>Status<select name="active">
+            <option value="true" ${product.active ? "selected" : ""}>Live</option>
+            <option value="false" ${product.active ? "" : "selected"}>Hidden</option>
+          </select></label>
         </div>
-        <div class="admin-stepper" data-default-step="basics" data-step-order="basics,pricing,details,shipping,media,tools">
-          <button type="button" data-admin-step="basics">Basics</button>
-          <button type="button" data-admin-step="pricing">Price</button>
-          <button type="button" data-admin-step="details">Details</button>
-          <button type="button" data-admin-step="shipping">Ship</button>
-          <button type="button" data-admin-step="media">Media</button>
-          <button type="button" data-admin-step="tools">Tools</button>
-        </div>
-        <div class="admin-editor-layout">
-          <div class="admin-editor-main">
-            <section class="admin-editor-section admin-step-panel" data-step-panel="basics">
-              <div class="admin-editor-section-head">
-                <h4>Product basics</h4>
-                <p>What the customer sees and how the item is grouped.</p>
-              </div>
-              <div class="admin-editor-fields">
-                <label>Name<input name="name" value="${escapeHtml(product.name)}" required autocomplete="off"></label>
-                <label>Brand<input name="brand" value="${escapeHtml(product.brand)}" autocomplete="organization"></label>
-                <label>SKU<input name="sku" value="${escapeHtml(product.sku)}"></label>
-                <label>UPC<input name="upc" value="${escapeHtml(product.upc)}" inputmode="numeric"></label>
-                <label>Category<select name="category" required>${categorySelect(product.category)}</select></label>
-                <label>Model<input name="model" value="${specValue(product, "model")}" autocomplete="off"></label>
-                <label>Condition<select name="condition">${conditionSelect(product)}</select></label>
-                <label>Color<input name="color" value="${specValue(product, "color")}"></label>
-              </div>
-            </section>
-            <section class="admin-editor-section admin-step-panel" data-step-panel="pricing">
-              <div class="admin-editor-section-head">
-                <h4>Pricing and inventory</h4>
-                <p>Public pricing, dealer margin, stock, and listing state.</p>
-              </div>
-              <div class="admin-editor-fields">
-                <label>Qty on hand<input name="quantityOnHand" type="number" min="0" step="1" value="${escapeHtml(product.quantityOnHand ?? 0)}"></label>
-                <label>Public price<input name="price" type="number" min="0" step="0.01" value="${escapeHtml(((product.priceCents || 0) / 100).toFixed(2))}" required></label>
-                <label>Dealer price<input name="dealerPrice" type="number" min="0" step="0.01" value="${product.dealerPriceCents == null ? "" : escapeHtml((product.dealerPriceCents / 100).toFixed(2))}" placeholder="Optional"></label>
-                <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${specValue(product, "cost")}" placeholder="Private"></label>
-                <label>Status<select name="active">
-                  <option value="true" ${product.active ? "selected" : ""}>Active</option>
-                  <option value="false" ${product.active ? "" : "selected"}>Hidden</option>
-                </select></label>
-                <label>Listing status<select name="listingStatus">
-                  ${["draft", "ready_to_list", "listed_on_site", "sold", "picked_up", "archived", "removed"].map((status) => `<option value="${status}" ${product.productSpecs?.listingStatus === status ? "selected" : ""}>${status.replaceAll("_", " ")}</option>`).join("")}
-                </select></label>
-                <label>Facebook status<select name="marketplaceStatus">
-                  ${["not_listed", "ready_for_facebook", "listed_on_facebook", "offer_pending", "sold_on_facebook"].map((status) => `<option value="${status}" ${product.productSpecs?.marketplaceStatus === status ? "selected" : ""}>${status.replaceAll("_", " ")}</option>`).join("")}
-                </select></label>
-                <label>Customer fulfillment<select name="fulfillmentType">
-                  <option value="pickup_only" ${product.productSpecs?.fulfillmentType === "ships_or_pickup" ? "" : "selected"}>Pickup only</option>
-                  <option value="ships_or_pickup" ${product.productSpecs?.fulfillmentType === "ships_or_pickup" ? "selected" : ""}>Can be shipped or picked up</option>
-                </select></label>
-              </div>
-            </section>
-            <section class="admin-editor-section admin-step-panel" data-step-panel="details">
-              <div class="admin-editor-section-head">
-                <h4>Description and source</h4>
-                <p>Use this area for customer-facing copy plus your private sourcing notes.</p>
-              </div>
-              <div class="admin-editor-fields">
-                <label class="wide-field">Description<textarea name="description" rows="4">${escapeHtml(product.description)}</textarea></label>
-                <label class="wide-field">Source URL<input name="sourceUrl" type="url" value="${escapeHtml(product.sourceUrl)}" placeholder="Optional"></label>
-                <label class="wide-field">Private source notes<textarea name="sourceNotes" rows="3" placeholder="Where it came from, costs, customer notes">${escapeHtml(product.productSpecs?.sourceNotes || "")}</textarea></label>
-              </div>
-            </section>
-            <section class="admin-editor-section admin-step-panel" data-step-panel="shipping">
-              <div class="admin-editor-section-head">
-                <h4>Dimensions and shipping specs</h4>
-                <p>Helpful for shipping quotes, Facebook listing copy, and customer questions.</p>
-              </div>
-              <div class="admin-editor-fields">
-                <label>Length<input name="length" type="number" min="0" step="0.01" value="${specValue(product, "length")}" inputmode="decimal"></label>
-                <label>Width<input name="width" type="number" min="0" step="0.01" value="${specValue(product, "width")}" inputmode="decimal"></label>
-                <label>Height<input name="height" type="number" min="0" step="0.01" value="${specValue(product, "height")}" inputmode="decimal"></label>
-                <label>Dimension unit<select name="dimensionUnit">${specSelect(product, "dimensionUnit", "in", "in")}${specSelect(product, "dimensionUnit", "cm", "cm")}</select></label>
-                <label>Weight<input name="weight" type="number" min="0" step="0.01" value="${specValue(product, "weight")}" inputmode="decimal"></label>
-                <label>Weight unit<select name="weightUnit">${specSelect(product, "weightUnit", "lb", "lb")}${specSelect(product, "weightUnit", "kg", "kg")}</select></label>
-                <label>Material<input name="material" value="${specValue(product, "material")}"></label>
-              </div>
-            </section>
-            <section class="admin-editor-section admin-step-panel" data-step-panel="media">
-              <div class="admin-editor-section-head">
-                <h4>Images and add-ons</h4>
-                <p>Swap photos here and pick related items to upsell on the listing page.</p>
-              </div>
-              <div class="admin-editor-fields">
-                <label class="dropzone wide-field" data-image-dropzone>
-                  <span>Replace images</span>
-                  <input name="images" type="file" accept="image/*" multiple>
-                  <strong>Drop replacement photos here or click to choose</strong>
-                  <small data-image-hint>Leave empty to keep current photos. Multiple images are supported.</small>
-                </label>
-                ${product.imageUrls?.length ? `<div class="admin-editor-image-preview wide-field"><strong>Current images</strong><div class="admin-image-strip">${product.imageUrls.map((url) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" alt="${escapeHtml(product.name)} image"></a>`).join("")}</div></div>` : ""}
-                <fieldset class="addon-picker wide-field">
-                  <legend>Recommended add-ons</legend>
-                  ${addonChoices || "<p>No other products available yet.</p>"}
-                </fieldset>
-              </div>
-            </section>
-            <div class="row-actions wide-field admin-editor-footer">
-              <button class="primary" type="submit">Save changes</button>
-            </div>
-            <p class="form-message wide-field"></p>
-          </div>
-          <aside class="admin-editor-aside admin-step-panel" data-step-panel="tools">
-            <section class="admin-editor-section admin-editor-section-compact">
-              <div class="admin-editor-section-head">
-                <h4>Quick status</h4>
-                <p>Fast read of how this item is currently set up.</p>
-              </div>
-              <div class="admin-editor-badges">
-                <span>${product.active ? "Active" : "Hidden"}</span>
-                <span>${escapeHtml(product.productSpecs?.listingStatus || "draft").replaceAll("_", " ")}</span>
-                <span>${escapeHtml(product.productSpecs?.marketplaceStatus || "not_listed").replaceAll("_", " ")}</span>
-                <span>${escapeHtml(fulfillmentLabel(product))}</span>
-              </div>
-              ${stockHistoryBlock(product)}
-            </section>
-            <section class="admin-editor-section admin-editor-section-compact">
-              <div class="admin-editor-section-head">
-                <h4>Facebook listing</h4>
-                <p>Copy-ready text and quick media access for marketplace posting.</p>
-              </div>
-              <textarea readonly rows="9" id="facebookListing${product.id}">${escapeHtml(facebookListingText(product))}</textarea>
-              <div class="row-actions">
-                <button type="button" data-copy-facebook="${product.id}">Copy listing text</button>
-                <button type="button" data-copy-share="${product.id}" data-copy-url="${escapeHtml(absoluteUrl(product.shortUrl || product.url || `/products/${product.id}`))}">Copy short link</button>
-                ${product.imageUrl ? `<a class="source-link" href="${escapeHtml(product.imageUrl)}" target="_blank" rel="noopener">Open main image</a>` : ""}
-              </div>
-            </section>
-            <section class="admin-editor-section admin-editor-section-compact">
-              <div class="admin-editor-section-head">
-                <h4>Competitor checks</h4>
-                <p>Keep outside pricing nearby while you update your own listing.</p>
-              </div>
-              <div class="mini-comparisons">
-                ${(product.comparisons || []).map((item) => `<span>${escapeHtml(item.site)} ${escapeHtml(item.price)} <button type="button" data-delete-comparison="${item.id}">Remove</button></span>`).join("") || "<span>No competitor prices</span>"}
-              </div>
-              <form class="comparison-form" data-comparison-form="${product.id}">
-                <input name="site" placeholder="Site" required>
-                <input name="price" type="number" min="0" step="0.01" placeholder="Price" required>
-                <input name="productUrl" placeholder="Product URL">
-                <select name="currency">
-                  <option>CAD</option>
-                  <option>USD</option>
-                </select>
-                <select name="matchType">
-                  <option value="upc">UPC</option>
-                  <option value="description">Description</option>
-                </select>
-                <button type="submit">Add comparison</button>
-              </form>
-            </section>
-            <section class="admin-editor-section admin-editor-section-compact admin-editor-danger-zone">
-              <div class="admin-editor-section-head">
-                <h4>Archive or remove</h4>
-                <p>Archive hides the item. Delete is for permanent cleanup only.</p>
-              </div>
-              <div class="row-actions admin-product-actions">
-                ${product.active || product.productSpecs?.listingStatus !== "archived"
-                  ? `<button type="button" data-archive-product="${product.id}">Archive</button>`
-                  : `<button type="button" data-restore-product="${product.id}">Restore</button>`}
-                <button type="button" class="danger" data-delete-product="${product.id}">Delete</button>
-              </div>
-            </section>
-          </aside>
-        </div>
-        <div class="admin-mobile-actions">
-          <button type="button" data-admin-step-nav="-1">Back</button>
-          <button type="button" data-admin-step-nav="1">Next</button>
+        <label class="wide-field">Description<textarea name="description" rows="4">${escapeHtml(product.description)}</textarea></label>
+        <label class="dropzone wide-field" data-image-dropzone>
+          <span>Replace photos</span>
+          <input name="images" type="file" accept="image/*" multiple>
+          <strong>Drop replacement photos here or click to choose</strong>
+          <small data-image-hint>Leave empty to keep current photos.</small>
+        </label>
+        ${product.imageUrls?.length ? `<div class="admin-editor-image-preview wide-field"><strong>Current photos</strong><div class="admin-image-strip">${product.imageUrls.map((url) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" alt="${escapeHtml(product.name)} image"></a>`).join("")}</div></div>` : ""}
+        <div class="row-actions wide-field simple-product-actions">
           <button class="primary" type="submit">Save changes</button>
+          ${product.active || product.productSpecs?.listingStatus !== "archived"
+            ? `<button type="button" data-archive-product="${product.id}">Archive</button>`
+            : `<button type="button" data-restore-product="${product.id}">Restore</button>`}
+          <button type="button" class="danger" data-delete-product="${product.id}">Delete</button>
         </div>
+        <p class="form-message wide-field"></p>
       </form>
-      ${recommendedAddonsBlock(product)}
     </div>
   `;
 }
@@ -1127,130 +977,17 @@ async function loadSession() {
 async function loadAdmin() {
   if (sessionUser?.role !== "admin") return setRoute("store");
   if (adminRequest) return adminRequest;
-  document.querySelector("#adminStats").innerHTML = loadingRows(3);
-  document.querySelector("#usersList").innerHTML = loadingRows(2);
-  document.querySelector("#adminProducts").innerHTML = loadingRows(3);
-  document.querySelector("#inquiriesList").innerHTML = loadingRows(1);
-  document.querySelector("#alertLeadsList").innerHTML = loadingRows(1);
-  document.querySelector("#ordersList").innerHTML = loadingRows(2);
-  document.querySelector("#bugReportsList").innerHTML = loadingRows(2);
-  adminRequest = withStatus("Loading admin data...", () => Promise.all([
-    api("/api/admin/summary"),
-    api("/api/admin/users"),
-    api("/api/admin/products"),
-    api("/api/admin/inquiries"),
-    api("/api/admin/alert-leads"),
-    api("/api/admin/orders"),
-    api("/api/admin/bug-reports")
-  ]));
-  const [summary, users, products, inquiries, alertLeads, orders, bugReports] = await adminRequest;
+  const adminProducts = document.querySelector("#adminProducts");
+  if (adminProducts) adminProducts.innerHTML = loadingRows(3);
+  adminRequest = withStatus("Loading products...", () => api("/api/admin/products"));
+  const products = await adminRequest;
   adminRequest = null;
-
-  document.querySelector("#adminStats").innerHTML = `
-    <div class="stat"><strong>${summary.pendingUsers}</strong>Pending dealers</div>
-    <div class="stat"><strong>${summary.products}</strong>Products</div>
-    <div class="stat"><strong>${summary.inquiries}</strong>New inquiries</div>
-    <div class="stat"><strong>${summary.alertLeads || 0}</strong>Alert signups</div>
-    <div class="stat"><strong>${summary.orders || 0}</strong>Checkout requests</div>
-    <div class="stat"><strong>${summary.bugReports || 0}</strong>Bug reports</div>
-    <div class="stat"><strong>${summary.returningCustomers || 0}</strong>Returning customers</div>
-  `;
-  const affiliateStatus = document.querySelector("#affiliateStatus");
-  if (affiliateStatus) {
-    affiliateStatus.textContent = `Amazon affiliate tag in use: ${summary.amazonAffiliateTag || "not set"}. Amazon links now go direct to tagged amazon.ca product pages when an ASIN is known, and fall back to tagged search when it is not.`;
-  }
-
-  document.querySelector("#usersList").innerHTML = users.users.map((user) => `
-    <div class="row">
-      <div>
-        <strong>${escapeHtml(user.company || user.email)}</strong>
-        <p>${escapeHtml(user.contactName)} | ${escapeHtml(user.email)} | ${escapeHtml(user.status)}</p>
-        <p class="customer-meta">
-          <span class="${user.returningCustomer ? "returning-badge" : "new-badge"}">${user.returningCustomer ? "Returning customer" : "New customer"}</span>
-          ${Number(user.orderCount || 0)} order${Number(user.orderCount || 0) === 1 ? "" : "s"}
-          ${user.lastOrderAt ? `| Last order ${escapeHtml(shortDate(user.lastOrderAt))}` : ""}
-          ${Number(user.totalSpentCents || 0) ? `| Lifetime ${money(user.totalSpentCents)}` : ""}
-        </p>
-      </div>
-      <div class="row-actions">
-        ${user.role === "admin" ? "" : `
-          <button data-user="${user.id}" data-status="approved">Approve</button>
-          <button class="danger" data-user="${user.id}" data-status="rejected">Reject</button>
-        `}
-      </div>
-    </div>
-  `).join("");
 
   adminProductsCache = products.products;
   if (!selectedAdminProductId && adminProductsCache.length) {
     selectedAdminProductId = adminProductsCache[0].id;
   }
   renderAdminProducts(adminProductsCache);
-  renderBulkProductEditor(adminProductsCache);
-
-  document.querySelector("#inquiriesList").innerHTML = inquiries.inquiries.length
-    ? inquiries.inquiries.map((inquiry) => `
-      <div class="row">
-        <div>
-          <strong>${escapeHtml(inquiry.productName)} x ${inquiry.quantity}</strong>
-          <p>${escapeHtml(inquiry.company)} | ${escapeHtml(inquiry.email)} | ${escapeHtml(inquiry.note)}</p>
-        </div>
-      </div>
-    `).join("")
-    : "<p>No inquiries yet.</p>";
-
-  document.querySelector("#alertLeadsList").innerHTML = alertLeads.leads.length
-    ? alertLeads.leads.map((lead) => `
-      <div class="row">
-        <div>
-          <strong>${escapeHtml(alertLeadName(lead))}</strong>
-          <p>${escapeHtml(lead.email)}${lead.phone ? ` | ${escapeHtml(lead.phone)}` : ""} | ${escapeHtml(lead.status || "new")}</p>
-          <p class="customer-meta">${lead.interests ? `Looking for: ${escapeHtml(lead.interests)} | ` : ""}${lead.updatedAt ? `Updated ${escapeHtml(shortDate(lead.updatedAt))}` : ""}</p>
-        </div>
-        <div class="row-actions">
-          <a class="nav-button" href="mailto:${escapeHtml(lead.email)}">Email</a>
-          ${lead.phone ? `<a class="nav-button" href="tel:${escapeHtml(lead.phone)}">Call</a>` : ""}
-        </div>
-      </div>
-    `).join("")
-    : "<p>No alert signups yet.</p>";
-
-  document.querySelector("#ordersList").innerHTML = orders.orders.length
-    ? orders.orders.map((order) => `
-      <div class="row order-row">
-        <div>
-          <strong>Order #${order.id} | ${money(order.subtotalCents)}</strong>
-          <p>${escapeHtml(order.company)} | ${escapeHtml(order.email)} | ${escapeHtml(order.status)}</p>
-          <p class="customer-meta">
-            <span class="${order.returningCustomer ? "returning-badge" : "new-badge"}">${order.returningCustomer ? "Returning customer" : "First order"}</span>
-            ${Number(order.customerOrderCount || 1)} lifetime order${Number(order.customerOrderCount || 1) === 1 ? "" : "s"}
-            ${Number(order.previousOrderCount || 0) ? `| ${Number(order.previousOrderCount)} previous` : ""}
-            ${Number(order.customerTotalSpentCents || 0) ? `| Lifetime ${money(order.customerTotalSpentCents)}` : ""}
-          </p>
-          <p>${escapeHtml(order.shipTo?.fulfillmentMethod)} | ${escapeHtml(order.shipTo?.paymentMethod || "etransfer")} ${order.shipTo?.pickupLocation ? `| Pickup: ${escapeHtml(order.shipTo.pickupLocation)}` : ""} for ${escapeHtml(order.shipTo?.recipientName)} | ${escapeHtml(order.shipTo?.phone)}</p>
-          <p>${escapeHtml(order.shipTo?.address1)} ${order.shipTo?.address2 ? `, ${escapeHtml(order.shipTo.address2)}` : ""}, ${escapeHtml(order.shipTo?.city)}, ${escapeHtml(order.shipTo?.region)} ${escapeHtml(order.shipTo?.postalCode)}, ${escapeHtml(order.shipTo?.country)}</p>
-          <p>${escapeHtml(order.shipTo?.deliveryWindow)} | ${escapeHtml(order.shipTo?.receivingInstructions)}</p>
-          <ul class="order-items">
-            ${(order.items || []).map((item) => `<li>${escapeHtml(item.name)} x ${escapeHtml(item.quantity)} (${money(item.lineTotalCents)})</li>`).join("")}
-          </ul>
-          ${order.note ? `<p>Note: ${escapeHtml(order.note)}</p>` : ""}
-        </div>
-      </div>
-    `).join("")
-    : "<p>No checkout requests yet.</p>";
-
-  document.querySelector("#bugReportsList").innerHTML = bugReports.reports.length
-    ? bugReports.reports.map((report) => `
-      <div class="row">
-        <div>
-          <strong>${escapeHtml(report.title)}</strong>
-          <p>${escapeHtml(report.type)} | ${escapeHtml(report.priority)} | ${escapeHtml(report.status || "new")} ${report.email ? `| ${escapeHtml(report.email)}` : ""}</p>
-          <p class="customer-meta">${escapeHtml(report.details)}</p>
-          <p class="customer-meta">${report.pageUrl ? `Page: ${escapeHtml(report.pageUrl)} | ` : ""}${report.createdAt ? `Created ${escapeHtml(shortDate(report.createdAt))}` : ""}</p>
-        </div>
-      </div>
-    `).join("")
-    : "<p>No bug reports yet.</p>";
 
   setupImageDropzones(document.querySelector("#adminView"));
 }
@@ -1651,6 +1388,37 @@ const imageDropHint = document.querySelector("#imageDropHint");
 const exportProductsButton = document.querySelector("#exportProductsButton");
 const importProductsButton = document.querySelector("#importProductsButton");
 const importProductsFile = document.querySelector("#importProductsFile");
+const productForm = document.querySelector("#productForm");
+const openMobileListingButton = document.querySelector("#openMobileListing");
+const closeMobileListingButton = document.querySelector("#closeMobileListing");
+const toggleMobileListingDetailsButton = document.querySelector("#toggleMobileListingDetails");
+
+function mobileListingMode() {
+  return document.body.dataset.view === "mobile";
+}
+
+function setMobileListingAdvanced(expanded) {
+  if (!productForm) return;
+  productForm.classList.toggle("show-mobile-advanced", Boolean(expanded));
+  if (toggleMobileListingDetailsButton) {
+    toggleMobileListingDetailsButton.textContent = expanded ? "Basic view" : "More options";
+    toggleMobileListingDetailsButton.setAttribute("aria-expanded", expanded ? "true" : "false");
+  }
+}
+
+function openMobileListing() {
+  if (!mobileListingMode() || !productForm) return;
+  setMobileListingAdvanced(false);
+  productForm.classList.add("mobile-open");
+  document.body.classList.add("admin-listing-open");
+  setTimeout(() => productForm.querySelector("[name='name']")?.focus(), 40);
+}
+
+function closeMobileListing() {
+  productForm?.classList.remove("mobile-open");
+  document.body.classList.remove("admin-listing-open");
+  setMobileListingAdvanced(false);
+}
 
 storeSearch.addEventListener("input", () => renderProducts(Boolean(sessionUser?.canSeePrices)));
 storeCategory.addEventListener("change", () => renderProducts(Boolean(sessionUser?.canSeePrices)));
@@ -1669,7 +1437,7 @@ document.querySelector("#quickAddress")?.addEventListener("change", fillCheckout
 exportProductsButton?.addEventListener("click", () => {
   const message = document.querySelector("#productImportMessage") || document.querySelector("#productMessage");
   const run = async () => {
-    const response = await fetch("/api/admin/products/export?format=csv");
+    const response = await fetch("/api/admin/products/export");
     const contentType = response.headers.get("content-type") || "";
     if (!response.ok) {
       const data = contentType.includes("application/json")
@@ -1712,8 +1480,7 @@ importProductsFile?.addEventListener("change", async (event) => {
   const restore = setButtonBusy(importProductsButton, "Importing...");
   try {
     const text = await file.text();
-    const isCsv = /\.csv$/i.test(file.name) || (file.type || "").includes("csv");
-    const payload = isCsv ? { format: "csv", text } : JSON.parse(text);
+    const payload = { format: "csv", text };
     const result = await withStatus("Importing products...", () => api("/api/admin/products/import", {
       method: "POST",
       body: JSON.stringify(payload)
@@ -1728,6 +1495,12 @@ importProductsFile?.addEventListener("change", async (event) => {
     if (importProductsFile) importProductsFile.value = "";
     restore();
   }
+});
+
+openMobileListingButton?.addEventListener("click", openMobileListing);
+closeMobileListingButton?.addEventListener("click", closeMobileListing);
+toggleMobileListingDetailsButton?.addEventListener("click", () => {
+  setMobileListingAdvanced(!productForm?.classList.contains("show-mobile-advanced"));
 });
 
 function setImageFiles(input, files) {
@@ -1784,8 +1557,10 @@ document.querySelector("#productForm").addEventListener("submit", async (event) 
     event.target.reset();
     if (event.target.elements.active) event.target.elements.active.value = "true";
     if (event.target.elements.remoteImageUrl) event.target.elements.remoteImageUrl.value = "";
+    setMobileListingAdvanced(false);
     updateImageHint(imageInput, imageDropHint);
     message.textContent = "Product added.";
+    if (mobileListingMode()) closeMobileListing();
     await loadAdmin();
     await loadProducts();
   } catch (error) {
