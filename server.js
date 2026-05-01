@@ -1675,10 +1675,131 @@ function exportProductRecord(product) {
   };
 }
 
+function csvEscape(value) {
+  const text = String(value ?? "");
+  if (!/[",\n\r]/.test(text)) return text;
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+function csvValue(value) {
+  return value == null ? "" : String(value);
+}
+
+function exportProductsCsv(products) {
+  const headers = [
+    "id", "name", "brand", "sku", "upc", "category", "description",
+    "price", "dealerPrice", "quantityOnHand", "active", "sourceUrl",
+    "condition", "fulfillmentType", "listingStatus", "marketplaceStatus",
+    "model", "color", "material", "length", "width", "height",
+    "dimensionUnit", "weight", "weightUnit", "cost", "sourceNotes",
+    "imageUrl", "imageUrls", "recommendedAddonIds"
+  ];
+  const lines = [headers.join(",")];
+  for (const product of products) {
+    const specs = product.productSpecs || {};
+    const row = [
+      product.id,
+      product.name,
+      product.brand,
+      product.sku,
+      product.upc,
+      product.category,
+      product.description,
+      dollarsNumber(product.priceCents) ?? "",
+      dollarsNumber(product.dealerPriceCents) ?? "",
+      Math.max(0, Math.floor(Number(product.quantityOnHand || 0))),
+      product.active ? "true" : "false",
+      product.sourceUrl || "",
+      specs.condition || "",
+      specs.fulfillmentType || "",
+      specs.listingStatus || "",
+      specs.marketplaceStatus || "",
+      specs.model || "",
+      specs.color || "",
+      specs.material || "",
+      specs.length || "",
+      specs.width || "",
+      specs.height || "",
+      specs.dimensionUnit || "",
+      specs.weight || "",
+      specs.weightUnit || "",
+      specs.cost || "",
+      specs.sourceNotes || "",
+      product.imageUrl || "",
+      (product.imageUrls || []).join("|"),
+      (product.recommendedAddonIds || []).join("|")
+    ].map((value) => csvEscape(csvValue(value)));
+    lines.push(row.join(","));
+  }
+  return `\uFEFF${lines.join("\r\n")}`;
+}
+
 function importProductsFromJson(data) {
   if (!data || typeof data !== "object") throw new Error("Upload a valid product export file.");
   const products = Array.isArray(data.products) ? data.products : (Array.isArray(data) ? data : null);
   if (!products || !products.length) throw new Error("No products were found in the import file.");
+  return products;
+}
+
+function importField(source, fallbackValue, ...keys) {
+  for (const key of keys) {
+    if (source[key] !== undefined && source[key] !== null && source[key] !== "") return source[key];
+  }
+  return fallbackValue;
+}
+
+function parseCsvText(text) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+    if (inQuotes) {
+      if (char === '"' && next === '"') {
+        cell += '"';
+        index += 1;
+      } else if (char === '"') {
+        inQuotes = false;
+      } else {
+        cell += char;
+      }
+      continue;
+    }
+    if (char === '"') {
+      inQuotes = true;
+      continue;
+    }
+    if (char === ",") {
+      row.push(cell);
+      cell = "";
+      continue;
+    }
+    if (char === "\r") continue;
+    if (char === "\n") {
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+      continue;
+    }
+    cell += char;
+  }
+  if (cell.length || row.length) {
+    row.push(cell);
+    rows.push(row);
+  }
+  return rows.filter((item) => item.some((value) => String(value || "").trim() !== ""));
+}
+
+function importProductsFromCsv(text) {
+  const cleaned = String(text || "").replace(/^\uFEFF/, "");
+  const rows = parseCsvText(cleaned);
+  if (rows.length < 2) throw new Error("No product rows were found in the CSV file.");
+  const headers = rows[0].map((value) => String(value || "").trim());
+  const products = rows.slice(1).map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""])));
+  if (!products.length) throw new Error("No product rows were found in the CSV file.");
   return products;
 }
 
@@ -1925,6 +2046,12 @@ app.get("/api/admin/products", requireAdmin, async (_req, res) => {
 
 app.get("/api/admin/products/export", requireAdmin, async (_req, res) => {
   const products = await db.listProducts();
+  if (String(_req.query.format || "").toLowerCase() === "csv") {
+    const filename = `selltomakemoney-products-${new Date().toISOString().slice(0, 10)}.csv`;
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.type("text/csv; charset=utf-8").send(exportProductsCsv(products));
+    return;
+  }
   res.setHeader("Content-Disposition", `attachment; filename="selltomakemoney-products-${new Date().toISOString().slice(0, 10)}.json"`);
   res.json({
     version: 1,
@@ -1935,7 +2062,9 @@ app.get("/api/admin/products/export", requireAdmin, async (_req, res) => {
 
 app.post("/api/admin/products/import", requireAdmin, async (req, res) => {
   try {
-    const importedProducts = importProductsFromJson(req.body);
+    const importedProducts = String(req.body.format || "").toLowerCase() === "csv"
+      ? importProductsFromCsv(req.body.text)
+      : importProductsFromJson(req.body);
     const existingProducts = await db.listProducts();
     let created = 0;
     let updated = 0;
@@ -1963,23 +2092,23 @@ app.post("/api/admin/products/import", requireAdmin, async (req, res) => {
         condition: importedSpecs.condition ?? source.condition ?? base.productSpecs?.condition
       }, base.productSpecs || {}), base.quantityOnHand, quantityOnHand, match ? "bulk import update" : "bulk import");
       const record = {
-        name: String(source.name || base.name || "").trim(),
+        name: String(importField(source, base.name || "", "name")).trim(),
         sku,
         upc,
-        brand: String(source.brand || base.brand || "").trim(),
-        category: normalizeCategory(source.category, { fallback: base.category, required: true }),
-        description: String(source.description || base.description || "").trim(),
-        priceCents: centsFromInput(source.price ?? source.priceCents, base.priceCents ?? 0),
-        dealerPriceCents: centsFromInput(source.dealerPrice ?? source.dealerPriceCents, base.dealerPriceCents),
+        brand: String(importField(source, base.brand || "", "brand")).trim(),
+        category: normalizeCategory(importField(source, base.category || "", "category"), { fallback: base.category, required: true }),
+        description: String(importField(source, base.description || "", "description")).trim(),
+        priceCents: centsFromInput(importField(source, base.priceCents ?? 0, "price", "priceCents"), base.priceCents ?? 0),
+        dealerPriceCents: centsFromInput(importField(source, base.dealerPriceCents, "dealerPrice", "dealerPriceCents"), base.dealerPriceCents),
         imageUrl: imageUrls[0] || "",
         imageUrls,
-        sourceUrl: String(source.sourceUrl || base.sourceUrl || "").trim(),
+        sourceUrl: String(importField(source, base.sourceUrl || "", "sourceUrl")).trim(),
         quantityOnHand,
         productSpecs,
         recommendedAddonIds: parseRecommendedAddonIds(source.recommendedAddonIds, base.id || 0),
         active: source.active === undefined ? (base.active !== undefined ? Boolean(base.active) : false) : Boolean(source.active)
       };
-      if (!record.name) throw new Error("Each imported product needs a name.");
+      if (!record.name) throw new Error(`Each imported product needs a name. Problem row SKU: ${sku || "n/a"}, UPC: ${upc || "n/a"}.`);
       if (match) {
         const saved = await db.updateProduct(match.id, record);
         const index = existingProducts.findIndex((product) => Number(product.id) === Number(match.id));

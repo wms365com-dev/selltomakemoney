@@ -177,25 +177,6 @@ function productImage(product, rotateImages = false) {
   return `<div class="product-image">${escapeHtml(product.brand || product.category || "Dealer")}</div>`;
 }
 
-function startProductImageRotators() {
-  if (productRotatorTimer) {
-    clearInterval(productRotatorTimer);
-    productRotatorTimer = null;
-  }
-  const rotators = [...document.querySelectorAll("[data-image-rotator]")].map((rotator) => ({
-    images: [...rotator.querySelectorAll("img")],
-    index: 0
-  })).filter((rotator) => rotator.images.length > 1);
-  if (!rotators.length) return;
-  productRotatorTimer = setInterval(() => {
-    rotators.forEach((rotator) => {
-      rotator.images[rotator.index].classList.remove("active");
-      rotator.index = (rotator.index + 1) % rotator.images.length;
-      rotator.images[rotator.index].classList.add("active");
-    });
-  }, 3200);
-}
-
 function recommendedAddonsBlock(product) {
   if (!product.recommendedAddons?.length) return "";
   return `
@@ -962,25 +943,6 @@ function renderStoreCategories(products) {
   if (categories.includes(current)) storeCategory.value = current;
 }
 
-function renderCategoryTiles(products) {
-  if (!categoryTiles) return;
-  const categoryMap = new Map();
-  products.forEach((product) => {
-    const category = product.category || "Featured";
-    if (!categoryMap.has(category)) categoryMap.set(category, product);
-  });
-  const tiles = [...categoryMap.entries()].slice(0, 9);
-  categoryTiles.innerHTML = tiles.length ? tiles.map(([category, product]) => {
-    const imageUrl = product.imageUrl || product.imageUrls?.[0] || "";
-    return `
-      <button type="button" class="category-tile" data-category-filter="${escapeHtml(category)}">
-        ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="" loading="lazy" decoding="async">` : `<span>${escapeHtml(category.slice(0, 2).toUpperCase())}</span>`}
-        <strong>${escapeHtml(category)}</strong>
-      </button>
-    `;
-  }).join("") : "";
-}
-
 function filteredProducts(products) {
   const search = storeSearch.value.trim().toLowerCase();
   const category = storeCategory.value;
@@ -1027,7 +989,7 @@ function renderProducts(canSeePrices = false) {
   const products = filteredProducts(productCache);
   productGrid.innerHTML = products.length ? products.map((product) => `
     <article class="product-card">
-        ${productImage(product, !canSeePrices)}
+        ${productImage(product, false)}
         <div class="product-body">
           <div>
           <h2><a class="product-title-link" href="${escapeHtml(product.url || `/products/${product.id}`)}">${escapeHtml(product.name)}</a></h2>
@@ -1048,7 +1010,6 @@ function renderProducts(canSeePrices = false) {
       </div>
     </article>
   `).join("") : `<div class="panel empty-catalog"><h2>No matching items</h2><p>Try another search or category.</p></div>`;
-  startProductImageRotators();
 }
 
 function renderLookupResults(data, quantityOnHand) {
@@ -1121,7 +1082,6 @@ async function loadProducts() {
     const data = await api("/api/products");
     productCache = data.products;
     renderStoreCategories(productCache);
-    renderCategoryTiles(productCache);
     updateStoreStructuredData(productCache);
     priceNote.textContent = data.canSeePrices
       ? "Account pricing is visible on your approved account."
@@ -1707,7 +1667,37 @@ document.querySelector("#fillAddressBtn")?.addEventListener("click", () => {
 document.querySelector("#quickAddress")?.addEventListener("change", fillCheckoutAddress);
 
 exportProductsButton?.addEventListener("click", () => {
-  window.location.href = "/api/admin/products/export";
+  const message = document.querySelector("#productImportMessage") || document.querySelector("#productMessage");
+  const run = async () => {
+    const response = await fetch("/api/admin/products/export?format=csv");
+    const contentType = response.headers.get("content-type") || "";
+    if (!response.ok) {
+      const data = contentType.includes("application/json")
+        ? await response.json().catch(() => ({}))
+        : { error: await response.text().catch(() => "") };
+      throw new Error(data.error || "Could not export products.");
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get("content-disposition") || "";
+    const filenameMatch = disposition.match(/filename="?([^"]+)"?/i);
+    const filename = filenameMatch?.[1] || `selltomakemoney-products-${new Date().toISOString().slice(0, 10)}.csv`;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    if (message) message.textContent = "Product export downloaded.";
+  };
+  const restore = setButtonBusy(exportProductsButton, "Exporting...");
+  if (message) message.textContent = "";
+  withStatus("Preparing product export...", run)
+    .catch((error) => {
+      if (message) message.textContent = error.message || "Could not export products.";
+    })
+    .finally(() => restore());
 });
 
 importProductsButton?.addEventListener("click", () => {
@@ -1722,7 +1712,8 @@ importProductsFile?.addEventListener("change", async (event) => {
   const restore = setButtonBusy(importProductsButton, "Importing...");
   try {
     const text = await file.text();
-    const payload = JSON.parse(text);
+    const isCsv = /\.csv$/i.test(file.name) || (file.type || "").includes("csv");
+    const payload = isCsv ? { format: "csv", text } : JSON.parse(text);
     const result = await withStatus("Importing products...", () => api("/api/admin/products/import", {
       method: "POST",
       body: JSON.stringify(payload)
