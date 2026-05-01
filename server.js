@@ -1100,7 +1100,10 @@ const upload = multer({
       cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
     }
   }),
-  limits: { fileSize: 15 * 1024 * 1024 },
+  limits: {
+    fileSize: 15 * 1024 * 1024,
+    files: 12
+  },
   fileFilter: (_req, file, cb) => {
     if (!file.mimetype.startsWith("image/")) return cb(new Error("Only image uploads are allowed."));
     cb(null, true);
@@ -1745,10 +1748,7 @@ app.get("/api/admin/products", requireAdmin, async (_req, res) => {
   res.json({ products: await Promise.all(products.map((product) => productPayload(product, true, true))) });
 });
 
-const productImageUpload = upload.fields([
-  { name: "image", maxCount: 1 },
-  { name: "images", maxCount: 12 }
-]);
+const productImageUpload = upload.any();
 
 app.post("/api/admin/products", requireAdmin, productImageUpload, async (req, res) => {
   try {
