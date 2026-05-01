@@ -604,6 +604,8 @@ function populateProductFormFromImport(listing, quantityOnHand = 1) {
   setValue("active", "false");
   setValue("listingStatus", "draft");
   setValue("marketplaceStatus", "not_listed");
+  if (imageInput) imageInput.value = "";
+  if (imageDropHint) updateImageHint(imageInput, imageDropHint);
   if (message) message.textContent = listing.remoteImageUrl
     ? "Listing loaded into the form. Review it, then save when ready. Imported items save hidden by default."
     : "Listing loaded into the form. Review it, then save when ready.";

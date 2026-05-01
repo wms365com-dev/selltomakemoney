@@ -1084,9 +1084,9 @@ function createPostgresDatabase() {
 
 function seedProductRows() {
   return [
-    { name: "Dealer Starter Kit", sku: "DSK-100", upc: "", brand: "House Brand", category: "Starter", description: "A ready-to-sell bundle for new dealer accounts.", priceCents: 19900, imageUrl: "", imageUrls: [], sourceUrl: "", quantityOnHand: 0, recommendedAddonIds: [], active: true },
-    { name: "Premium Inventory Pack", sku: "PIP-250", upc: "", brand: "House Brand", category: "Inventory", description: "Higher-margin product mix for established dealers.", priceCents: 54900, imageUrl: "", imageUrls: [], sourceUrl: "", quantityOnHand: 0, recommendedAddonIds: [], active: true },
-    { name: "Display Sample Set", sku: "DSS-050", upc: "", brand: "House Brand", category: "Samples", description: "Showroom samples and sell sheets for in-person selling.", priceCents: 8900, imageUrl: "", imageUrls: [], sourceUrl: "", quantityOnHand: 0, recommendedAddonIds: [], active: true }
+    { name: "Dealer Starter Kit", sku: "DSK-100", upc: "", brand: "House Brand", category: "Other", description: "A ready-to-sell bundle for new dealer accounts.", priceCents: 19900, imageUrl: "", imageUrls: [], sourceUrl: "", quantityOnHand: 0, recommendedAddonIds: [], active: true },
+    { name: "Premium Inventory Pack", sku: "PIP-250", upc: "", brand: "House Brand", category: "Warehouse & Storage", description: "Higher-margin product mix for established dealers.", priceCents: 54900, imageUrl: "", imageUrls: [], sourceUrl: "", quantityOnHand: 0, recommendedAddonIds: [], active: true },
+    { name: "Display Sample Set", sku: "DSS-050", upc: "", brand: "House Brand", category: "Home & Office", description: "Showroom samples and sell sheets for in-person selling.", priceCents: 8900, imageUrl: "", imageUrls: [], sourceUrl: "", quantityOnHand: 0, recommendedAddonIds: [], active: true }
   ];
 }
 
@@ -1383,6 +1383,7 @@ async function requireAdmin(req, res, next) {
 }
 
 async function productPayload(product, showPrice, includeAdminData = false) {
+  const normalizedCategory = normalizeCategory(product.category, { fallback: "Other" });
   const payload = {
     id: product.id,
     url: productPath(product),
@@ -1391,7 +1392,7 @@ async function productPayload(product, showPrice, includeAdminData = false) {
     sku: product.sku,
     upc: product.upc,
     brand: product.brand,
-    category: product.category,
+    category: normalizedCategory,
     description: product.description,
     imageUrl: product.imageUrl,
     imageUrls: product.imageUrls || (product.imageUrl ? [product.imageUrl] : []),
