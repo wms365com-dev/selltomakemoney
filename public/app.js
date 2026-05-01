@@ -606,9 +606,10 @@ function populateProductFormFromImport(listing, quantityOnHand = 1) {
   setValue("marketplaceStatus", "not_listed");
   if (imageInput) imageInput.value = "";
   if (imageDropHint) updateImageHint(imageInput, imageDropHint);
-  if (message) message.textContent = listing.remoteImageUrl
-    ? "Listing loaded into the form. Review it, then save when ready. Imported items save hidden by default."
-    : "Listing loaded into the form. Review it, then save when ready.";
+  if (message) message.textContent = listing.importWarning
+    || (listing.remoteImageUrl
+      ? "Listing loaded into the form. Review it, then save when ready. Imported items save hidden by default."
+      : "Listing loaded into the form. Review it, then save when ready.");
   form.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -1074,7 +1075,7 @@ document.addEventListener("click", async (event) => {
         })
       }));
       populateProductFormFromImport(data.listing, button.dataset.importQty || 1);
-      document.querySelector("#upcLookupMessage").textContent = "Listing loaded into the form. Review and save when ready.";
+      document.querySelector("#upcLookupMessage").textContent = data.warning || "Listing loaded into the form. Review and save when ready.";
       document.querySelector("#upcLookupResults").innerHTML = "";
     } catch (error) {
       document.querySelector("#upcLookupMessage").textContent = error.message;
@@ -1220,7 +1221,7 @@ document.querySelector("#importUrlForm").addEventListener("submit", async (event
     }));
     populateProductFormFromImport(data.listing, body.quantityOnHand || 1);
     event.target.reset();
-    message.textContent = "Listing loaded into the form. Review and save when ready.";
+    message.textContent = data.warning || "Listing loaded into the form. Review and save when ready.";
   } catch (error) {
     message.textContent = error.message;
   } finally {

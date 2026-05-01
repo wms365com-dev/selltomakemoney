@@ -172,7 +172,63 @@ function parseCents(value) {
   return Math.round(Number(match[1]) * 100);
 }
 
+function looksLikeAmazonBlockPage(html = "") {
+  const text = String(html || "");
+  return /opfcaptcha|validateCaptcha|automated access to Amazon data|Continue shopping/i.test(text);
+}
+
+function titleCaseWords(value = "") {
+  return String(value || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function amazonFallbackListing(listingUrl) {
+  let parsed;
+  try {
+    parsed = new URL(listingUrl);
+  } catch (_error) {
+    return null;
+  }
+  if (!/amazon\./i.test(parsed.hostname)) return null;
+  const asinMatch = parsed.pathname.match(/\/dp\/([A-Z0-9]{10})/i);
+  const slugMatch = parsed.pathname.match(/^\/([^/]+)\/dp\//i);
+  const rawSlug = slugMatch?.[1] || "";
+  const cleanedName = titleCaseWords(rawSlug.replace(/[-_]+/g, " ").trim());
+  const brandGuess = cleanedName.split(/\s+/)[0] || "";
+  return {
+    name: cleanedName.slice(0, 180) || "Amazon listing",
+    brand: brandGuess.slice(0, 120),
+    sku: (asinMatch?.[1] || "").slice(0, 80),
+    upc: "",
+    category: "",
+    description: "",
+    priceCents: 0,
+    currency: "CAD",
+    remoteImageUrl: "",
+    sourceUrl: listingUrl,
+    importWarning: "Amazon blocked live product details. Review the draft and fill in price, UPC, images, and any missing details before saving."
+  };
+}
+
 function extractListing(html, listingUrl) {
+  if (looksLikeAmazonBlockPage(html)) {
+    return amazonFallbackListing(listingUrl) || {
+      name: "",
+      brand: "",
+      sku: "",
+      upc: "",
+      category: "",
+      description: "",
+      priceCents: 0,
+      currency: "CAD",
+      remoteImageUrl: "",
+      sourceUrl: listingUrl,
+      importWarning: "This site blocked live product details. Review the draft and fill in the missing fields before saving."
+    };
+  }
   const $ = cheerio.load(html);
   const structured = productFromJsonLd($);
   const offers = Array.isArray(structured?.offers) ? structured.offers[0] : structured?.offers;
@@ -1834,6 +1890,7 @@ app.post("/api/admin/import-url", requireAdmin, async (req, res) => {
     listing.category = inferCategoryFromListing(listing);
     res.status(200).json({
       listing,
+      warning: listing.importWarning || "",
       imported: {
         remoteImageUrl: listing.remoteImageUrl,
         currency: listing.currency
