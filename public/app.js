@@ -38,6 +38,10 @@ let productCache = [];
 let cart = JSON.parse(localStorage.getItem("dealerCart") || "[]");
 let productRotatorTimer = null;
 let exitAlertShown = localStorage.getItem("exitAlertDismissed") === "true";
+let selectedAdminProductId = null;
+let adminProductSearch = "";
+let adminProductMobileDetailOpen = false;
+let adminProductsCache = [];
 
 function showStatus(message = "Working...") {
   statusDepth += 1;
@@ -191,6 +195,219 @@ function recommendedAddonsBlock(product) {
           </div>
         `).join("")}
       </div>
+    </div>
+  `;
+}
+
+function adminProductMatchesSearch(product, search) {
+  const text = [
+    product.name,
+    product.brand,
+    product.sku,
+    product.upc,
+    product.category,
+    product.description
+  ].filter(Boolean).join(" ").toLowerCase();
+  return !search || text.includes(search);
+}
+
+function addonChoicesMarkup(product, products) {
+  return products
+    .filter((item) => item.id !== product.id)
+    .map((item) => `
+      <label class="addon-choice">
+        <input type="checkbox" name="recommendedAddonIds" value="${item.id}" ${(product.recommendedAddonIds || []).includes(item.id) ? "checked" : ""}>
+        <span>${escapeHtml(item.name)}</span>
+      </label>
+    `).join("");
+}
+
+function adminProductListItem(product, isSelected = false) {
+  return `
+    <button type="button" class="admin-product-list-item ${isSelected ? "selected" : ""}" data-select-product="${product.id}">
+      <strong>${escapeHtml(product.name)}</strong>
+      <span>${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku || product.category || "No SKU")}</span>
+      <span>Qty ${escapeHtml(product.quantityOnHand ?? 0)} | ${product.active ? "Active" : "Hidden"}</span>
+    </button>
+  `;
+}
+
+function adminProductDetailMarkup(product, products) {
+  const addonChoices = addonChoicesMarkup(product, products);
+  return `
+    <div class="admin-product-detail-card">
+      <div class="admin-product-detail-head">
+        <button type="button" class="nav-button admin-product-back" data-back-products>Back to list</button>
+        <div>
+          <h3>${escapeHtml(product.name)}</h3>
+          <p>${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.upc ? `| UPC ${escapeHtml(product.upc)}` : ""} | Qty ${escapeHtml(product.quantityOnHand ?? 0)} | Public ${product.price} ${product.dealerPrice ? `| Dealer ${escapeHtml(product.dealerPrice)}` : ""} | ${product.active ? "Active" : "Hidden"}</p>
+          <p class="mini-note">Listing: ${escapeHtml(product.productSpecs?.listingStatus || "draft")} | Marketplace: ${escapeHtml(product.productSpecs?.marketplaceStatus || "not_listed")} | Short link: ${escapeHtml(absoluteUrl(product.shortUrl || product.url))}</p>
+          ${productSpecsSummary(product)}
+          ${product.sourceUrl ? `<p><a class="source-link" href="${escapeHtml(product.sourceUrl)}" target="_blank" rel="noopener">Source listing</a></p>` : ""}
+        </div>
+      </div>
+      <details class="edit-listing" open>
+        <summary>Edit listing</summary>
+        <form class="product-edit-form" data-product-edit="${product.id}">
+          <details class="listing-section" open>
+            <summary>Product identity</summary>
+            <div class="listing-section-grid">
+              <label>Name<input name="name" value="${escapeHtml(product.name)}" required autocomplete="off"></label>
+              <label>Brand<input name="brand" value="${escapeHtml(product.brand)}" autocomplete="organization"></label>
+              <label>SKU<input name="sku" value="${escapeHtml(product.sku)}"></label>
+              <label>UPC<input name="upc" value="${escapeHtml(product.upc)}" inputmode="numeric"></label>
+              <label>Category<select name="category" required>${categorySelect(product.category)}</select></label>
+              <label>Model<input name="model" value="${specValue(product, "model")}" autocomplete="off"></label>
+            </div>
+          </details>
+          <details class="listing-section" open>
+            <summary>Inventory and pricing</summary>
+            <div class="listing-section-grid">
+              <label>Qty on hand<input name="quantityOnHand" type="number" min="0" step="1" value="${escapeHtml(product.quantityOnHand ?? 0)}"></label>
+              <label>Public price<input name="price" type="number" min="0" step="0.01" value="${escapeHtml(((product.priceCents || 0) / 100).toFixed(2))}" required></label>
+              <label>Dealer price<input name="dealerPrice" type="number" min="0" step="0.01" value="${product.dealerPriceCents == null ? "" : escapeHtml((product.dealerPriceCents / 100).toFixed(2))}" placeholder="Optional"></label>
+              <label>Cost <input name="cost" type="number" min="0" step="0.01" value="${specValue(product, "cost")}" placeholder="Private"></label>
+              <label>Status<select name="active">
+                <option value="true" ${product.active ? "selected" : ""}>Active</option>
+                <option value="false" ${product.active ? "" : "selected"}>Hidden</option>
+              </select></label>
+              <label>Listing status<select name="listingStatus">
+                ${["draft", "ready_to_list", "listed_on_site", "sold", "picked_up", "archived", "removed"].map((status) => `<option value="${status}" ${product.productSpecs?.listingStatus === status ? "selected" : ""}>${status.replaceAll("_", " ")}</option>`).join("")}
+              </select></label>
+              <label>Facebook status<select name="marketplaceStatus">
+                ${["not_listed", "ready_for_facebook", "listed_on_facebook", "offer_pending", "sold_on_facebook"].map((status) => `<option value="${status}" ${product.productSpecs?.marketplaceStatus === status ? "selected" : ""}>${status.replaceAll("_", " ")}</option>`).join("")}
+              </select></label>
+              <label>Customer fulfillment<select name="fulfillmentType">
+                <option value="pickup_only" ${product.productSpecs?.fulfillmentType === "ships_or_pickup" ? "" : "selected"}>Pickup only</option>
+                <option value="ships_or_pickup" ${product.productSpecs?.fulfillmentType === "ships_or_pickup" ? "selected" : ""}>Can be shipped or picked up</option>
+              </select></label>
+              <label>Condition<select name="condition">${conditionSelect(product)}</select></label>
+              <label>Color<input name="color" value="${specValue(product, "color")}"></label>
+            </div>
+          </details>
+          <details class="listing-section">
+            <summary>Dimensions and shipping specs</summary>
+            <div class="listing-section-grid">
+              <label>Length<input name="length" type="number" min="0" step="0.01" value="${specValue(product, "length")}" inputmode="decimal"></label>
+              <label>Width<input name="width" type="number" min="0" step="0.01" value="${specValue(product, "width")}" inputmode="decimal"></label>
+              <label>Height<input name="height" type="number" min="0" step="0.01" value="${specValue(product, "height")}" inputmode="decimal"></label>
+              <label>Dimension unit<select name="dimensionUnit">${specSelect(product, "dimensionUnit", "in", "in")}${specSelect(product, "dimensionUnit", "cm", "cm")}</select></label>
+              <label>Weight<input name="weight" type="number" min="0" step="0.01" value="${specValue(product, "weight")}" inputmode="decimal"></label>
+              <label>Weight unit<select name="weightUnit">${specSelect(product, "weightUnit", "lb", "lb")}${specSelect(product, "weightUnit", "kg", "kg")}</select></label>
+              <label>Material<input name="material" value="${specValue(product, "material")}"></label>
+            </div>
+          </details>
+          <details class="listing-section" open>
+            <summary>Description and media</summary>
+            <div class="listing-section-grid">
+              <label class="wide-field">Description<textarea name="description" rows="3">${escapeHtml(product.description)}</textarea></label>
+              <label class="wide-field">Source URL<input name="sourceUrl" type="url" value="${escapeHtml(product.sourceUrl)}" placeholder="Optional"></label>
+              <label class="wide-field">Private source notes<textarea name="sourceNotes" rows="2" placeholder="Where it came from, costs, customer notes">${escapeHtml(product.productSpecs?.sourceNotes || "")}</textarea></label>
+              <label class="dropzone wide-field" data-image-dropzone>
+                <span>Replace images</span>
+                <input name="images" type="file" accept="image/*" multiple>
+                <strong>Drop replacement photos here or click to choose</strong>
+                <small data-image-hint>Leave empty to keep current photos. Multiple images are supported.</small>
+              </label>
+            </div>
+          </details>
+          <details class="listing-section">
+            <summary>Stock history</summary>
+            ${stockHistoryBlock(product)}
+          </details>
+          <fieldset class="addon-picker wide-field">
+            <legend>Recommended add-ons</legend>
+            ${addonChoices || "<p>No other products available yet.</p>"}
+          </fieldset>
+          <div class="row-actions wide-field">
+            <button class="primary" type="submit">Save changes</button>
+          </div>
+          <p class="form-message wide-field"></p>
+        </form>
+      </details>
+      ${recommendedAddonsBlock(product)}
+      <details class="facebook-listing">
+        <summary>List on Facebook</summary>
+        <textarea readonly rows="9" id="facebookListing${product.id}">${escapeHtml(facebookListingText(product))}</textarea>
+        <div class="row-actions">
+          <button type="button" data-copy-facebook="${product.id}">Copy listing text</button>
+          <button type="button" data-copy-share="${product.id}" data-copy-url="${escapeHtml(absoluteUrl(product.shortUrl || product.url || `/products/${product.id}`))}">Copy short link</button>
+          ${product.imageUrl ? `<a class="source-link" href="${escapeHtml(product.imageUrl)}" target="_blank" rel="noopener">Open main image</a>` : ""}
+        </div>
+        ${product.imageUrls?.length ? `<div class="admin-image-strip">${product.imageUrls.map((url) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" alt="${escapeHtml(product.name)} image"></a>`).join("")}</div>` : ""}
+      </details>
+      <div class="row-actions admin-product-actions">
+        ${product.active || product.productSpecs?.listingStatus !== "archived"
+          ? `<button type="button" data-archive-product="${product.id}">Archive</button>`
+          : `<button type="button" data-restore-product="${product.id}">Restore</button>`}
+        <button type="button" class="danger" data-delete-product="${product.id}">Delete</button>
+      </div>
+      <div class="mini-comparisons">
+        ${(product.comparisons || []).map((item) => `<span>${escapeHtml(item.site)} ${escapeHtml(item.price)} <button type="button" data-delete-comparison="${item.id}">Remove</button></span>`).join("") || "<span>No competitor prices</span>"}
+      </div>
+      <form class="comparison-form" data-comparison-form="${product.id}">
+        <input name="site" placeholder="Site" required>
+        <input name="price" type="number" min="0" step="0.01" placeholder="Price" required>
+        <input name="productUrl" placeholder="Product URL">
+        <select name="currency">
+          <option>CAD</option>
+          <option>USD</option>
+        </select>
+        <select name="matchType">
+          <option value="upc">UPC</option>
+          <option value="description">Description</option>
+        </select>
+        <button type="submit">Add comparison</button>
+      </form>
+    </div>
+  `;
+}
+
+function renderAdminProducts(products) {
+  const search = adminProductSearch.trim().toLowerCase();
+  const filteredProducts = products.filter((product) => adminProductMatchesSearch(product, search));
+  const host = document.querySelector("#adminProducts");
+  if (!host) return;
+  if (!filteredProducts.length) {
+    host.innerHTML = `
+      <div class="admin-product-workspace">
+        <section class="panel admin-product-list-panel">
+          <div class="admin-product-list-head">
+            <div>
+              <p class="eyebrow">Product list</p>
+              <h3>Products</h3>
+            </div>
+            <span>${products.length} total</span>
+          </div>
+          <label class="admin-product-search">Search products<input id="adminProductSearch" type="search" value="${escapeHtml(adminProductSearch)}" placeholder="Search by title, SKU, UPC, brand"></label>
+          <p>No matching products.</p>
+        </section>
+      </div>
+    `;
+    return;
+  }
+  if (!filteredProducts.some((product) => product.id === selectedAdminProductId)) {
+    selectedAdminProductId = filteredProducts[0].id;
+  }
+  const selectedProduct = filteredProducts.find((product) => product.id === selectedAdminProductId) || filteredProducts[0];
+  host.innerHTML = `
+    <div class="admin-product-workspace ${adminProductMobileDetailOpen ? "detail-open" : ""}">
+      <section class="panel admin-product-list-panel">
+        <div class="admin-product-list-head">
+          <div>
+            <p class="eyebrow">Product list</p>
+            <h3>Products</h3>
+          </div>
+          <span>${filteredProducts.length} shown</span>
+        </div>
+        <label class="admin-product-search">Search products<input id="adminProductSearch" type="search" value="${escapeHtml(adminProductSearch)}" placeholder="Search by title, SKU, UPC, brand"></label>
+        <div class="admin-product-list">
+          ${filteredProducts.map((product) => adminProductListItem(product, product.id === selectedProduct.id)).join("")}
+        </div>
+      </section>
+      <section class="panel admin-product-detail-panel">
+        ${adminProductDetailMarkup(selectedProduct, products)}
+      </section>
     </div>
   `;
 }
@@ -706,139 +923,11 @@ async function loadAdmin() {
     </div>
   `).join("");
 
-  const addonChoices = (product) => products.products
-    .filter((item) => item.id !== product.id)
-    .map((item) => `
-      <label class="addon-choice">
-        <input type="checkbox" name="recommendedAddonIds" value="${item.id}" ${(product.recommendedAddonIds || []).includes(item.id) ? "checked" : ""}>
-        <span>${escapeHtml(item.name)}</span>
-      </label>
-    `).join("");
-
-  document.querySelector("#adminProducts").innerHTML = products.products.map((product) => `
-    <div class="row">
-      <div>
-        <strong>${escapeHtml(product.name)}</strong>
-        <p>${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.upc ? `| UPC ${escapeHtml(product.upc)}` : ""} | Qty ${escapeHtml(product.quantityOnHand ?? 0)} | Public ${product.price} ${product.dealerPrice ? `| Dealer ${escapeHtml(product.dealerPrice)}` : ""} | ${product.active ? "Active" : "Hidden"}</p>
-        <p class="mini-note">Listing: ${escapeHtml(product.productSpecs?.listingStatus || "draft")} | Marketplace: ${escapeHtml(product.productSpecs?.marketplaceStatus || "not_listed")} | Short link: ${escapeHtml(absoluteUrl(product.shortUrl || product.url))}</p>
-        ${productSpecsSummary(product)}
-        ${product.sourceUrl ? `<p><a class="source-link" href="${escapeHtml(product.sourceUrl)}" target="_blank" rel="noopener">Source listing</a></p>` : ""}
-        <details class="edit-listing">
-          <summary>Edit listing</summary>
-          <form class="product-edit-form" data-product-edit="${product.id}">
-            <details class="listing-section" open>
-              <summary>Product identity</summary>
-              <div class="listing-section-grid">
-                <label>Name<input name="name" value="${escapeHtml(product.name)}" required autocomplete="off"></label>
-                <label>Brand<input name="brand" value="${escapeHtml(product.brand)}" autocomplete="organization"></label>
-                <label>SKU<input name="sku" value="${escapeHtml(product.sku)}"></label>
-                <label>UPC<input name="upc" value="${escapeHtml(product.upc)}" inputmode="numeric"></label>
-                <label>Category<select name="category" required>${categorySelect(product.category)}</select></label>
-                <label>Model<input name="model" value="${specValue(product, "model")}" autocomplete="off"></label>
-              </div>
-            </details>
-            <details class="listing-section" open>
-              <summary>Inventory and pricing</summary>
-              <div class="listing-section-grid">
-                <label>Qty on hand<input name="quantityOnHand" type="number" min="0" step="1" value="${escapeHtml(product.quantityOnHand ?? 0)}"></label>
-                <label>Public price<input name="price" type="number" min="0" step="0.01" value="${escapeHtml(((product.priceCents || 0) / 100).toFixed(2))}" required></label>
-                <label>Dealer price<input name="dealerPrice" type="number" min="0" step="0.01" value="${product.dealerPriceCents == null ? "" : escapeHtml((product.dealerPriceCents / 100).toFixed(2))}" placeholder="Optional"></label>
-                <label>Cost <input name="cost" type="number" min="0" step="0.01" value="${specValue(product, "cost")}" placeholder="Private"></label>
-                <label>Status<select name="active">
-                  <option value="true" ${product.active ? "selected" : ""}>Active</option>
-                  <option value="false" ${product.active ? "" : "selected"}>Hidden</option>
-                </select></label>
-                <label>Listing status<select name="listingStatus">
-                  ${["draft", "ready_to_list", "listed_on_site", "sold", "picked_up", "archived", "removed"].map((status) => `<option value="${status}" ${product.productSpecs?.listingStatus === status ? "selected" : ""}>${status.replaceAll("_", " ")}</option>`).join("")}
-                </select></label>
-                <label>Facebook status<select name="marketplaceStatus">
-                  ${["not_listed", "ready_for_facebook", "listed_on_facebook", "offer_pending", "sold_on_facebook"].map((status) => `<option value="${status}" ${product.productSpecs?.marketplaceStatus === status ? "selected" : ""}>${status.replaceAll("_", " ")}</option>`).join("")}
-                </select></label>
-                <label>Customer fulfillment<select name="fulfillmentType">
-                  <option value="pickup_only" ${product.productSpecs?.fulfillmentType === "ships_or_pickup" ? "" : "selected"}>Pickup only</option>
-                  <option value="ships_or_pickup" ${product.productSpecs?.fulfillmentType === "ships_or_pickup" ? "selected" : ""}>Can be shipped or picked up</option>
-                </select></label>
-                <label>Condition<select name="condition">${conditionSelect(product)}</select></label>
-                <label>Color<input name="color" value="${specValue(product, "color")}"></label>
-              </div>
-            </details>
-            <details class="listing-section">
-              <summary>Dimensions and shipping specs</summary>
-              <div class="listing-section-grid">
-                <label>Length<input name="length" type="number" min="0" step="0.01" value="${specValue(product, "length")}" inputmode="decimal"></label>
-                <label>Width<input name="width" type="number" min="0" step="0.01" value="${specValue(product, "width")}" inputmode="decimal"></label>
-                <label>Height<input name="height" type="number" min="0" step="0.01" value="${specValue(product, "height")}" inputmode="decimal"></label>
-                <label>Dimension unit<select name="dimensionUnit">${specSelect(product, "dimensionUnit", "in", "in")}${specSelect(product, "dimensionUnit", "cm", "cm")}</select></label>
-                <label>Weight<input name="weight" type="number" min="0" step="0.01" value="${specValue(product, "weight")}" inputmode="decimal"></label>
-                <label>Weight unit<select name="weightUnit">${specSelect(product, "weightUnit", "lb", "lb")}${specSelect(product, "weightUnit", "kg", "kg")}</select></label>
-                <label>Material<input name="material" value="${specValue(product, "material")}"></label>
-              </div>
-            </details>
-            <details class="listing-section" open>
-              <summary>Description and media</summary>
-              <div class="listing-section-grid">
-                <label class="wide-field">Description<textarea name="description" rows="3">${escapeHtml(product.description)}</textarea></label>
-                <label class="wide-field">Source URL<input name="sourceUrl" type="url" value="${escapeHtml(product.sourceUrl)}" placeholder="Optional"></label>
-                <label class="wide-field">Private source notes<textarea name="sourceNotes" rows="2" placeholder="Where it came from, costs, customer notes">${escapeHtml(product.productSpecs?.sourceNotes || "")}</textarea></label>
-                <label class="dropzone wide-field" data-image-dropzone>
-                  <span>Replace images</span>
-                  <input name="images" type="file" accept="image/*" multiple>
-                  <strong>Drop replacement photos here or click to choose</strong>
-                  <small data-image-hint>Leave empty to keep current photos. Multiple images are supported.</small>
-                </label>
-              </div>
-            </details>
-            <details class="listing-section">
-              <summary>Stock history</summary>
-              ${stockHistoryBlock(product)}
-            </details>
-            <fieldset class="addon-picker wide-field">
-              <legend>Recommended add-ons</legend>
-              ${addonChoices(product) || "<p>No other products available yet.</p>"}
-            </fieldset>
-            <div class="row-actions wide-field">
-              <button class="primary" type="submit">Save changes</button>
-            </div>
-            <p class="form-message wide-field"></p>
-          </form>
-        </details>
-        ${recommendedAddonsBlock(product)}
-        <details class="facebook-listing">
-          <summary>List on Facebook</summary>
-          <textarea readonly rows="9" id="facebookListing${product.id}">${escapeHtml(facebookListingText(product))}</textarea>
-          <div class="row-actions">
-            <button type="button" data-copy-facebook="${product.id}">Copy listing text</button>
-            <button type="button" data-copy-share="${product.id}" data-copy-url="${escapeHtml(absoluteUrl(product.shortUrl || product.url || `/products/${product.id}`))}">Copy short link</button>
-            ${product.imageUrl ? `<a class="source-link" href="${escapeHtml(product.imageUrl)}" target="_blank" rel="noopener">Open main image</a>` : ""}
-          </div>
-          ${product.imageUrls?.length ? `<div class="admin-image-strip">${product.imageUrls.map((url) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" alt="${escapeHtml(product.name)} image"></a>`).join("")}</div>` : ""}
-        </details>
-        <div class="row-actions admin-product-actions">
-          ${product.active || product.productSpecs?.listingStatus !== "archived"
-            ? `<button type="button" data-archive-product="${product.id}">Archive</button>`
-            : `<button type="button" data-restore-product="${product.id}">Restore</button>`}
-          <button type="button" class="danger" data-delete-product="${product.id}">Delete</button>
-        </div>
-        <div class="mini-comparisons">
-          ${(product.comparisons || []).map((item) => `<span>${escapeHtml(item.site)} ${escapeHtml(item.price)} <button type="button" data-delete-comparison="${item.id}">Remove</button></span>`).join("") || "<span>No competitor prices</span>"}
-        </div>
-        <form class="comparison-form" data-comparison-form="${product.id}">
-          <input name="site" placeholder="Site" required>
-          <input name="price" type="number" min="0" step="0.01" placeholder="Price" required>
-          <input name="productUrl" placeholder="Product URL">
-          <select name="currency">
-            <option>CAD</option>
-            <option>USD</option>
-          </select>
-          <select name="matchType">
-            <option value="upc">UPC</option>
-            <option value="description">Description</option>
-          </select>
-          <button type="submit">Add comparison</button>
-        </form>
-      </div>
-    </div>
-  `).join("");
+  adminProductsCache = products.products;
+  if (!selectedAdminProductId && adminProductsCache.length) {
+    selectedAdminProductId = adminProductsCache[0].id;
+  }
+  renderAdminProducts(adminProductsCache);
 
   document.querySelector("#inquiriesList").innerHTML = inquiries.inquiries.length
     ? inquiries.inquiries.map((inquiry) => `
@@ -908,6 +997,20 @@ async function loadAdmin() {
 }
 
 document.addEventListener("click", async (event) => {
+  const selectProductId = event.target.closest("[data-select-product]")?.dataset.selectProduct;
+  if (selectProductId) {
+    selectedAdminProductId = Number(selectProductId);
+    adminProductMobileDetailOpen = true;
+    renderAdminProducts(adminProductsCache);
+    return;
+  }
+
+  if (event.target.closest("[data-back-products]")) {
+    adminProductMobileDetailOpen = false;
+    renderAdminProducts(adminProductsCache);
+    return;
+  }
+
   if (event.target.closest("[data-open-bug-report]")) {
     const modal = document.querySelector("#bugReportModal");
     const pageUrl = document.querySelector("#bugReportPageUrl");
@@ -1084,6 +1187,8 @@ document.addEventListener("click", async (event) => {
     const restore = setButtonBusy(button, "Deleting...");
     try {
       await withStatus("Deleting item...", () => api(`/api/admin/products/${deleteProductId}`, { method: "DELETE" }));
+      if (Number(selectedAdminProductId) === Number(deleteProductId)) selectedAdminProductId = null;
+      adminProductMobileDetailOpen = false;
       await loadAdmin();
       await loadProducts();
     } catch (error) {
@@ -1435,6 +1540,13 @@ document.querySelector("#checkoutForm").addEventListener("submit", async (event)
     }
   } finally {
     restore();
+  }
+});
+
+document.addEventListener("input", async (event) => {
+  if (event.target.id === "adminProductSearch") {
+    adminProductSearch = event.target.value || "";
+    if (sessionUser?.role === "admin" && !views.admin.classList.contains("hidden")) renderAdminProducts(adminProductsCache);
   }
 });
 
