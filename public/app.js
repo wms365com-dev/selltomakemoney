@@ -272,6 +272,25 @@ function bulkEditorRow(product) {
   `;
 }
 
+function bulkNewRow() {
+  return `
+    <tr data-bulk-product-row="new" class="bulk-new-row">
+      <td><input name="name" placeholder="New product title"></td>
+      <td><input name="brand" placeholder="Brand"></td>
+      <td><input name="sku" placeholder="SKU"></td>
+      <td><input name="upc" placeholder="UPC" inputmode="numeric"></td>
+      <td><select name="category">${categorySelect("")}</select></td>
+      <td><select name="condition"><option value="">Condition</option><option value="Brand New In Box (BNIB)">Brand New In Box (BNIB)</option><option value="Open Box / Refurbished (OP/R)">Open Box / Refurbished (OP/R)</option><option value="Used (U)">Used (U)</option></select></td>
+      <td><input name="quantityOnHand" type="number" min="0" step="1" value="0"></td>
+      <td><input name="price" type="number" min="0" step="0.01" placeholder="0.00"></td>
+      <td><input name="dealerPrice" type="number" min="0" step="0.01" placeholder="Optional"></td>
+      <td><select name="listingStatus"><option value="draft">draft</option><option value="listed_on_site">listed on site</option><option value="sold">sold</option></select></td>
+      <td><select name="marketplaceStatus"><option value="not_listed">not listed</option><option value="ready_for_facebook">ready for facebook</option><option value="listed_on_facebook">listed on facebook</option></select></td>
+      <td><select name="active"><option value="true" selected>Active</option><option value="false">Hidden</option></select></td>
+    </tr>
+  `;
+}
+
 function renderBulkProductEditor(products) {
   const host = document.querySelector("#bulkProductGrid");
   if (!host) return;
@@ -301,6 +320,7 @@ function renderBulkProductEditor(products) {
           </tr>
         </thead>
         <tbody>
+          ${bulkNewRow()}
           ${filteredProducts.map((product) => bulkEditorRow(product)).join("")}
         </tbody>
       </table>
@@ -324,6 +344,11 @@ function bulkRowValues(row) {
     marketplaceStatus: read("marketplaceStatus"),
     active: read("active")
   };
+}
+
+function bulkNewRowReady(row) {
+  const values = bulkRowValues(row);
+  return Boolean(values.name && values.category && values.price);
 }
 
 function rowHasBulkChanges(row, product) {
@@ -988,6 +1013,7 @@ async function loadAdmin() {
     selectedAdminProductId = adminProductsCache[0].id;
   }
   renderAdminProducts(adminProductsCache);
+  renderBulkProductEditor(adminProductsCache);
 
   setupImageDropzones(document.querySelector("#adminView"));
 }
@@ -1646,17 +1672,42 @@ document.querySelector("#bulkProductForm")?.addEventListener("submit", async (ev
   if (message) message.textContent = "";
   try {
     const rows = [...event.target.querySelectorAll("[data-bulk-product-row]")];
+    const newRow = rows.find((row) => row.dataset.bulkProductRow === "new");
+    const newRowValues = newRow ? bulkRowValues(newRow) : null;
     const changes = rows
       .map((row) => {
+        if (row.dataset.bulkProductRow === "new") return null;
         const productId = Number(row.dataset.bulkProductRow);
         const product = adminProductsCache.find((item) => Number(item.id) === productId);
         if (!product || !rowHasBulkChanges(row, product)) return null;
         return { row, product, values: bulkRowValues(row) };
       })
       .filter(Boolean);
-    if (!changes.length) {
+    const creatingNew = newRow && bulkNewRowReady(newRow);
+    if (!changes.length && !creatingNew) {
       if (message) message.textContent = "No bulk changes to save.";
       return;
+    }
+    let created = 0;
+    if (creatingNew && newRowValues) {
+      const formData = new FormData();
+      formData.append("name", newRowValues.name);
+      formData.append("brand", newRowValues.brand);
+      formData.append("sku", newRowValues.sku);
+      formData.append("upc", newRowValues.upc);
+      formData.append("category", newRowValues.category);
+      formData.append("condition", newRowValues.condition);
+      formData.append("quantityOnHand", newRowValues.quantityOnHand || "0");
+      formData.append("price", newRowValues.price);
+      formData.append("dealerPrice", newRowValues.dealerPrice);
+      formData.append("listingStatus", newRowValues.listingStatus || "draft");
+      formData.append("marketplaceStatus", newRowValues.marketplaceStatus || "not_listed");
+      formData.append("active", newRowValues.active || "true");
+      await withStatus(`Adding ${newRowValues.name}...`, () => api("/api/admin/products", {
+        method: "POST",
+        body: formData
+      }));
+      created = 1;
     }
     for (const change of changes) {
       const formData = buildProductUpdateFormData(change.product, change.values);
@@ -1665,7 +1716,11 @@ document.querySelector("#bulkProductForm")?.addEventListener("submit", async (ev
         body: formData
       }));
     }
-    if (message) message.textContent = `Saved ${changes.length} product update${changes.length === 1 ? "" : "s"}.`;
+    if (message) {
+      const updatedText = changes.length ? `Saved ${changes.length} product update${changes.length === 1 ? "" : "s"}.` : "";
+      const createdText = created ? `Added ${created} new product.` : "";
+      message.textContent = [createdText, updatedText].filter(Boolean).join(" ");
+    }
     await loadAdmin();
     await loadProducts();
   } catch (error) {

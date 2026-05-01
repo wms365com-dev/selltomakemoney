@@ -355,6 +355,23 @@
           <h2>Products</h2>
           <div id="adminProducts" class="stack"></div>
         </section>
+        <section class="panel wide bulk-editor-panel">
+          <div class="admin-workspace-head">
+            <div>
+              <p class="eyebrow">Desktop bulk edit</p>
+              <h2>Bulk product grid</h2>
+            </div>
+            <span>Add a new row or update many products in one place.</span>
+          </div>
+          <form id="bulkProductForm" class="bulk-product-form">
+            <label class="bulk-product-search">Filter products<input id="bulkProductSearch" type="search" placeholder="Search by title, SKU, UPC, brand, or category"></label>
+            <div id="bulkProductGrid" class="bulk-product-grid"></div>
+            <div class="row-actions">
+              <button class="primary" type="submit">Save bulk changes</button>
+            </div>
+            <p class="form-message" id="bulkProductMessage"></p>
+          </form>
+        </section>
       </div>
     </section>
   </main>
