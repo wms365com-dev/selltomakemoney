@@ -45,22 +45,29 @@ function dollars(cents, currency = "CAD") {
   return `${currency === "USD" ? "US$" : "$"}${(Number(cents) / 100).toFixed(2)}`;
 }
 
-function slugSearch(product) {
-  return encodeURIComponent(product.upc || product.sku || `${product.name} ${product.description || ""}`.trim());
+function searchQuery(product) {
+  const title = String(product.name || "").trim();
+  const brand = String(product.brand || "").trim();
+  const model = String(product.productSpecs?.model || "").trim();
+  const raw = [title, brand && !title.toLowerCase().includes(brand.toLowerCase()) ? brand : "", model]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  return encodeURIComponent(raw || product.upc || product.sku || `${product.name} ${product.description || ""}`.trim());
 }
 
 function amazonSearchUrl(query) {
   const tag = encodeURIComponent(AMAZON_AFFILIATE_TAG);
-  return `https://www.amazon.com/s?k=${query}&tag=${tag}`;
+  return `https://www.amazon.ca/s?k=${query}&tag=${tag}`;
 }
 
 function searchLinks(product) {
-  const query = slugSearch(product);
+  const query = searchQuery(product);
   return [
-    { site: "Google Shopping", url: `https://www.google.com/search?tbm=shop&q=${query}` },
+    { site: "Google Shopping", url: `https://www.google.ca/search?tbm=shop&gl=ca&hl=en&q=${query}` },
     { site: "Amazon", url: amazonSearchUrl(query) },
-    { site: "Walmart", url: `https://www.walmart.com/search?q=${query}` },
-    { site: "eBay", url: `https://www.ebay.com/sch/i.html?_nkw=${query}` }
+    { site: "Walmart", url: `https://www.walmart.ca/search?q=${query}` },
+    { site: "eBay", url: `https://www.ebay.ca/sch/i.html?_nkw=${query}` }
   ];
 }
 
