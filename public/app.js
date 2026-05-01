@@ -749,7 +749,7 @@ async function loadAdmin() {
                   <option value="false" ${product.active ? "" : "selected"}>Hidden</option>
                 </select></label>
                 <label>Listing status<select name="listingStatus">
-                  ${["draft", "ready_to_list", "listed_on_site", "sold", "picked_up", "removed"].map((status) => `<option value="${status}" ${product.productSpecs?.listingStatus === status ? "selected" : ""}>${status.replaceAll("_", " ")}</option>`).join("")}
+                  ${["draft", "ready_to_list", "listed_on_site", "sold", "picked_up", "archived", "removed"].map((status) => `<option value="${status}" ${product.productSpecs?.listingStatus === status ? "selected" : ""}>${status.replaceAll("_", " ")}</option>`).join("")}
                 </select></label>
                 <label>Facebook status<select name="marketplaceStatus">
                   ${["not_listed", "ready_for_facebook", "listed_on_facebook", "offer_pending", "sold_on_facebook"].map((status) => `<option value="${status}" ${product.productSpecs?.marketplaceStatus === status ? "selected" : ""}>${status.replaceAll("_", " ")}</option>`).join("")}
@@ -813,6 +813,12 @@ async function loadAdmin() {
           </div>
           ${product.imageUrls?.length ? `<div class="admin-image-strip">${product.imageUrls.map((url) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" alt="${escapeHtml(product.name)} image"></a>`).join("")}</div>` : ""}
         </details>
+        <div class="row-actions admin-product-actions">
+          ${product.active || product.productSpecs?.listingStatus !== "archived"
+            ? `<button type="button" data-archive-product="${product.id}">Archive</button>`
+            : `<button type="button" data-restore-product="${product.id}">Restore</button>`}
+          <button type="button" class="danger" data-delete-product="${product.id}">Delete</button>
+        </div>
         <div class="mini-comparisons">
           ${(product.comparisons || []).map((item) => `<span>${escapeHtml(item.site)} ${escapeHtml(item.price)} <button type="button" data-delete-comparison="${item.id}">Remove</button></span>`).join("") || "<span>No competitor prices</span>"}
         </div>
@@ -1040,6 +1046,48 @@ document.addEventListener("click", async (event) => {
       await withStatus("Removing comparison...", () => api(`/api/admin/comparisons/${comparisonId}`, { method: "DELETE" }));
       await loadAdmin();
       await loadProducts();
+    } finally {
+      restore();
+    }
+  }
+
+  const archiveProductId = event.target.closest("[data-archive-product]")?.dataset.archiveProduct;
+  if (archiveProductId) {
+    const button = event.target.closest("[data-archive-product]");
+    const restore = setButtonBusy(button, "Archiving...");
+    try {
+      await withStatus("Archiving item...", () => api(`/api/admin/products/${archiveProductId}/archive`, { method: "POST", body: JSON.stringify({}) }));
+      await loadAdmin();
+      await loadProducts();
+    } finally {
+      restore();
+    }
+  }
+
+  const restoreProductId = event.target.closest("[data-restore-product]")?.dataset.restoreProduct;
+  if (restoreProductId) {
+    const button = event.target.closest("[data-restore-product]");
+    const restore = setButtonBusy(button, "Restoring...");
+    try {
+      await withStatus("Restoring item...", () => api(`/api/admin/products/${restoreProductId}/restore`, { method: "POST", body: JSON.stringify({}) }));
+      await loadAdmin();
+      await loadProducts();
+    } finally {
+      restore();
+    }
+  }
+
+  const deleteProductId = event.target.closest("[data-delete-product]")?.dataset.deleteProduct;
+  if (deleteProductId) {
+    if (!window.confirm("Delete this item permanently? Use archive if you may want it later.")) return;
+    const button = event.target.closest("[data-delete-product]");
+    const restore = setButtonBusy(button, "Deleting...");
+    try {
+      await withStatus("Deleting item...", () => api(`/api/admin/products/${deleteProductId}`, { method: "DELETE" }));
+      await loadAdmin();
+      await loadProducts();
+    } catch (error) {
+      alert(error.message);
     } finally {
       restore();
     }

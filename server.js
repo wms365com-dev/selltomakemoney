@@ -528,6 +528,18 @@ function createJsonDatabase() {
       writeJsonStore(store);
       return product;
     },
+    async deleteProduct(id) {
+      const productId = Number(id);
+      const index = store.products.findIndex((item) => item.id === productId);
+      if (index === -1) return false;
+      store.products.splice(index, 1);
+      store.comparisons = store.comparisons.filter((comparison) => Number(comparison.productId) !== productId);
+      store.products.forEach((product) => {
+        product.recommendedAddonIds = (product.recommendedAddonIds || []).filter((addonId) => Number(addonId) !== productId);
+      });
+      writeJsonStore(store);
+      return true;
+    },
     async listComparisons(productId) {
       return store.comparisons.filter((comparison) => comparison.productId === Number(productId)).sort((a, b) => a.priceCents - b.priceCents);
     },
@@ -1051,6 +1063,19 @@ function createPostgresDatabase() {
         id
       ]);
       return camelProduct(result.rows[0]);
+    },
+    async deleteProduct(id) {
+      await query(`
+        UPDATE products
+        SET recommended_addon_ids = COALESCE((
+          SELECT json_agg(value::int)
+          FROM json_array_elements_text(recommended_addon_ids::json) AS value
+          WHERE value::int <> $1
+        )::text, '[]')
+        WHERE recommended_addon_ids <> '[]'
+      `, [id]);
+      const result = await query("DELETE FROM products WHERE id = $1 RETURNING id", [id]);
+      return Boolean(result.rows[0]);
     },
     async listComparisons(productId) {
       const result = await query("SELECT * FROM price_comparisons WHERE product_id = $1 ORDER BY price_cents ASC, site ASC", [productId]);
@@ -1870,6 +1895,53 @@ app.patch("/api/admin/products/:id", requireAdmin, productImageUpload, async (re
     active: req.body.active !== "false"
   });
   res.json({ product: await productPayload(product, true, true) });
+});
+
+app.post("/api/admin/products/:id/archive", requireAdmin, async (req, res) => {
+  const existing = await db.getProduct(Number(req.params.id));
+  if (!existing) return res.status(404).json({ error: "Product not found." });
+  const product = await db.updateProduct(existing.id, {
+    ...existing,
+    active: false,
+    productSpecs: {
+      ...(existing.productSpecs || {}),
+      listingStatus: "archived"
+    }
+  });
+  res.json({ ok: true, product: await productPayload(product, true, true) });
+});
+
+app.post("/api/admin/products/:id/restore", requireAdmin, async (req, res) => {
+  const existing = await db.getProduct(Number(req.params.id));
+  if (!existing) return res.status(404).json({ error: "Product not found." });
+  const product = await db.updateProduct(existing.id, {
+    ...existing,
+    active: true,
+    productSpecs: {
+      ...(existing.productSpecs || {}),
+      listingStatus: existing.productSpecs?.listingStatus === "archived"
+        ? "draft"
+        : (existing.productSpecs?.listingStatus || "draft")
+    }
+  });
+  res.json({ ok: true, product: await productPayload(product, true, true) });
+});
+
+app.delete("/api/admin/products/:id", requireAdmin, async (req, res) => {
+  const productId = Number(req.params.id);
+  const existing = await db.getProduct(productId);
+  if (!existing) return res.status(404).json({ error: "Product not found." });
+  const inquiries = await db.listInquiries();
+  if (inquiries.some((inquiry) => Number(inquiry.productId) === productId)) {
+    return res.status(400).json({ error: "This item has inquiry history. Archive it instead of deleting it." });
+  }
+  const orders = await db.listOrders();
+  if (orders.some((order) => (order.items || []).some((item) => Number(item.productId) === productId))) {
+    return res.status(400).json({ error: "This item appears in order history. Archive it instead of deleting it." });
+  }
+  const deleted = await db.deleteProduct(productId);
+  if (!deleted) return res.status(404).json({ error: "Product not found." });
+  res.json({ ok: true });
 });
 
 app.get("/api/admin/upc-lookup", requireAdmin, async (req, res) => {
