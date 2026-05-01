@@ -315,7 +315,7 @@
           <form id="importUrlForm" class="import-url-form">
             <label>Import from listing URL<input name="url" type="url" placeholder="https://..." required autocomplete="off"></label>
             <label>Qty on hand<input name="quantityOnHand" type="number" min="0" step="1" value="1"></label>
-            <button type="submit">Import URL</button>
+            <button type="submit">Import draft</button>
             <p class="form-message" id="importUrlMessage"></p>
           </form>
           <form id="upcLookupForm" class="import-url-form upc-lookup-form">
@@ -326,6 +326,8 @@
           </form>
           <div id="upcLookupResults" class="lookup-results"></div>
           <form id="productForm" class="product-form">
+            <input name="active" type="hidden" value="true">
+            <input name="remoteImageUrl" type="hidden" value="">
             <details class="listing-section" open>
               <summary>Product identity</summary>
               <div class="listing-section-grid">
@@ -467,6 +469,6 @@
     <div>Copyright &copy; <span data-year>2026</span> selltomakemoney.com. All rights reserved.</div>
   </footer>
 
-  <script src="/app.js?v=bug-report-1"></script>
+  <script src="/app.js?v=import-draft-edit-images-1"></script>
 </body>
 </html>

@@ -1752,7 +1752,11 @@ const productImageUpload = upload.fields([
 app.post("/api/admin/products", requireAdmin, productImageUpload, async (req, res) => {
   try {
     if (!req.body.name) return res.status(400).json({ error: "Product name is required." });
-    const imageUrls = uploadedImageUrls(req);
+    let imageUrls = uploadedImageUrls(req);
+    if (!imageUrls.length && req.body.remoteImageUrl) {
+      const downloadedImage = await downloadImage(String(req.body.remoteImageUrl || "").trim());
+      if (downloadedImage) imageUrls = [downloadedImage];
+    }
     const quantityOnHand = Math.max(0, Math.floor(Number(req.body.quantityOnHand || 0)));
     const productSpecs = appendStockHistory(productSpecsFromBody(req.body), 0, quantityOnHand, "created");
     const category = normalizeCategory(req.body.category, { required: true });
@@ -1782,7 +1786,11 @@ app.post("/api/admin/products", requireAdmin, productImageUpload, async (req, re
 app.patch("/api/admin/products/:id", requireAdmin, productImageUpload, async (req, res) => {
   const existing = await db.getProduct(Number(req.params.id));
   if (!existing) return res.status(404).json({ error: "Product not found." });
-  const newImageUrls = uploadedImageUrls(req);
+  let newImageUrls = uploadedImageUrls(req);
+  if (!newImageUrls.length && req.body.remoteImageUrl) {
+    const downloadedImage = await downloadImage(String(req.body.remoteImageUrl || "").trim());
+    if (downloadedImage) newImageUrls = [downloadedImage];
+  }
   const imageUrls = newImageUrls.length ? newImageUrls : (existing.imageUrls || (existing.imageUrl ? [existing.imageUrl] : []));
   const quantityOnHand = Math.max(0, Math.floor(Number(req.body.quantityOnHand ?? existing.quantityOnHand ?? 0)));
   const productSpecs = appendStockHistory(productSpecsFromBody(req.body, existing.productSpecs || {}), existing.quantityOnHand, quantityOnHand);
@@ -1822,31 +1830,11 @@ app.post("/api/admin/import-url", requireAdmin, async (req, res) => {
     const html = await fetchText(parsedUrl.toString());
     const listing = extractListing(html, parsedUrl.toString());
     if (!listing.name) return res.status(422).json({ error: "Could not find enough listing information on that page." });
-    const imageUrl = await downloadImage(listing.remoteImageUrl);
-    const imageUrls = imageUrl ? [imageUrl] : [];
-    const quantityOnHand = Math.max(0, Math.floor(Number(req.body.quantityOnHand || 1)));
-    const product = await db.createProduct({
-      name: listing.name,
-      sku: listing.sku,
-      upc: listing.upc,
-      brand: listing.brand,
-      category: inferCategoryFromListing(listing),
-      description: listing.description,
-      priceCents: listing.priceCents || 0,
-      dealerPriceCents: null,
-      imageUrl,
-      imageUrls,
-      sourceUrl: listing.sourceUrl,
-      quantityOnHand,
-      productSpecs: appendStockHistory({ listingStatus: "draft", marketplaceStatus: "not_listed" }, 0, quantityOnHand, "imported"),
-      recommendedAddonIds: [],
-      active: true
-    });
-    res.status(201).json({
-      product: await productPayload(product, true, true),
+    listing.category = inferCategoryFromListing(listing);
+    res.status(200).json({
+      listing,
       imported: {
         remoteImageUrl: listing.remoteImageUrl,
-        savedImage: Boolean(imageUrl),
         currency: listing.currency
       }
     });

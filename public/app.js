@@ -569,7 +569,7 @@ function renderLookupResults(data, quantityOnHand) {
           ${item.description ? `<p>${escapeHtml(item.description.slice(0, 220))}</p>` : ""}
           <div class="row-actions">
             <a class="source-link" href="${escapeHtml(item.url)}" target="_blank" rel="noopener">Open result</a>
-            <button type="button" data-import-candidate="${escapeHtml(item.url)}" data-import-qty="${escapeHtml(quantityOnHand)}">Import this listing</button>
+            <button type="button" data-import-candidate="${escapeHtml(item.url)}" data-import-qty="${escapeHtml(quantityOnHand)}">Load into form</button>
           </div>
         </div>
       </div>
@@ -582,6 +582,32 @@ function renderLookupResults(data, quantityOnHand) {
     </div>
     ${candidates}
   `;
+}
+
+function populateProductFormFromImport(listing, quantityOnHand = 1) {
+  const form = document.querySelector("#productForm");
+  const message = document.querySelector("#productMessage");
+  if (!form || !listing) return;
+  const setValue = (name, value) => {
+    if (form.elements[name]) form.elements[name].value = value ?? "";
+  };
+  setValue("name", listing.name || "");
+  setValue("brand", listing.brand || "");
+  setValue("sku", listing.sku || "");
+  setValue("upc", listing.upc || "");
+  setValue("category", listing.category || "Other");
+  setValue("description", listing.description || "");
+  setValue("price", listing.priceCents != null ? (Number(listing.priceCents) / 100).toFixed(2) : "");
+  setValue("quantityOnHand", quantityOnHand || 1);
+  setValue("sourceUrl", listing.sourceUrl || "");
+  setValue("remoteImageUrl", listing.remoteImageUrl || "");
+  setValue("active", "false");
+  setValue("listingStatus", "draft");
+  setValue("marketplaceStatus", "not_listed");
+  if (message) message.textContent = listing.remoteImageUrl
+    ? "Listing loaded into the form. Review it, then save when ready. Imported items save hidden by default."
+    : "Listing loaded into the form. Review it, then save when ready.";
+  form.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 async function loadProducts() {
@@ -751,7 +777,12 @@ async function loadAdmin() {
                 <label class="wide-field">Description<textarea name="description" rows="3">${escapeHtml(product.description)}</textarea></label>
                 <label class="wide-field">Source URL<input name="sourceUrl" type="url" value="${escapeHtml(product.sourceUrl)}" placeholder="Optional"></label>
                 <label class="wide-field">Private source notes<textarea name="sourceNotes" rows="2" placeholder="Where it came from, costs, customer notes">${escapeHtml(product.productSpecs?.sourceNotes || "")}</textarea></label>
-                <label class="wide-field">Replace images<input name="images" type="file" accept="image/*" multiple><small>Leave empty to keep current photos.</small></label>
+                <label class="dropzone wide-field" data-image-dropzone>
+                  <span>Replace images</span>
+                  <input name="images" type="file" accept="image/*" multiple>
+                  <strong>Drop replacement photos here or click to choose</strong>
+                  <small data-image-hint>Leave empty to keep current photos. Multiple images are supported.</small>
+                </label>
               </div>
             </details>
             <details class="listing-section">
@@ -863,6 +894,8 @@ async function loadAdmin() {
       </div>
     `).join("")
     : "<p>No bug reports yet.</p>";
+
+  setupImageDropzones(document.querySelector("#adminView"));
 }
 
 document.addEventListener("click", async (event) => {
@@ -1038,10 +1071,9 @@ document.addEventListener("click", async (event) => {
           quantityOnHand: button.dataset.importQty || 1
         })
       }));
-      document.querySelector("#upcLookupMessage").textContent = data.imported.savedImage ? "Imported with image saved." : "Imported. No image was available to save.";
+      populateProductFormFromImport(data.listing, button.dataset.importQty || 1);
+      document.querySelector("#upcLookupMessage").textContent = "Listing loaded into the form. Review and save when ready.";
       document.querySelector("#upcLookupResults").innerHTML = "";
-      await loadAdmin();
-      await loadProducts();
     } catch (error) {
       document.querySelector("#upcLookupMessage").textContent = error.message;
     } finally {
@@ -1184,10 +1216,9 @@ document.querySelector("#importUrlForm").addEventListener("submit", async (event
       method: "POST",
       body: JSON.stringify(body)
     }));
+    populateProductFormFromImport(data.listing, body.quantityOnHand || 1);
     event.target.reset();
-    message.textContent = data.imported.savedImage ? "Imported with image saved." : "Imported. No image was available to save.";
-    await loadAdmin();
-    await loadProducts();
+    message.textContent = "Listing loaded into the form. Review and save when ready.";
   } catch (error) {
     message.textContent = error.message;
   } finally {
@@ -1235,34 +1266,46 @@ document.querySelector("#fillAddressBtn")?.addEventListener("click", () => {
 });
 document.querySelector("#quickAddress")?.addEventListener("change", fillCheckoutAddress);
 
-function updateImageHint() {
-  const count = imageInput.files.length;
-  imageDropHint.textContent = count ? `${count} image${count === 1 ? "" : "s"} selected.` : "You can add multiple product photos at once.";
+function setImageFiles(input, files) {
+  const transfer = new DataTransfer();
+  files.filter((file) => file.type.startsWith("image/")).forEach((file) => transfer.items.add(file));
+  input.files = transfer.files;
 }
 
-imageInput.addEventListener("change", updateImageHint);
+function updateImageHint(input, hint) {
+  const count = input.files.length;
+  hint.textContent = count ? `${count} image${count === 1 ? "" : "s"} selected.` : (hint.dataset.defaultText || "You can add multiple product photos at once.");
+}
 
-["dragenter", "dragover"].forEach((eventName) => {
-  imageDropzone.addEventListener(eventName, (event) => {
-    event.preventDefault();
-    imageDropzone.classList.add("drag-over");
+function setupImageDropzones(root = document) {
+  root.querySelectorAll("[data-image-dropzone], #imageDropzone").forEach((dropzone) => {
+    if (dropzone.dataset.dropzoneReady === "true") return;
+    dropzone.dataset.dropzoneReady = "true";
+    const input = dropzone.querySelector("input[type='file']");
+    const hint = dropzone.querySelector("[data-image-hint], small");
+    if (!input || !hint) return;
+    hint.dataset.defaultText ||= hint.textContent;
+    input.addEventListener("change", () => updateImageHint(input, hint));
+    ["dragenter", "dragover"].forEach((eventName) => {
+      dropzone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        dropzone.classList.add("drag-over");
+      });
+    });
+    ["dragleave", "drop"].forEach((eventName) => {
+      dropzone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        dropzone.classList.remove("drag-over");
+      });
+    });
+    dropzone.addEventListener("drop", (event) => {
+      setImageFiles(input, [...event.dataTransfer.files]);
+      updateImageHint(input, hint);
+    });
   });
-});
+}
 
-["dragleave", "drop"].forEach((eventName) => {
-  imageDropzone.addEventListener(eventName, (event) => {
-    event.preventDefault();
-    imageDropzone.classList.remove("drag-over");
-  });
-});
-
-imageDropzone.addEventListener("drop", (event) => {
-  const files = [...event.dataTransfer.files].filter((file) => file.type.startsWith("image/"));
-  const transfer = new DataTransfer();
-  files.forEach((file) => transfer.items.add(file));
-  imageInput.files = transfer.files;
-  updateImageHint();
-});
+setupImageDropzones();
 
 document.querySelector("#productForm").addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -1274,7 +1317,9 @@ document.querySelector("#productForm").addEventListener("submit", async (event) 
   try {
     await withStatus("Adding product...", () => api("/api/admin/products", { method: "POST", body: form }));
     event.target.reset();
-    updateImageHint();
+    if (event.target.elements.active) event.target.elements.active.value = "true";
+    if (event.target.elements.remoteImageUrl) event.target.elements.remoteImageUrl.value = "";
+    updateImageHint(imageInput, imageDropHint);
     message.textContent = "Product added.";
     await loadAdmin();
     await loadProducts();
