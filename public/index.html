@@ -310,27 +310,28 @@
               <p class="eyebrow">Inventory data entry</p>
               <h2>Add product</h2>
             </div>
-            <span>Paste/import first, then review the required fields before saving.</span>
+            <div class="admin-bulk-tools">
+              <button type="button" id="exportProductsButton">Export products</button>
+              <button type="button" id="importProductsButton">Import products</button>
+              <input id="importProductsFile" type="file" accept="application/json,.json" hidden>
+              <span>Open a section, enter the details you know, then save when the listing is ready.</span>
+            </div>
           </div>
-          <form id="importUrlForm" class="import-url-form">
-            <label>Import from listing URL<input name="url" type="url" placeholder="https://..." required autocomplete="off"></label>
-            <label>Qty on hand<input name="quantityOnHand" type="number" min="0" step="1" value="1"></label>
-            <button type="submit">Import draft</button>
-            <p class="form-message" id="importUrlMessage"></p>
-          </form>
-          <form id="upcLookupForm" class="import-url-form upc-lookup-form">
-            <label>Find listing by UPC / GTIN<input name="upc" inputmode="numeric" placeholder="Scan or paste UPC" required autocomplete="off"></label>
-            <label>Qty on hand<input name="quantityOnHand" type="number" min="0" step="1" value="1"></label>
-            <button type="submit">Search UPC</button>
-            <p class="form-message" id="upcLookupMessage"></p>
-          </form>
-          <div id="upcLookupResults" class="lookup-results"></div>
           <form id="productForm" class="product-form">
             <input name="active" type="hidden" value="true">
             <input name="remoteImageUrl" type="hidden" value="">
-            <details class="listing-section" open>
-              <summary>Product identity</summary>
-              <div class="listing-section-grid">
+            <div class="admin-stepper admin-stepper-visible" data-default-step="" data-step-order="basics,pricing,shipping,media">
+              <button type="button" data-admin-step="basics">Basics</button>
+              <button type="button" data-admin-step="pricing">Price</button>
+              <button type="button" data-admin-step="shipping">Ship</button>
+              <button type="button" data-admin-step="media">Media</button>
+            </div>
+            <section class="admin-editor-section admin-step-panel" data-step-panel="basics">
+              <div class="admin-editor-section-head">
+                <h4>Quick item basics</h4>
+                <p>Start with the core details needed to save the listing.</p>
+              </div>
+              <div class="admin-editor-fields">
                 <label>Name<input name="name" required autocomplete="off"></label>
                 <label>Brand<input name="brand" autocomplete="organization"></label>
                 <label>SKU<input name="sku"></label>
@@ -353,10 +354,13 @@
                 </select></label>
                 <label>Model<input name="model" autocomplete="off"></label>
               </div>
-            </details>
-            <details class="listing-section" open>
-              <summary>Inventory and pricing</summary>
-              <div class="listing-section-grid">
+            </section>
+            <section class="admin-editor-section admin-step-panel" data-step-panel="pricing">
+              <div class="admin-editor-section-head">
+                <h4>Pricing and inventory</h4>
+                <p>Set the public price, internal cost, and stock available.</p>
+              </div>
+              <div class="admin-editor-fields">
                 <label>Qty on hand<input name="quantityOnHand" type="number" min="0" step="1" value="0"></label>
                 <label>Public price<input name="price" type="number" min="0" step="0.01" required></label>
                 <label>Dealer price<input name="dealerPrice" type="number" min="0" step="0.01" placeholder="Optional"></label>
@@ -387,10 +391,13 @@
                 </select></label>
                 <label>Color<input name="color"></label>
               </div>
-            </details>
-            <details class="listing-section">
-              <summary>Dimensions and shipping specs</summary>
-              <div class="listing-section-grid">
+            </section>
+            <section class="admin-editor-section admin-step-panel" data-step-panel="shipping">
+              <div class="admin-editor-section-head">
+                <h4>Shipping and dimensions</h4>
+                <p>Add specs now if you know them, or come back after the draft is saved.</p>
+              </div>
+              <div class="admin-editor-fields">
                 <label>Length<input name="length" type="number" min="0" step="0.01" inputmode="decimal"></label>
                 <label>Width<input name="width" type="number" min="0" step="0.01" inputmode="decimal"></label>
                 <label>Height<input name="height" type="number" min="0" step="0.01" inputmode="decimal"></label>
@@ -399,10 +406,13 @@
                 <label>Weight unit<select name="weightUnit"><option value="lb">lb</option><option value="kg">kg</option></select></label>
                 <label>Material<input name="material"></label>
               </div>
-            </details>
-            <details class="listing-section" open>
-              <summary>Description and media</summary>
-              <div class="listing-section-grid">
+            </section>
+            <section class="admin-editor-section admin-step-panel" data-step-panel="media">
+              <div class="admin-editor-section-head">
+                <h4>Description and media</h4>
+                <p>Finish the customer-facing copy and attach images when you are ready.</p>
+              </div>
+              <div class="admin-editor-fields">
                 <label class="wide-field">Description<textarea name="description" rows="4"></textarea></label>
                 <label class="dropzone wide-field" id="imageDropzone">
                   <span>Images</span>
@@ -413,9 +423,14 @@
                 <label class="wide-field">Source URL<input name="sourceUrl" type="url" placeholder="Optional"></label>
                 <label class="wide-field">Private source notes<textarea name="sourceNotes" rows="2" placeholder="Where it came from, costs, customer notes"></textarea></label>
               </div>
-            </details>
-            <button class="primary" type="submit">Add product</button>
+            </section>
+            <div class="admin-mobile-actions">
+              <button type="button" data-admin-step-nav="-1">Back</button>
+              <button type="button" data-admin-step-nav="1">Next</button>
+              <button class="primary" type="submit">Add product</button>
+            </div>
             <p class="form-message" id="productMessage"></p>
+            <p class="form-message" id="productImportMessage"></p>
           </form>
         </section>
         <section class="panel">
@@ -430,10 +445,28 @@
             <span>3. Add photos and save</span>
             <span>4. Copy listing text for Facebook or share the item link</span>
           </div>
+          <p class="mini-note" id="affiliateStatus"></p>
         </section>
         <section class="panel wide">
           <h2>Products</h2>
           <div id="adminProducts" class="stack"></div>
+        </section>
+        <section class="panel wide bulk-editor-panel">
+          <div class="admin-workspace-head">
+            <div>
+              <p class="eyebrow">Desktop bulk edit</p>
+              <h2>Bulk product grid</h2>
+            </div>
+            <span>Use this spreadsheet-style table for quick pricing, inventory, and status updates across many products.</span>
+          </div>
+          <form id="bulkProductForm" class="bulk-product-form">
+            <label class="bulk-product-search">Filter products<input id="bulkProductSearch" type="search" placeholder="Search by title, SKU, UPC, brand, or category"></label>
+            <div id="bulkProductGrid" class="bulk-product-grid"></div>
+            <div class="row-actions">
+              <button class="primary" type="submit">Save bulk changes</button>
+            </div>
+            <p class="form-message" id="bulkProductMessage"></p>
+          </form>
         </section>
         <section class="panel wide">
           <h2>Dealer inquiries</h2>

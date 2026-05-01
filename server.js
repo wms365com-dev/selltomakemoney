@@ -56,16 +56,37 @@ function searchQuery(product) {
   return encodeURIComponent(raw || product.upc || product.sku || `${product.name} ${product.description || ""}`.trim());
 }
 
+function extractAmazonAsin(product = {}) {
+  const sku = String(product.sku || "").trim().toUpperCase();
+  if (/^[A-Z0-9]{10}$/.test(sku)) return sku;
+  const sourceUrl = String(product.sourceUrl || "").trim();
+  if (!sourceUrl) return "";
+  try {
+    const parsed = new URL(sourceUrl);
+    if (!/amazon\./i.test(parsed.hostname)) return "";
+    const asinMatch = parsed.pathname.match(/\/dp\/([A-Z0-9]{10})/i) || parsed.pathname.match(/\/gp\/product\/([A-Z0-9]{10})/i);
+    return (asinMatch?.[1] || "").toUpperCase();
+  } catch (_error) {
+    return "";
+  }
+}
+
 function amazonSearchUrl(query) {
   const tag = encodeURIComponent(AMAZON_AFFILIATE_TAG);
   return `https://www.amazon.ca/s?k=${query}&tag=${tag}`;
 }
 
+function amazonProductUrl(asin) {
+  const tag = encodeURIComponent(AMAZON_AFFILIATE_TAG);
+  return `https://www.amazon.ca/dp/${encodeURIComponent(asin)}?tag=${tag}`;
+}
+
 function searchLinks(product) {
   const query = searchQuery(product);
+  const asin = extractAmazonAsin(product);
   return [
     { site: "Google Shopping", url: `https://www.google.ca/search?tbm=shop&gl=ca&hl=en&q=${query}` },
-    { site: "Amazon", url: amazonSearchUrl(query) },
+    { site: "Amazon", url: asin ? amazonProductUrl(asin) : amazonSearchUrl(query) },
     { site: "Walmart", url: `https://www.walmart.ca/search?q=${query}` },
     { site: "eBay", url: `https://www.ebay.ca/sch/i.html?_nkw=${query}` }
   ];
@@ -610,7 +631,8 @@ function createJsonDatabase() {
         orders: store.orders.filter((order) => order.status === "new").length,
         alertLeads: store.alertLeads.length,
         bugReports: store.bugReports.filter((report) => report.status === "new").length,
-        returningCustomers: new Set(store.orders.map((order) => order.userId).filter((userId) => store.orders.filter((order) => order.userId === userId).length > 1)).size
+        returningCustomers: new Set(store.orders.map((order) => order.userId).filter((userId) => store.orders.filter((order) => order.userId === userId).length > 1)).size,
+        amazonAffiliateTag: AMAZON_AFFILIATE_TAG
       };
     }
   };
@@ -1165,7 +1187,10 @@ function createPostgresDatabase() {
           (SELECT COUNT(*) FROM bug_reports WHERE status = 'new')::int AS "bugReports",
           (SELECT COUNT(*) FROM (SELECT user_id FROM orders GROUP BY user_id HAVING COUNT(*) > 1) returning_customers)::int AS "returningCustomers"
       `);
-      return result.rows[0];
+      return {
+        ...result.rows[0],
+        amazonAffiliateTag: AMAZON_AFFILIATE_TAG
+      };
     }
   };
 }
@@ -1204,8 +1229,8 @@ function uploadedImageUrls(req) {
   return files.map((file) => `/uploads/${file.filename}`);
 }
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "5mb" }));
+app.use(express.urlencoded({ extended: true, limit: "5mb" }));
 app.use(session({
   secret: SESSION_SECRET,
   resave: false,
@@ -1219,12 +1244,24 @@ app.use(session({
 }));
 app.use("/uploads", express.static(UPLOAD_DIR, {
   etag: true,
-  setHeaders: (res) => res.setHeader("Cache-Control", "public, max-age=604800")
+  maxAge: "7d",
+  immutable: true,
+  setHeaders: (res) => res.setHeader("Cache-Control", "public, max-age=604800, immutable")
 }));
 app.use(express.static(path.join(ROOT, "public"), {
   index: false,
   etag: true,
-  setHeaders: (res) => res.setHeader("Cache-Control", "public, max-age=3600")
+  setHeaders: (res, filePath) => {
+    if (/\.(css|js|svg|png|jpg|jpeg|webp|gif|ico)$/i.test(filePath)) {
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      return;
+    }
+    if (/\.html$/i.test(filePath)) {
+      res.setHeader("Cache-Control", "no-cache");
+      return;
+    }
+    res.setHeader("Cache-Control", "public, max-age=3600");
+  }
 }));
 
 function isMobileRequest(req) {
@@ -1232,8 +1269,22 @@ function isMobileRequest(req) {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(ua);
 }
 
-function sendApp(_req, res) {
-  res.sendFile(path.join(ROOT, "public", "index.html"));
+function appHtml(forcedView = "") {
+  const indexPath = path.join(ROOT, "public", "index.html");
+  const html = fs.readFileSync(indexPath, "utf8");
+  const view = forcedView === "mobile" || forcedView === "desktop" ? forcedView : "";
+  const forceScript = `<script>window.__FORCED_VIEW=${JSON.stringify(view)};</script>`;
+  return html
+    .replace("<body>", `<body data-entry-view="${view || "auto"}">`)
+    .replace("</head>", `${forceScript}\n</head>`);
+}
+
+function sendDesktopApp(_req, res) {
+  res.type("html").send(appHtml("desktop"));
+}
+
+function sendMobileApp(_req, res) {
+  res.type("html").send(appHtml("mobile"));
 }
 
 function sendCatalog(_req, res) {
@@ -1595,6 +1646,42 @@ function centsFromInput(value, fallback = null) {
   return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : fallback;
 }
 
+function dollarsNumber(cents) {
+  if (cents === undefined || cents === null || cents === "") return null;
+  const amount = Number(cents);
+  return Number.isFinite(amount) ? Math.round(amount) / 100 : null;
+}
+
+function exportProductRecord(product) {
+  return {
+    id: product.id,
+    name: product.name || "",
+    sku: product.sku || "",
+    upc: product.upc || "",
+    brand: product.brand || "",
+    category: product.category || "",
+    description: product.description || "",
+    price: dollarsNumber(product.priceCents) ?? 0,
+    dealerPrice: dollarsNumber(product.dealerPriceCents),
+    imageUrl: product.imageUrl || "",
+    imageUrls: product.imageUrls || (product.imageUrl ? [product.imageUrl] : []),
+    sourceUrl: product.sourceUrl || "",
+    quantityOnHand: Math.max(0, Math.floor(Number(product.quantityOnHand || 0))),
+    active: Boolean(product.active),
+    recommendedAddonIds: product.recommendedAddonIds || [],
+    productSpecs: {
+      ...(product.productSpecs || {})
+    }
+  };
+}
+
+function importProductsFromJson(data) {
+  if (!data || typeof data !== "object") throw new Error("Upload a valid product export file.");
+  const products = Array.isArray(data.products) ? data.products : (Array.isArray(data) ? data : null);
+  if (!products || !products.length) throw new Error("No products were found in the import file.");
+  return products;
+}
+
 function productSpecsFromBody(body, fallback = {}) {
   const existingHistory = Array.isArray(fallback.stockHistory) ? fallback.stockHistory : [];
   const specs = {
@@ -1836,6 +1923,80 @@ app.get("/api/admin/products", requireAdmin, async (_req, res) => {
   res.json({ products: await Promise.all(products.map((product) => productPayload(product, true, true))) });
 });
 
+app.get("/api/admin/products/export", requireAdmin, async (_req, res) => {
+  const products = await db.listProducts();
+  res.setHeader("Content-Disposition", `attachment; filename="selltomakemoney-products-${new Date().toISOString().slice(0, 10)}.json"`);
+  res.json({
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    products: products.map(exportProductRecord)
+  });
+});
+
+app.post("/api/admin/products/import", requireAdmin, async (req, res) => {
+  try {
+    const importedProducts = importProductsFromJson(req.body);
+    const existingProducts = await db.listProducts();
+    let created = 0;
+    let updated = 0;
+    for (const item of importedProducts) {
+      const source = item && typeof item === "object" ? item : {};
+      const sku = String(source.sku || "").trim();
+      const upc = cleanUpc(source.upc || "");
+      const match = existingProducts.find((product) => Number(product.id) === Number(source.id))
+        || (sku ? existingProducts.find((product) => String(product.sku || "").trim().toLowerCase() === sku.toLowerCase()) : null)
+        || (upc ? existingProducts.find((product) => cleanUpc(product.upc || "") === upc) : null);
+      const base = match || {};
+      const imageUrls = Array.isArray(source.imageUrls)
+        ? source.imageUrls.map((value) => String(value || "").trim()).filter(Boolean)
+        : (source.imageUrl ? [String(source.imageUrl).trim()] : (base.imageUrls || (base.imageUrl ? [base.imageUrl] : [])));
+      const quantityOnHand = Math.max(0, Math.floor(Number(source.quantityOnHand ?? base.quantityOnHand ?? 0)));
+      const importedSpecs = source.productSpecs && typeof source.productSpecs === "object" ? source.productSpecs : {};
+      const productSpecs = appendStockHistory(productSpecsFromBody({
+        ...importedSpecs,
+        ...source,
+        cost: importedSpecs.cost ?? source.cost ?? base.productSpecs?.cost,
+        sourceNotes: importedSpecs.sourceNotes ?? source.sourceNotes ?? base.productSpecs?.sourceNotes,
+        listingStatus: importedSpecs.listingStatus ?? source.listingStatus ?? base.productSpecs?.listingStatus,
+        marketplaceStatus: importedSpecs.marketplaceStatus ?? source.marketplaceStatus ?? base.productSpecs?.marketplaceStatus,
+        fulfillmentType: importedSpecs.fulfillmentType ?? source.fulfillmentType ?? base.productSpecs?.fulfillmentType,
+        condition: importedSpecs.condition ?? source.condition ?? base.productSpecs?.condition
+      }, base.productSpecs || {}), base.quantityOnHand, quantityOnHand, match ? "bulk import update" : "bulk import");
+      const record = {
+        name: String(source.name || base.name || "").trim(),
+        sku,
+        upc,
+        brand: String(source.brand || base.brand || "").trim(),
+        category: normalizeCategory(source.category, { fallback: base.category, required: true }),
+        description: String(source.description || base.description || "").trim(),
+        priceCents: centsFromInput(source.price ?? source.priceCents, base.priceCents ?? 0),
+        dealerPriceCents: centsFromInput(source.dealerPrice ?? source.dealerPriceCents, base.dealerPriceCents),
+        imageUrl: imageUrls[0] || "",
+        imageUrls,
+        sourceUrl: String(source.sourceUrl || base.sourceUrl || "").trim(),
+        quantityOnHand,
+        productSpecs,
+        recommendedAddonIds: parseRecommendedAddonIds(source.recommendedAddonIds, base.id || 0),
+        active: source.active === undefined ? (base.active !== undefined ? Boolean(base.active) : false) : Boolean(source.active)
+      };
+      if (!record.name) throw new Error("Each imported product needs a name.");
+      if (match) {
+        const saved = await db.updateProduct(match.id, record);
+        const index = existingProducts.findIndex((product) => Number(product.id) === Number(match.id));
+        if (index >= 0) existingProducts[index] = saved;
+        updated += 1;
+      } else {
+        const saved = await db.createProduct(record);
+        existingProducts.unshift(saved);
+        created += 1;
+      }
+    }
+    res.json({ ok: true, created, updated, total: importedProducts.length });
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Could not import products." });
+  }
+});
+
 const productImageUpload = upload.any();
 
 app.post("/api/admin/products", requireAdmin, productImageUpload, async (req, res) => {
@@ -2028,11 +2189,12 @@ app.get("/", (req, res) => {
 });
 
 app.get("/products/:id/:slug?", sendProductPage);
-app.get(["/desktop", "/mobile"], sendApp);
+app.get("/desktop", sendDesktopApp);
+app.get("/mobile", sendMobileApp);
 app.get("/catalog", sendCatalog);
 app.get("/dealers", sendDealers);
 
-app.get("*", sendApp);
+app.get("*", sendDesktopApp);
 
 async function start() {
   await db.init();
