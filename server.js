@@ -2095,6 +2095,7 @@ function listingPullSpecs(payload) {
     asin: String(payload.amazon_sku || "").trim(),
     sourceSite,
     sourceSku: String(payload.product_sku || payload.amazon_sku || "").trim(),
+    condition: cleanCondition(payload.condition, "Brand New In Box (BNIB)"),
     model: firstDetail(payload, "Model Number", "Model number", "Model", "Model Name", "Item model number"),
     manufacturer: firstDetail(payload, "Manufacturer", "Brand Name", "Brand"),
     manufacturerPartNumber: firstDetail(payload, "Manufacturer Part Number", "Part Number"),
