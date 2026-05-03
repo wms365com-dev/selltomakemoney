@@ -1199,8 +1199,8 @@ h2 {
 
 .admin-add-product {
   border-color: var(--line);
-  position: sticky;
-  top: 92px;
+  position: static;
+  top: auto;
   align-self: start;
 }
 
@@ -1251,6 +1251,12 @@ h2 {
 .mobile-listing-launcher,
 .mobile-listing-shell-head {
   display: none;
+}
+
+body:not([data-view="mobile"]) .mobile-listing-launcher,
+body:not([data-view="mobile"]) .mobile-listing-shell-head,
+body:not([data-view="mobile"]) .mobile-listing-quickbar {
+  display: none !important;
 }
 
 .mobile-listing-quickbar {
