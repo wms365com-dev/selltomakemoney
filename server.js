@@ -2090,8 +2090,11 @@ function listingPullSpecs(payload) {
   const details = payload.product_details && typeof payload.product_details === "object" ? payload.product_details : {};
   const bullets = Array.isArray(payload.bullet_points) ? payload.bullet_points : [];
   const publishLive = payload.publish === true || String(payload.listing_mode || "").toLowerCase() === "live";
+  const sourceSite = String(payload.source_site || "").trim();
   const specs = {
     asin: String(payload.amazon_sku || "").trim(),
+    sourceSite,
+    sourceSku: String(payload.product_sku || payload.amazon_sku || "").trim(),
     model: firstDetail(payload, "Model Number", "Model number", "Model", "Model Name", "Item model number"),
     manufacturer: firstDetail(payload, "Manufacturer", "Brand Name", "Brand"),
     manufacturerPartNumber: firstDetail(payload, "Manufacturer Part Number", "Part Number"),
@@ -2128,7 +2131,7 @@ function listingPullProductRecord(payload, existing = {}) {
     : [];
   const title = cleanRequired(payload.title, "Product title", 180);
   const brand = firstDetail(payload, "Brand Name", "Brand", "Manufacturer");
-  const sku = String(payload.amazon_sku || existing.sku || "").trim();
+  const sku = String(payload.amazon_sku || payload.product_sku || existing.sku || "").trim();
   const upc = optionalCleanUpc(firstDetail(payload, "UPC", "Global Trade Identification Number", "GTIN", "GTIN-12") || existing.upc || "");
   const descriptionParts = [
     String(payload.description || "").trim(),
