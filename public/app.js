@@ -178,8 +178,32 @@ function productImage(product, rotateImages = false) {
   return `<div class="product-image">${escapeHtml(product.brand || product.category || "Dealer")}</div>`;
 }
 
+function stopProductRotator() {
+  if (productRotatorTimer) {
+    window.clearInterval(productRotatorTimer);
+    productRotatorTimer = null;
+  }
+}
+
+function startProductRotator() {
+  stopProductRotator();
+  const rotators = [...document.querySelectorAll("[data-image-rotator]")];
+  if (!rotators.length) return;
+  productRotatorTimer = window.setInterval(() => {
+    rotators.forEach((rotator) => {
+      const images = [...rotator.querySelectorAll("img")];
+      if (images.length < 2) return;
+      const activeIndex = Math.max(0, images.findIndex((image) => image.classList.contains("active")));
+      images[activeIndex]?.classList.remove("active");
+      images[(activeIndex + 1) % images.length]?.classList.add("active");
+    });
+  }, 2600);
+}
+
 function recommendedAddonsBlock(product) {
-  if (!product.recommendedAddons?.length) return "";
+  if (!product.recommendedAddons?.length) {
+    return `<div class="recommended-addons is-empty" aria-hidden="true"></div>`;
+  }
   return `
     <div class="recommended-addons">
       <div class="recommended-title">Recommended add-ons</div>
@@ -555,7 +579,9 @@ function initializeAdminSteppers(root = document) {
 }
 
 function shoppingLinksBlock(product) {
-  if (!product.searchLinks?.length) return "";
+  if (!product.searchLinks?.length) {
+    return `<div class="shopping-links is-empty" aria-hidden="true"></div>`;
+  }
   return `
     <div class="shopping-links" aria-label="Compare on other sites">
       ${product.searchLinks.map((link) => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener">${escapeHtml(link.site)}</a>`).join("")}
@@ -564,7 +590,9 @@ function shoppingLinksBlock(product) {
 }
 
 function dealerPriceBlock(product) {
-  return product.dealerPrice ? `<div class="dealer-price">Dealer price ${escapeHtml(product.dealerPrice)}</div>` : "";
+  return product.dealerPrice
+    ? `<div class="dealer-price">Dealer price ${escapeHtml(product.dealerPrice)}</div>`
+    : `<div class="dealer-price is-empty" aria-hidden="true"></div>`;
 }
 
 function escapeHtml(value) {
@@ -795,14 +823,21 @@ function conditionSelect(product) {
 function productSpecsSummary(product) {
   const specs = product.productSpecs || {};
   const dimensions = [specs.length, specs.width, specs.height].filter(Boolean).join(" x ");
-  const lines = [
+  const preferred = [
     dimensions ? `Dims: ${dimensions} ${specs.dimensionUnit || ""}`.trim() : "",
     specs.weight ? `Weight: ${specs.weight} ${specs.weightUnit || ""}`.trim() : "",
     specs.condition ? `Condition: ${specs.condition}` : "",
     specs.color ? `Color: ${specs.color}` : "",
     specs.material ? `Material: ${specs.material}` : "",
-    specs.model ? `Model: ${specs.model}` : ""
+    specs.model ? `Model: ${specs.model}` : "",
+    specs.asin ? `ASIN: ${specs.asin}` : "",
+    specs.size ? `Size: ${specs.size}` : "",
+    specs.style ? `Style: ${specs.style}` : "",
+    specs.specialFeature ? `Feature: ${specs.specialFeature}` : "",
+    specs.includedComponents ? `Includes: ${specs.includedComponents}` : "",
+    specs.itemPackageQuantity ? `Pack: ${specs.itemPackageQuantity}` : ""
   ].filter(Boolean);
+  const lines = preferred.slice(0, 6);
   return lines.length ? `<p class="spec-summary">${lines.map(escapeHtml).join(" | ")}</p>` : "";
 }
 
@@ -870,29 +905,37 @@ function updateStoreStructuredData(products) {
 
 function renderProducts(canSeePrices = false) {
   const products = filteredProducts(productCache);
+  stopProductRotator();
   productGrid.innerHTML = products.length ? products.map((product) => `
     <article class="product-card">
-        ${productImage(product, false)}
+        ${productImage(product, true)}
         <div class="product-body">
-          <div>
-          <h2><a class="product-title-link" href="${escapeHtml(product.url || `/products/${product.id}`)}">${escapeHtml(product.name)}</a></h2>
-          <p class="sku">${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.category ? `| ${escapeHtml(product.category)}` : ""}</p>
+          <div class="product-copy">
+            <div>
+              <h2><a class="product-title-link" href="${escapeHtml(product.url || `/products/${product.id}`)}">${escapeHtml(product.name)}</a></h2>
+              <p class="sku">${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.category ? `| ${escapeHtml(product.category)}` : ""}</p>
+            </div>
+            <p>${escapeHtml(product.description)}</p>
+            ${productSpecsSummary(product)}
+            ${fulfillmentBadge(product)}
+            <div class="product-pricing">
+              <div class="price">${escapeHtml(product.price || "$0.00")}</div>
+              ${dealerPriceBlock(product)}
+            </div>
+          </div>
+          <div class="product-card-footer">
+            ${shoppingLinksBlock(product)}
+            ${recommendedAddonsBlock(product)}
+            <div class="product-actions">
+              <button class="primary" data-add-cart="${product.id}">Add to cart</button>
+              <button type="button" data-copy-share="${product.id}" data-copy-url="${escapeHtml(absoluteUrl(product.shortUrl || product.url || `/products/${product.id}`))}">Share</button>
+              <a class="nav-button" href="${escapeHtml(product.url || `/products/${product.id}`)}">Details</a>
+            </div>
+          </div>
         </div>
-        <p>${escapeHtml(product.description)}</p>
-        ${productSpecsSummary(product)}
-        ${fulfillmentBadge(product)}
-        <div class="price">${escapeHtml(product.price || "$0.00")}</div>
-        ${dealerPriceBlock(product)}
-        ${shoppingLinksBlock(product)}
-        ${recommendedAddonsBlock(product)}
-        <div class="product-actions">
-          <button class="primary" data-add-cart="${product.id}">Add to cart</button>
-          <button type="button" data-copy-share="${product.id}" data-copy-url="${escapeHtml(absoluteUrl(product.shortUrl || product.url || `/products/${product.id}`))}">Share</button>
-          <a class="nav-button" href="${escapeHtml(product.url || `/products/${product.id}`)}">Details</a>
-        </div>
-      </div>
     </article>
   `).join("") : `<div class="panel empty-catalog"><h2>No matching items</h2><p>Try another search or category.</p></div>`;
+  if (products.length) startProductRotator();
 }
 
 function renderLookupResults(data, quantityOnHand) {

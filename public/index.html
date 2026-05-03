@@ -89,7 +89,7 @@
 
     <section id="storeView" class="view">
       <div class="section-head compact plain-head">
-        <div>
+        <div class="plain-head-copy">
           <p class="eyebrow">Inventory catalog</p>
           <h1>Current products</h1>
           <p class="hero-copy">Browse available items, compare retail links, and add items to your cart. Checkout requires an account.</p>
@@ -126,7 +126,7 @@
 
     <div class="exit-alert-modal hidden" id="exitAlertModal" role="dialog" aria-modal="true" aria-labelledby="exitAlertTitle">
       <div class="exit-alert-card">
-        <button class="modal-close" type="button" data-close-exit-alert aria-label="Close alerts popup">×</button>
+        <button class="modal-close" type="button" data-close-exit-alert aria-label="Close alerts popup">&#215;</button>
         <p class="eyebrow">Before you go</p>
         <h2 id="exitAlertTitle">Want first notice on new deals?</h2>
         <p>Drop your email and what you are looking for. No account needed.</p>
@@ -144,7 +144,7 @@
 
     <div class="exit-alert-modal hidden" id="bugReportModal" role="dialog" aria-modal="true" aria-labelledby="bugReportTitle">
       <div class="exit-alert-card">
-        <button class="modal-close" type="button" data-close-bug-report aria-label="Close bug report form">×</button>
+        <button class="modal-close" type="button" data-close-bug-report aria-label="Close bug report form">&#215;</button>
         <p class="eyebrow">Help improve the site</p>
         <h2 id="bugReportTitle">Report Bug / Request Feature</h2>
         <p>Tell us what happened or what would make the store easier to use.</p>
@@ -279,6 +279,7 @@
             <div>
               <p class="eyebrow">New listing</p>
               <h2>Add product</h2>
+              <p class="admin-panel-subhead">Keep it quick: photos, title, price, category, quantity, then save.</p>
             </div>
             <div class="admin-bulk-tools">
               <button type="button" id="exportProductsButton">Export CSV</button>
@@ -351,28 +352,38 @@
             <p class="form-message" id="productImportMessage"></p>
           </form>
         </section>
-        <section class="panel wide">
-          <h2>Products</h2>
-          <div id="adminProducts" class="stack"></div>
-        </section>
-        <section class="panel wide bulk-editor-panel">
-          <div class="admin-workspace-head">
-            <div>
-              <p class="eyebrow">Desktop bulk edit</p>
-              <h2>Bulk product grid</h2>
+        <div class="admin-secondary-column wide">
+          <section class="panel admin-products-panel">
+            <div class="admin-workspace-head">
+              <div>
+                <p class="eyebrow">Product manager</p>
+                <h2>Products</h2>
+                <p class="admin-panel-subhead">Open a listing to edit it, or use the bulk grid for quick spreadsheet updates.</p>
+              </div>
             </div>
-            <span>Add a new row or update many products in one place.</span>
-          </div>
-          <form id="bulkProductForm" class="bulk-product-form">
-            <label class="bulk-product-search">Filter products<input id="bulkProductSearch" type="search" placeholder="Search by title, SKU, UPC, brand, or category"></label>
-            <div id="bulkProductGrid" class="bulk-product-grid"></div>
-            <div class="row-actions">
-              <button type="button" id="addBulkRowButton">Add next item</button>
-              <button class="primary" type="submit">Save bulk changes</button>
+            <div id="adminProducts" class="stack"></div>
+          </section>
+          <section class="panel bulk-editor-panel">
+            <div class="admin-workspace-head">
+              <div>
+                <p class="eyebrow">Desktop bulk edit</p>
+                <h2>Bulk product grid</h2>
+                <p class="admin-panel-subhead">Add a new row or update many products in one place.</p>
+              </div>
             </div>
-            <p class="form-message" id="bulkProductMessage"></p>
-          </form>
-        </section>
+            <form id="bulkProductForm" class="bulk-product-form">
+              <div class="bulk-grid-toolbar">
+                <label class="bulk-product-search">Filter products<input id="bulkProductSearch" type="search" placeholder="Search by title, SKU, UPC, brand, or category"></label>
+                <div class="row-actions">
+                  <button type="button" id="addBulkRowButton">Add next item</button>
+                  <button class="primary" type="submit">Save bulk changes</button>
+                </div>
+              </div>
+              <div id="bulkProductGrid" class="bulk-product-grid"></div>
+              <p class="form-message" id="bulkProductMessage"></p>
+            </form>
+          </section>
+        </div>
       </div>
     </section>
   </main>
