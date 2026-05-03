@@ -145,7 +145,6 @@ function renderCatalog() {
           <h2><a class="product-title-link" href="${escapeHtml(product.url || `/products/${product.id}`)}">${escapeHtml(product.name)}</a></h2>
           <p class="sku">${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.category ? `| ${escapeHtml(product.category)}` : ""}</p>
         </div>
-        <p>${escapeHtml(product.description)}</p>
         ${productSpecsSummary(product)}
         ${fulfillmentBadge(product)}
         <div class="price">${escapeHtml(product.price || "$0.00")}</div>

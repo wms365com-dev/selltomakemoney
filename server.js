@@ -1346,6 +1346,22 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function formatProductDescriptionHtml(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const blocks = text
+    .replace(/\r\n?/g, "\n")
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+  if (!blocks.length) return "";
+  return `
+    <div class="product-description">
+      ${blocks.map((block) => `<p>${escapeHtml(block).replace(/\n/g, "<br>")}</p>`).join("")}
+    </div>
+  `;
+}
+
 function productSlug(product) {
   const base = [product.brand, product.name, product.sku || product.upc]
     .filter(Boolean)
@@ -1622,7 +1638,7 @@ async function sendProductPage(req, res) {
         <p class="sku">${escapeHtml([product.brand, product.sku, product.upc ? `UPC ${product.upc}` : ""].filter(Boolean).join(" | "))}</p>
         <div class="price">${escapeHtml(price)}</div>
         <div class="fulfillment-alert ${fulfillmentType === "ships_or_pickup" ? "ships" : "pickup"}">${escapeHtml(fulfillmentText)}</div>
-        <p>${escapeHtml(product.description)}</p>
+        ${formatProductDescriptionHtml(product.description)}
         ${specs.length ? `<dl class="product-spec-list">${specs.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>` : ""}
         <div class="checkout-notice">
           <strong>Checkout requires an account.</strong>
