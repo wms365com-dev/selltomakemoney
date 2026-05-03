@@ -1265,7 +1265,7 @@ body:not([data-view="mobile"]) .mobile-listing-quickbar {
 
 .admin-simple-layout {
   display: grid;
-  grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
