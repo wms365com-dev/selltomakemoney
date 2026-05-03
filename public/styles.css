@@ -670,7 +670,7 @@ h2 {
   display: grid;
   grid-template-rows: auto 1fr;
   height: 100%;
-  min-height: 540px;
+  min-height: 620px;
 }
 
 .product-image {
@@ -729,7 +729,7 @@ h2 {
 
 .product-card-footer {
   align-content: end;
-  min-height: 44px;
+  min-height: 142px;
 }
 
 .product-body h2 {
@@ -827,10 +827,10 @@ h2 {
 
 .product-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(78px, 0.55fr);
   gap: 8px;
   margin-top: auto;
-  min-height: 42px;
+  min-height: 92px;
 }
 
 .product-actions .primary,
@@ -839,6 +839,37 @@ h2 {
   width: 100%;
   min-width: 0;
   min-height: 42px;
+}
+
+.product-actions > :last-child {
+  grid-column: 1 / -1;
+}
+
+.shopping-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-height: 86px;
+}
+
+.shopping-links a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--nav);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  padding: 7px 10px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.shopping-links a:hover {
+  background: var(--bg-strong);
+  border-color: rgba(254, 189, 105, 0.7);
 }
 
 .product-detail {

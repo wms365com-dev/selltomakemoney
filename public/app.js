@@ -916,6 +916,7 @@ function renderProducts(canSeePrices = false) {
             </div>
           </div>
           <div class="product-card-footer">
+            ${shoppingLinksBlock(product)}
             <div class="product-actions">
               <button class="primary" data-add-cart="${product.id}">Add to cart</button>
               <button type="button" data-copy-share="${product.id}" data-copy-url="${escapeHtml(absoluteUrl(product.shortUrl || product.url || `/products/${product.id}`))}">Share</button>
