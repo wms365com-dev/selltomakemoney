@@ -1789,6 +1789,13 @@ function centsFromInput(value, fallback = null) {
   return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : fallback;
 }
 
+function centsValueFromInput(value, fallback = null) {
+  if (value === undefined || value === null || value === "") return fallback;
+  const cleaned = typeof value === "string" ? value.replace(/[^0-9-]/g, "") : value;
+  const amount = Number(cleaned);
+  return Number.isFinite(amount) ? Math.max(0, Math.round(amount)) : fallback;
+}
+
 function dollarsNumber(cents) {
   if (cents === undefined || cents === null || cents === "") return null;
   const amount = Number(cents);
@@ -2135,7 +2142,7 @@ function listingPullProductRecord(payload, existing = {}) {
     brand,
     category: inferCategoryFromListing({ name: title, brand, description: descriptionParts.join("\n") }),
     description: descriptionParts.join("\n").slice(0, 5000),
-    priceCents: centsFromInput(payload.price, existing.priceCents ?? 0),
+    priceCents: centsValueFromInput(payload.price_cents ?? payload.priceCents, centsFromInput(payload.price, existing.priceCents ?? 0)),
     dealerPriceCents: existing.dealerPriceCents ?? null,
     imageUrl: imageUrls[0] || existing.imageUrl || "",
     imageUrls: imageUrls.length ? imageUrls : (existing.imageUrls || (existing.imageUrl ? [existing.imageUrl] : [])),
