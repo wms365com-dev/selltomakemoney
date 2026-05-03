@@ -57,6 +57,7 @@ let adminProductSearch = "";
 let adminProductMobileDetailOpen = false;
 let adminProductsCache = [];
 let bulkProductSearch = "";
+let bulkNewRowSequence = 1;
 
 function showStatus(message = "Working...") {
   statusDepth += 1;
@@ -272,9 +273,9 @@ function bulkEditorRow(product) {
   `;
 }
 
-function bulkNewRow() {
+function bulkNewRow(rowId = `new-${bulkNewRowSequence++}`) {
   return `
-    <tr data-bulk-product-row="new" class="bulk-new-row">
+    <tr data-bulk-product-row="${rowId}" class="bulk-new-row">
       <td><input name="name" placeholder="New product title"></td>
       <td><input name="brand" placeholder="Brand"></td>
       <td><input name="sku" placeholder="SKU"></td>
@@ -349,6 +350,13 @@ function bulkRowValues(row) {
 function bulkNewRowReady(row) {
   const values = bulkRowValues(row);
   return Boolean(values.name && values.category && values.price);
+}
+
+function appendBulkNewRow() {
+  const tbody = document.querySelector("#bulkProductGrid tbody");
+  if (!tbody) return;
+  tbody.insertAdjacentHTML("beforeend", bulkNewRow());
+  tbody.lastElementChild?.querySelector("input, select")?.focus();
 }
 
 function rowHasBulkChanges(row, product) {
@@ -1672,24 +1680,25 @@ document.querySelector("#bulkProductForm")?.addEventListener("submit", async (ev
   if (message) message.textContent = "";
   try {
     const rows = [...event.target.querySelectorAll("[data-bulk-product-row]")];
-    const newRow = rows.find((row) => row.dataset.bulkProductRow === "new");
-    const newRowValues = newRow ? bulkRowValues(newRow) : null;
+    const newRows = rows.filter((row) => String(row.dataset.bulkProductRow || "").startsWith("new-"));
     const changes = rows
       .map((row) => {
-        if (row.dataset.bulkProductRow === "new") return null;
+        if (String(row.dataset.bulkProductRow || "").startsWith("new-")) return null;
         const productId = Number(row.dataset.bulkProductRow);
         const product = adminProductsCache.find((item) => Number(item.id) === productId);
         if (!product || !rowHasBulkChanges(row, product)) return null;
         return { row, product, values: bulkRowValues(row) };
       })
       .filter(Boolean);
-    const creatingNew = newRow && bulkNewRowReady(newRow);
-    if (!changes.length && !creatingNew) {
+    const newRowsToCreate = newRows
+      .filter((row) => bulkNewRowReady(row))
+      .map((row) => bulkRowValues(row));
+    if (!changes.length && !newRowsToCreate.length) {
       if (message) message.textContent = "No bulk changes to save.";
       return;
     }
     let created = 0;
-    if (creatingNew && newRowValues) {
+    for (const newRowValues of newRowsToCreate) {
       const formData = new FormData();
       formData.append("name", newRowValues.name);
       formData.append("brand", newRowValues.brand);
@@ -1707,7 +1716,7 @@ document.querySelector("#bulkProductForm")?.addEventListener("submit", async (ev
         method: "POST",
         body: formData
       }));
-      created = 1;
+      created += 1;
     }
     for (const change of changes) {
       const formData = buildProductUpdateFormData(change.product, change.values);
@@ -1728,6 +1737,10 @@ document.querySelector("#bulkProductForm")?.addEventListener("submit", async (ev
   } finally {
     restore();
   }
+});
+
+document.querySelector("#addBulkRowButton")?.addEventListener("click", () => {
+  appendBulkNewRow();
 });
 
 document.addEventListener("submit", async (event) => {
