@@ -2081,6 +2081,7 @@ function optionalCleanUpc(value) {
 function listingPullSpecs(payload) {
   const details = payload.product_details && typeof payload.product_details === "object" ? payload.product_details : {};
   const bullets = Array.isArray(payload.bullet_points) ? payload.bullet_points : [];
+  const publishLive = payload.publish === true || String(payload.listing_mode || "").toLowerCase() === "live";
   const specs = {
     asin: String(payload.amazon_sku || "").trim(),
     model: firstDetail(payload, "Model Number", "Model number", "Model", "Model Name", "Item model number"),
@@ -2092,9 +2093,11 @@ function listingPullSpecs(payload) {
     countryOfOrigin: firstDetail(payload, "Country of Origin"),
     warrantyDescription: firstDetail(payload, "Warranty Description"),
     fulfillmentType: "pickup_only",
-    listingStatus: "draft",
-    marketplaceStatus: "not_listed",
-    sourceNotes: "Imported from Product Listing Pull. Review price, inventory, condition, and images before publishing."
+    listingStatus: publishLive ? "listed" : "draft",
+    marketplaceStatus: publishLive ? "listed" : "not_listed",
+    sourceNotes: publishLive
+      ? "Imported from Product Listing Pull and listed live by integration token. Review price, inventory, condition, and images."
+      : "Imported from Product Listing Pull. Review price, inventory, condition, and images before publishing."
   };
   bullets.slice(0, 5).forEach((bullet, index) => {
     specs[`bulletPoint${index + 1}`] = cleanProductSpecValue(bullet, 500);
@@ -2111,6 +2114,7 @@ function listingPullSpecs(payload) {
 }
 
 function listingPullProductRecord(payload, existing = {}) {
+  const publishLive = payload.publish === true || String(payload.listing_mode || "").toLowerCase() === "live";
   const imageUrls = Array.isArray(payload.image_urls)
     ? payload.image_urls.map((value) => String(value || "").trim()).filter(Boolean)
     : [];
@@ -2138,7 +2142,7 @@ function listingPullProductRecord(payload, existing = {}) {
     quantityOnHand: Math.max(0, Math.floor(Number(existing.quantityOnHand || 0))),
     productSpecs: appendStockHistory(productSpecsFromBody({ ...importedSpecs, productSpecsJson: JSON.stringify(importedSpecs) }, existing.productSpecs || {}), existing.quantityOnHand || 0, existing.quantityOnHand || 0, existing.id ? "product listing pull update" : "product listing pull import"),
     recommendedAddonIds: existing.recommendedAddonIds || [],
-    active: false
+    active: publishLive
   };
 }
 
