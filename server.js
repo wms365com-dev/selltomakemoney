@@ -20,6 +20,7 @@ const SESSION_SECRET = process.env.SESSION_SECRET || "replace-this-before-produc
 const ADMIN_EMAIL = "k.prathab@gmail.com";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "DealerStore!2026";
 const AMAZON_AFFILIATE_TAG = process.env.AMAZON_AFFILIATE_TAG || "dealerstore-20";
+const PRODUCT_LISTING_PULL_API_KEY = process.env.PRODUCT_LISTING_PULL_API_KEY || "";
 const PRODUCT_CATEGORIES = [
   "Electronics",
   "Scooters & Mobility",
@@ -226,6 +227,7 @@ function amazonFallbackListing(listingUrl) {
   const rawSlug = slugMatch?.[1] || "";
   const cleanedName = titleCaseWords(rawSlug.replace(/[-_]+/g, " ").trim());
   const brandGuess = cleanedName.split(/\s+/)[0] || "";
+  const importedSpecs = listingPullSpecs(payload);
   return {
     name: cleanedName.slice(0, 180) || "Amazon listing",
     brand: brandGuess.slice(0, 120),
@@ -1411,10 +1413,102 @@ function publicUser(user) {
   };
 }
 
+const HIDDEN_PRODUCT_SPEC_KEYS = new Set(["cost", "sourceNotes", "stockHistory", "listingStatus", "marketplaceStatus"]);
+const PRODUCT_SPEC_LABELS = {
+  model: "Model",
+  condition: "Condition",
+  color: "Color",
+  material: "Material",
+  fulfillmentType: "Fulfillment",
+  asin: "ASIN",
+  manufacturer: "Manufacturer",
+  manufacturerPartNumber: "Manufacturer Part Number",
+  partNumber: "Part Number",
+  itemModelNumber: "Item Model Number",
+  size: "Size",
+  style: "Style",
+  pattern: "Pattern",
+  finishType: "Finish Type",
+  itemForm: "Item Form",
+  scent: "Scent",
+  flavor: "Flavor",
+  unitCount: "Unit Count",
+  countPerPack: "Count Per Pack",
+  itemPackageQuantity: "Package Quantity",
+  numberOfItems: "Number of Items",
+  capacity: "Capacity",
+  volume: "Volume",
+  wattage: "Wattage",
+  voltage: "Voltage",
+  amperage: "Amperage",
+  horsepower: "Horsepower",
+  powerSource: "Power Source",
+  connectivityTechnology: "Connectivity Technology",
+  wirelessCommunicationTechnology: "Wireless Communication",
+  specialFeature: "Special Feature",
+  compatibility: "Compatibility",
+  includedComponents: "Included Components",
+  targetAudience: "Target Audience",
+  ageRangeDescription: "Age Range",
+  department: "Department",
+  assemblyRequired: "Assembly Required",
+  warrantyDescription: "Warranty",
+  batteriesRequired: "Batteries Required",
+  batteriesIncluded: "Batteries Included",
+  batteryCellType: "Battery Cell Type",
+  countryOfOrigin: "Country of Origin",
+  dateFirstAvailable: "Date First Available",
+  releaseDate: "Release Date",
+  itemDimensionsLxWxH: "Item Dimensions",
+  packageDimensionsLxWxH: "Package Dimensions",
+  itemWeight: "Item Weight",
+  packageWeight: "Package Weight",
+  bulletPoint1: "Feature 1",
+  bulletPoint2: "Feature 2",
+  bulletPoint3: "Feature 3",
+  bulletPoint4: "Feature 4",
+  bulletPoint5: "Feature 5",
+  bestSellersRank: "Best Sellers Rank"
+};
+const PRODUCT_SPEC_DISPLAY_ORDER = [
+  "asin", "manufacturer", "manufacturerPartNumber", "partNumber", "itemModelNumber",
+  "model", "condition", "size", "style", "pattern", "color", "material", "finishType",
+  "itemForm", "scent", "flavor", "specialFeature", "compatibility", "includedComponents",
+  "targetAudience", "ageRangeDescription", "department", "unitCount", "countPerPack",
+  "itemPackageQuantity", "numberOfItems", "capacity", "volume", "powerSource", "wattage",
+  "voltage", "amperage", "horsepower", "connectivityTechnology", "wirelessCommunicationTechnology",
+  "assemblyRequired", "warrantyDescription", "batteriesRequired", "batteriesIncluded",
+  "batteryCellType", "countryOfOrigin", "dateFirstAvailable", "releaseDate",
+  "itemDimensionsLxWxH", "packageDimensionsLxWxH", "itemWeight", "packageWeight",
+  "bulletPoint1", "bulletPoint2", "bulletPoint3", "bulletPoint4", "bulletPoint5",
+  "bestSellersRank"
+];
+
+function humanizeProductSpecKey(key) {
+  if (PRODUCT_SPEC_LABELS[key]) return PRODUCT_SPEC_LABELS[key];
+  return String(key || "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function cleanProductSpecValue(value, maxLength = 4000) {
+  if (value == null) return "";
+  if (Array.isArray(value)) return cleanProductSpecValue(value.filter(Boolean).join(", "), maxLength);
+  if (typeof value === "object") {
+    try {
+      return cleanProductSpecValue(JSON.stringify(value), maxLength);
+    } catch (_error) {
+      return "";
+    }
+  }
+  return cleanSpec(value, maxLength);
+}
+
 function productSpecsLines(product) {
   const specs = publicProductSpecs(product.productSpecs || {});
   const dimensions = [specs.length, specs.width, specs.height].filter(Boolean).join(" x ");
-  return [
+  const baseLines = [
     product.brand ? ["Brand", product.brand] : null,
     product.sku ? ["SKU", product.sku] : null,
     product.upc ? ["UPC", product.upc] : null,
@@ -1427,6 +1521,15 @@ function productSpecsLines(product) {
     dimensions ? ["Dimensions", `${dimensions} ${specs.dimensionUnit || ""}`.trim()] : null,
     specs.weight ? ["Weight", `${specs.weight} ${specs.weightUnit || ""}`.trim()] : null
   ].filter(Boolean);
+  const usedKeys = new Set(["model", "condition", "color", "material", "fulfillmentType", "length", "width", "height", "dimensionUnit", "weight", "weightUnit"]);
+  const orderedExtras = PRODUCT_SPEC_DISPLAY_ORDER
+    .filter((key) => !usedKeys.has(key))
+    .map((key) => specs[key] ? [humanizeProductSpecKey(key), specs[key]] : null)
+    .filter(Boolean);
+  const remainingExtras = Object.entries(specs)
+    .filter(([key, value]) => value && !usedKeys.has(key) && !PRODUCT_SPEC_DISPLAY_ORDER.includes(key))
+    .map(([key, value]) => [humanizeProductSpecKey(key), value]);
+  return [...baseLines, ...orderedExtras, ...remainingExtras];
 }
 
 function fulfillmentLabel(value) {
@@ -1434,8 +1537,7 @@ function fulfillmentLabel(value) {
 }
 
 function publicProductSpecs(specs = {}) {
-  const hiddenKeys = new Set(["cost", "sourceNotes", "stockHistory", "listingStatus", "marketplaceStatus"]);
-  return Object.fromEntries(Object.entries(specs || {}).filter(([key]) => !hiddenKeys.has(key)));
+  return Object.fromEntries(Object.entries(specs || {}).filter(([key]) => !HIDDEN_PRODUCT_SPEC_KEYS.has(key)));
 }
 
 function productJsonLd(product, canonicalUrl, imageUrl) {
@@ -1709,7 +1811,7 @@ function exportProductsCsv(products) {
     "condition", "fulfillmentType", "listingStatus", "marketplaceStatus",
     "model", "color", "material", "length", "width", "height",
     "dimensionUnit", "weight", "weightUnit", "cost", "sourceNotes",
-    "imageUrl", "imageUrls", "recommendedAddonIds"
+    "productSpecsJson", "imageUrl", "imageUrls", "recommendedAddonIds"
   ];
   const lines = [headers.join(",")];
   for (const product of products) {
@@ -1742,6 +1844,7 @@ function exportProductsCsv(products) {
       specs.weightUnit || "",
       specs.cost || "",
       specs.sourceNotes || "",
+      JSON.stringify(product.productSpecs || {}),
       product.imageUrl || "",
       (product.imageUrls || []).join("|"),
       (product.recommendedAddonIds || []).join("|")
@@ -1813,9 +1916,25 @@ function importProductsFromCsv(text) {
   return products;
 }
 
+function parseImportedProductSpecs(productSpecsJson, productSpecsObject) {
+  if (productSpecsObject && typeof productSpecsObject === "object" && !Array.isArray(productSpecsObject)) {
+    return productSpecsObject;
+  }
+  const text = String(productSpecsJson || "").trim();
+  if (!text) return {};
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch (_error) {
+    return {};
+  }
+}
+
 function productSpecsFromBody(body, fallback = {}) {
   const existingHistory = Array.isArray(fallback.stockHistory) ? fallback.stockHistory : [];
+  const importedSpecs = parseImportedProductSpecs(body.productSpecsJson, body.productSpecs);
   const specs = {
+    ...Object.fromEntries(Object.entries(fallback || {}).filter(([key]) => key !== "stockHistory")),
     length: cleanSpec(body.length ?? fallback.length),
     width: cleanSpec(body.width ?? fallback.width),
     height: cleanSpec(body.height ?? fallback.height),
@@ -1833,6 +1952,11 @@ function productSpecsFromBody(body, fallback = {}) {
     marketplaceStatus: cleanSpec(body.marketplaceStatus ?? fallback.marketplaceStatus ?? "not_listed", 40),
     stockHistory: existingHistory
   };
+  Object.entries(importedSpecs).forEach(([key, value]) => {
+    if (value == null || value === "") return;
+    if (key === "stockHistory") return;
+    specs[key] = cleanProductSpecValue(value);
+  });
   return Object.fromEntries(Object.entries(specs).filter(([, value]) => Array.isArray(value) ? value.length : value));
 }
 
@@ -1913,6 +2037,108 @@ async function buildOrder(req) {
     shipTo,
     subtotalCents: items.reduce((sum, item) => sum + item.lineTotalCents, 0),
     note: cleanOptional(req.body.note, 1000)
+  };
+}
+
+function integrationBearerToken(req) {
+  const header = String(req.get("authorization") || "");
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1].trim() : "";
+}
+
+function requireProductListingPull(req, res, next) {
+  if (!PRODUCT_LISTING_PULL_API_KEY) {
+    return res.status(503).json({ error: "Product Listing Pull integration is not configured." });
+  }
+  if (integrationBearerToken(req) !== PRODUCT_LISTING_PULL_API_KEY) {
+    return res.status(401).json({ error: "Invalid Product Listing Pull token." });
+  }
+  next();
+}
+
+function firstDetail(payload, ...keys) {
+  const details = payload.product_details && typeof payload.product_details === "object" ? payload.product_details : {};
+  const normalized = Object.fromEntries(Object.entries(details).map(([key, value]) => [String(key).trim().toLowerCase(), value]));
+  for (const key of keys) {
+    const direct = details[key];
+    const normalizedValue = normalized[String(key).trim().toLowerCase()];
+    const value = direct || normalizedValue;
+    if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
+  }
+  return "";
+}
+
+function optionalCleanUpc(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  try {
+    return cleanUpc(text);
+  } catch (_error) {
+    return "";
+  }
+}
+
+function listingPullSpecs(payload) {
+  const details = payload.product_details && typeof payload.product_details === "object" ? payload.product_details : {};
+  const bullets = Array.isArray(payload.bullet_points) ? payload.bullet_points : [];
+  const specs = {
+    asin: String(payload.amazon_sku || "").trim(),
+    model: firstDetail(payload, "Model Number", "Model number", "Model", "Model Name", "Item model number"),
+    manufacturer: firstDetail(payload, "Manufacturer", "Brand Name", "Brand"),
+    manufacturerPartNumber: firstDetail(payload, "Manufacturer Part Number", "Part Number"),
+    partNumber: firstDetail(payload, "Part Number"),
+    itemModelNumber: firstDetail(payload, "Item model number", "Model Number", "Model number"),
+    unitCount: firstDetail(payload, "Unit Count"),
+    countryOfOrigin: firstDetail(payload, "Country of Origin"),
+    warrantyDescription: firstDetail(payload, "Warranty Description"),
+    fulfillmentType: "pickup_only",
+    listingStatus: "draft",
+    marketplaceStatus: "not_listed",
+    sourceNotes: "Imported from Product Listing Pull. Review price, inventory, condition, and images before publishing."
+  };
+  bullets.slice(0, 5).forEach((bullet, index) => {
+    specs[`bulletPoint${index + 1}`] = cleanProductSpecValue(bullet, 500);
+  });
+  Object.entries(details).forEach(([key, value]) => {
+    const normalizedKey = String(key || "")
+      .trim()
+      .replace(/[^a-zA-Z0-9]+(.)/g, (_match, char) => char.toUpperCase())
+      .replace(/^[A-Z]/, (char) => char.toLowerCase());
+    if (!normalizedKey || specs[normalizedKey]) return;
+    specs[normalizedKey] = cleanProductSpecValue(value);
+  });
+  return Object.fromEntries(Object.entries(specs).filter(([, value]) => value));
+}
+
+function listingPullProductRecord(payload, existing = {}) {
+  const imageUrls = Array.isArray(payload.image_urls)
+    ? payload.image_urls.map((value) => String(value || "").trim()).filter(Boolean)
+    : [];
+  const title = cleanRequired(payload.title, "Product title", 180);
+  const brand = firstDetail(payload, "Brand Name", "Brand", "Manufacturer");
+  const sku = String(payload.amazon_sku || existing.sku || "").trim();
+  const upc = optionalCleanUpc(firstDetail(payload, "UPC", "Global Trade Identification Number", "GTIN", "GTIN-12") || existing.upc || "");
+  const descriptionParts = [
+    String(payload.description || "").trim(),
+    ...(Array.isArray(payload.bullet_points) ? payload.bullet_points : []).map((bullet) => `- ${String(bullet || "").trim()}`)
+  ].filter(Boolean);
+  const importedSpecs = listingPullSpecs(payload);
+  return {
+    name: title,
+    sku,
+    upc,
+    brand,
+    category: inferCategoryFromListing({ name: title, brand, description: descriptionParts.join("\n") }),
+    description: descriptionParts.join("\n").slice(0, 5000),
+    priceCents: centsFromInput(payload.price, existing.priceCents ?? 0),
+    dealerPriceCents: existing.dealerPriceCents ?? null,
+    imageUrl: imageUrls[0] || existing.imageUrl || "",
+    imageUrls: imageUrls.length ? imageUrls : (existing.imageUrls || (existing.imageUrl ? [existing.imageUrl] : [])),
+    sourceUrl: String(payload.url || existing.sourceUrl || "").trim(),
+    quantityOnHand: Math.max(0, Math.floor(Number(existing.quantityOnHand || 0))),
+    productSpecs: appendStockHistory(productSpecsFromBody({ ...importedSpecs, productSpecsJson: JSON.stringify(importedSpecs) }, existing.productSpecs || {}), existing.quantityOnHand || 0, existing.quantityOnHand || 0, existing.id ? "product listing pull update" : "product listing pull import"),
+    recommendedAddonIds: existing.recommendedAddonIds || [],
+    active: false
   };
 }
 
@@ -1999,6 +2225,30 @@ app.get("/api/products", async (req, res) => {
   const showPrice = Boolean(user && user.status === "approved");
   const products = await db.listProducts({ activeOnly: true });
   res.json({ products: await Promise.all(products.map((product) => productPayload(product, showPrice, false))), canSeePrices: showPrice });
+});
+
+app.post("/api/integrations/product-listing-pull/products", requireProductListingPull, async (req, res) => {
+  try {
+    const payload = req.body && typeof req.body === "object" ? req.body : {};
+    const sku = String(payload.amazon_sku || "").trim();
+    const sourceUrl = String(payload.url || "").trim();
+    const existingProducts = await db.listProducts();
+    const existing = existingProducts.find((product) => sku && String(product.sku || "").trim().toLowerCase() === sku.toLowerCase())
+      || existingProducts.find((product) => sourceUrl && String(product.sourceUrl || "").trim() === sourceUrl)
+      || null;
+    const record = listingPullProductRecord(payload, existing || {});
+    if (!record.sku && !record.sourceUrl) {
+      return res.status(400).json({ error: "Amazon SKU or source URL is required." });
+    }
+    if (existing) {
+      const product = await db.updateProduct(existing.id, record);
+      return res.json({ ok: true, action: "updated", id: product.id, active: product.active, url: productPath(product) });
+    }
+    const product = await db.createProduct(record);
+    res.status(201).json({ ok: true, action: "created", id: product.id, active: product.active, url: productPath(product) });
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Could not import Product Listing Pull item." });
+  }
 });
 
 app.post("/api/inquiries", requireLogin, async (req, res) => {
