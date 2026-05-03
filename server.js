@@ -1784,7 +1784,8 @@ function cleanCondition(value, fallback = "") {
 
 function centsFromInput(value, fallback = null) {
   if (value === undefined || value === null || value === "") return fallback;
-  const amount = Number(value);
+  const cleaned = typeof value === "string" ? value.replace(/[^0-9.-]/g, "") : value;
+  const amount = Number(cleaned);
   return Number.isFinite(amount) ? Math.max(0, Math.round(amount * 100)) : fallback;
 }
 
