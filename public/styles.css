@@ -1273,6 +1273,11 @@ body:not([data-view="mobile"]) .mobile-listing-quickbar {
 .admin-secondary-column {
   display: grid;
   gap: 18px;
+  min-width: 0;
+}
+
+.admin-simple-layout > .admin-secondary-column.wide {
+  grid-column: auto;
 }
 
 .simple-listing-form,
