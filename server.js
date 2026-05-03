@@ -2267,6 +2267,43 @@ app.post("/api/integrations/product-listing-pull/products", requireProductListin
   }
 });
 
+app.post("/api/integrations/product-listing-pull/products/status", requireProductListingPull, async (req, res) => {
+  const payload = req.body && typeof req.body === "object" ? req.body : {};
+  const skuValues = [
+    payload.amazon_sku,
+    payload.product_sku,
+    payload.sku
+  ].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
+  const sourceUrls = [
+    payload.url,
+    payload.source_url,
+    payload.sourceUrl
+  ].map((value) => String(value || "").trim()).filter(Boolean);
+  const products = await db.listProducts();
+  const product = products.find((item) => {
+    const itemSku = String(item.sku || "").trim().toLowerCase();
+    if (itemSku && skuValues.includes(itemSku)) return true;
+    const itemSourceUrl = String(item.sourceUrl || "").trim();
+    return itemSourceUrl && sourceUrls.includes(itemSourceUrl);
+  });
+  if (!product) {
+    return res.json({ ok: true, exists: false });
+  }
+  res.json({
+    ok: true,
+    exists: true,
+    product: {
+      id: product.id,
+      sku: product.sku,
+      name: product.name,
+      active: Boolean(product.active),
+      url: productPath(product),
+      sourceUrl: product.sourceUrl || "",
+      listingStatus: product.productSpecs?.listingStatus || (product.active ? "live" : "draft")
+    }
+  });
+});
+
 app.post("/api/inquiries", requireLogin, async (req, res) => {
   if (req.user.status !== "approved") return res.status(403).json({ error: "Your account is still pending approval." });
   const productId = Number(req.body.productId);
