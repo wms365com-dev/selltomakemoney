@@ -670,6 +670,7 @@ h2 {
   display: grid;
   grid-template-rows: auto 1fr;
   height: 100%;
+  min-height: 540px;
 }
 
 .product-image {
@@ -717,12 +718,18 @@ h2 {
 .product-copy,
 .product-card-footer {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
 }
 
 .product-copy {
   grid-auto-rows: min-content;
+  align-content: start;
+}
+
+.product-card-footer {
+  align-content: end;
+  min-height: 44px;
 }
 
 .product-body h2 {
@@ -761,6 +768,10 @@ h2 {
   min-height: 18px;
 }
 
+.product-copy > div:first-child {
+  min-height: 78px;
+}
+
 .price {
   color: #b12704;
   font-size: 22px;
@@ -771,7 +782,7 @@ h2 {
   display: grid;
   align-content: start;
   gap: 8px;
-  min-height: 68px;
+  min-height: 42px;
 }
 
 .fulfillment-alert {
@@ -814,22 +825,20 @@ h2 {
   padding: 7px 10px;
 }
 
-.dealer-price.is-empty {
-  visibility: hidden;
-}
-
 .product-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-top: auto;
+  min-height: 42px;
 }
 
 .product-actions .primary,
 .product-actions .nav-button,
 .product-actions button:not(.primary) {
-  flex: 1;
-  min-width: 112px;
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
 }
 
 .product-detail {
@@ -893,38 +902,6 @@ h2 {
   font-weight: 800;
 }
 
-.shopping-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: stretch;
-  min-height: 38px;
-}
-
-.shopping-links a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--nav);
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.2;
-  padding: 7px 10px;
-  text-align: center;
-  text-decoration: none;
-}
-
-.shopping-links a:hover {
-  background: var(--bg-strong);
-  border-color: rgba(254, 189, 105, 0.7);
-}
-
-.shopping-links.is-empty {
-  visibility: hidden;
-}
-
 .locked {
   display: inline-flex;
   width: fit-content;
@@ -934,18 +911,6 @@ h2 {
   color: var(--warn);
   font-weight: 800;
   padding: 7px 10px;
-}
-
-.recommended-addons {
-  display: grid;
-  gap: 8px;
-  min-height: 92px;
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
-}
-
-.recommended-addons.is-empty {
-  visibility: hidden;
 }
 
 .recommended-title {
@@ -1369,10 +1334,10 @@ form,
   font-weight: 700;
   line-height: 1.4;
   margin-top: 4px;
-  min-height: 36px;
+  min-height: 18px;
   overflow: hidden;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
 }
 
 .import-url-form {

@@ -202,7 +202,7 @@ function startProductRotator() {
 
 function recommendedAddonsBlock(product) {
   if (!product.recommendedAddons?.length) {
-    return `<div class="recommended-addons is-empty" aria-hidden="true"></div>`;
+    return "";
   }
   return `
     <div class="recommended-addons">
@@ -580,7 +580,7 @@ function initializeAdminSteppers(root = document) {
 
 function shoppingLinksBlock(product) {
   if (!product.searchLinks?.length) {
-    return `<div class="shopping-links is-empty" aria-hidden="true"></div>`;
+    return "";
   }
   return `
     <div class="shopping-links" aria-label="Compare on other sites">
@@ -592,7 +592,7 @@ function shoppingLinksBlock(product) {
 function dealerPriceBlock(product) {
   return product.dealerPrice
     ? `<div class="dealer-price">Dealer price ${escapeHtml(product.dealerPrice)}</div>`
-    : `<div class="dealer-price is-empty" aria-hidden="true"></div>`;
+    : "";
 }
 
 function escapeHtml(value) {
@@ -822,23 +822,15 @@ function conditionSelect(product) {
 
 function productSpecsSummary(product) {
   const specs = product.productSpecs || {};
-  const dimensions = [specs.length, specs.width, specs.height].filter(Boolean).join(" x ");
-  const preferred = [
-    dimensions ? `Dims: ${dimensions} ${specs.dimensionUnit || ""}`.trim() : "",
-    specs.weight ? `Weight: ${specs.weight} ${specs.weightUnit || ""}`.trim() : "",
+  const compact = [
     specs.condition ? `Condition: ${specs.condition}` : "",
-    specs.color ? `Color: ${specs.color}` : "",
-    specs.material ? `Material: ${specs.material}` : "",
     specs.model ? `Model: ${specs.model}` : "",
-    specs.asin ? `ASIN: ${specs.asin}` : "",
+    specs.weight ? `Weight: ${specs.weight} ${specs.weightUnit || ""}`.trim() : "",
     specs.size ? `Size: ${specs.size}` : "",
-    specs.style ? `Style: ${specs.style}` : "",
-    specs.specialFeature ? `Feature: ${specs.specialFeature}` : "",
-    specs.includedComponents ? `Includes: ${specs.includedComponents}` : "",
-    specs.itemPackageQuantity ? `Pack: ${specs.itemPackageQuantity}` : ""
+    specs.color ? `Color: ${specs.color}` : ""
   ].filter(Boolean);
-  const lines = preferred.slice(0, 6);
-  return lines.length ? `<p class="spec-summary">${lines.map(escapeHtml).join(" | ")}</p>` : "";
+  const text = compact.slice(0, 3).map(escapeHtml).join(" | ");
+  return text ? `<p class="spec-summary">${text}</p>` : "";
 }
 
 function fulfillmentLabel(product) {
@@ -924,8 +916,6 @@ function renderProducts(canSeePrices = false) {
             </div>
           </div>
           <div class="product-card-footer">
-            ${shoppingLinksBlock(product)}
-            ${recommendedAddonsBlock(product)}
             <div class="product-actions">
               <button class="primary" data-add-cart="${product.id}">Add to cart</button>
               <button type="button" data-copy-share="${product.id}" data-copy-url="${escapeHtml(absoluteUrl(product.shortUrl || product.url || `/products/${product.id}`))}">Share</button>
