@@ -51,12 +51,12 @@
       ]
     }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=storefront-uniform-2">
+  <link rel="stylesheet" href="/styles.css?v=storefront-uniform-3">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#store" data-route="store" aria-label="selltomakemoney.com home">
-      <img src="/assets/logo.svg?v=storefront-uniform-2" alt="selltomakemoney.com">
+      <img src="/assets/logo.svg?v=storefront-uniform-3" alt="selltomakemoney.com">
     </a>
     <div class="header-actions">
       <button class="cart-icon-button" type="button" data-route="cart" aria-label="Open cart">
@@ -166,6 +166,19 @@
           <button class="primary" type="submit">Send report</button>
           <p class="form-message" id="bugReportMessage"></p>
         </form>
+      </div>
+    </div>
+
+    <div class="exit-alert-modal hidden" id="facebookListingModal" role="dialog" aria-modal="true" aria-labelledby="facebookListingTitle">
+      <div class="exit-alert-card facebook-helper-card">
+        <button class="modal-close" type="button" data-close-facebook-helper aria-label="Close Facebook listing helper">&#215;</button>
+        <p class="eyebrow">Facebook Marketplace</p>
+        <h2 id="facebookListingTitle">Listing helper</h2>
+        <p>Tap any section to copy it fast while you post the item to Facebook Marketplace.</p>
+        <div id="facebookListingFields" class="facebook-copy-grid"></div>
+        <div class="row-actions facebook-helper-actions">
+          <button type="button" id="copyFacebookFullButton">Copy full listing</button>
+        </div>
       </div>
     </div>
 
@@ -400,6 +413,6 @@
     <div>Copyright &copy; <span data-year>2026</span> selltomakemoney.com. All rights reserved.</div>
   </footer>
 
-  <script src="/app.js?v=storefront-uniform-2"></script>
+  <script src="/app.js?v=storefront-uniform-3"></script>
 </body>
 </html>

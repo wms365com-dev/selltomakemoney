@@ -58,6 +58,7 @@ let adminProductMobileDetailOpen = false;
 let adminProductsCache = [];
 let bulkProductSearch = "";
 let bulkNewRowSequence = 1;
+let activeFacebookListingProductId = null;
 
 function showStatus(message = "Working...") {
   statusDepth += 1;
@@ -255,6 +256,10 @@ function adminProductListItem(product, isSelected = false) {
 
 function moneyInputValue(cents) {
   return cents == null ? "" : (Number(cents) / 100).toFixed(2);
+}
+
+function singleLineText(value, max = 120) {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
 }
 
 function productUpdateSnapshot(product) {
@@ -466,6 +471,7 @@ function adminProductDetailMarkup(product, _products) {
         ${product.imageUrls?.length ? `<div class="admin-editor-image-preview wide-field"><strong>Current photos</strong><div class="admin-image-strip">${product.imageUrls.map((url) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" alt="${escapeHtml(product.name)} image"></a>`).join("")}</div></div>` : ""}
         <div class="row-actions wide-field simple-product-actions">
           <button class="primary" type="submit">Save changes</button>
+          <button type="button" data-open-facebook-helper="${product.id}">Facebook List</button>
           ${product.active || product.productSpecs?.listingStatus !== "archived"
             ? `<button type="button" data-archive-product="${product.id}">Archive</button>`
             : `<button type="button" data-restore-product="${product.id}">Restore</button>`}
@@ -767,7 +773,7 @@ function renderCart() {
 function facebookListingText(product) {
   const shareUrl = absoluteUrl(product.shortUrl || product.url || `/products/${product.id}`);
   return [
-    product.name,
+    singleLineText(product.name, 100),
     product.price ? `Price: ${product.price}` : "",
     product.brand ? `Brand: ${product.brand}` : "",
     product.sku ? `SKU: ${product.sku}` : "",
@@ -786,6 +792,83 @@ function facebookListingText(product) {
       : "Pickup currently in Mississauga. Payment by e-transfer or cash on pickup.",
     "Message me if interested."
   ].filter((line, index, lines) => line || lines[index - 1] !== "").join("\n").trim();
+}
+
+function facebookListingFields(product) {
+  const shareUrl = absoluteUrl(product.shortUrl || product.url || `/products/${product.id}`);
+  const description = [
+    product.description || "",
+    "",
+    product.brand ? `Brand: ${product.brand}` : "",
+    product.sku ? `SKU: ${product.sku}` : "",
+    product.upc ? `UPC: ${product.upc}` : "",
+    product.productSpecs?.condition ? `Condition: ${product.productSpecs.condition}` : "",
+    `Qty available: ${product.quantityOnHand ?? 0}`,
+    product.productSpecs?.fulfillmentType === "ships_or_pickup"
+      ? "Pickup in Mississauga or shipping available depending on the item."
+      : "Pickup in Mississauga only.",
+    "Payment by e-transfer or cash on pickup.",
+    "",
+    `View item: ${shareUrl}`
+  ].filter((line, index, lines) => line || lines[index - 1] !== "").join("\n").trim();
+  return [
+    { key: "title", label: "Title", value: singleLineText(product.name, 100), tone: "short" },
+    { key: "price", label: "Price", value: (product.price || "$0.00").replace("$", ""), tone: "short" },
+    { key: "category", label: "Category", value: product.category || "Other", tone: "short" },
+    { key: "condition", label: "Condition", value: product.productSpecs?.condition || "Not set", tone: "short" },
+    { key: "location", label: "Location", value: "Mississauga, ON", tone: "short" },
+    { key: "description", label: "Description", value: description, tone: "long" },
+    { key: "link", label: "Store link", value: shareUrl, tone: "short" }
+  ];
+}
+
+function renderFacebookListingHelper(product) {
+  const host = document.querySelector("#facebookListingFields");
+  const title = document.querySelector("#facebookListingTitle");
+  const copyFullButton = document.querySelector("#copyFacebookFullButton");
+  if (!host || !product) return;
+  activeFacebookListingProductId = product.id;
+  if (title) title.textContent = `Facebook listing helper: ${product.name}`;
+  const fields = facebookListingFields(product);
+  host.innerHTML = fields.map((field) => `
+    <button
+      type="button"
+      class="facebook-copy-card ${field.tone === "long" ? "facebook-copy-card-long" : ""}"
+      data-copy-facebook-field="${escapeHtml(field.key)}"
+      data-copy-text="${escapeHtml(field.value)}"
+    >
+      <span class="facebook-copy-label">${escapeHtml(field.label)}</span>
+      <span class="facebook-copy-hint">Tap to copy</span>
+      <span class="facebook-copy-value ${field.tone === "long" ? "multiline" : ""}">${escapeHtml(field.value)}</span>
+    </button>
+  `).join("");
+  if (copyFullButton) copyFullButton.textContent = "Copy full listing";
+}
+
+function openFacebookListingHelper(productId) {
+  const product = adminProductsCache.find((entry) => entry.id === Number(productId))
+    || productCache.find((entry) => entry.id === Number(productId));
+  if (!product) return;
+  renderFacebookListingHelper(product);
+  document.querySelector("#facebookListingModal")?.classList.remove("hidden");
+}
+
+function closeFacebookListingHelper() {
+  document.querySelector("#facebookListingModal")?.classList.add("hidden");
+}
+
+async function copyTextValue(value) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const fallback = document.createElement("textarea");
+  fallback.value = value;
+  document.body.appendChild(fallback);
+  fallback.focus();
+  fallback.select();
+  document.execCommand("copy");
+  fallback.remove();
 }
 
 function stockHistoryBlock(product) {
@@ -1104,6 +1187,43 @@ document.addEventListener("click", async (event) => {
     document.querySelector("#bugReportModal")?.classList.add("hidden");
   }
 
+  const facebookHelperProductId = event.target.closest("[data-open-facebook-helper]")?.dataset.openFacebookHelper;
+  if (facebookHelperProductId) {
+    openFacebookListingHelper(facebookHelperProductId);
+    return;
+  }
+
+  if (event.target.closest("[data-close-facebook-helper]")) {
+    closeFacebookListingHelper();
+    return;
+  }
+
+  const copyFacebookField = event.target.closest("[data-copy-facebook-field]");
+  if (copyFacebookField) {
+    await copyTextValue(copyFacebookField.dataset.copyText || "");
+    const hint = copyFacebookField.querySelector(".facebook-copy-hint");
+    const original = hint?.textContent || "Tap to copy";
+    if (hint) hint.textContent = "Copied";
+    setTimeout(() => {
+      if (hint) hint.textContent = original;
+    }, 900);
+    return;
+  }
+
+  if (event.target.closest("#copyFacebookFullButton")) {
+    const product = adminProductsCache.find((entry) => entry.id === Number(activeFacebookListingProductId))
+      || productCache.find((entry) => entry.id === Number(activeFacebookListingProductId));
+    if (!product) return;
+    await copyTextValue(facebookListingText(product));
+    const button = event.target.closest("#copyFacebookFullButton");
+    const original = button.textContent;
+    button.textContent = "Copied";
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1000);
+    return;
+  }
+
   const route = event.target.closest("[data-route]")?.dataset.route;
   if (route) {
     window.location.hash = route;
@@ -1277,23 +1397,6 @@ document.addEventListener("click", async (event) => {
     } finally {
       restore();
     }
-  }
-
-  const facebookProductId = event.target.closest("[data-copy-facebook]")?.dataset.copyFacebook;
-  if (facebookProductId) {
-    const textarea = document.querySelector(`#facebookListing${facebookProductId}`);
-    if (!textarea) return;
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(textarea.value);
-    } else {
-      textarea.focus();
-      textarea.select();
-      document.execCommand("copy");
-    }
-    event.target.textContent = "Copied";
-    setTimeout(() => {
-      event.target.textContent = "Copy listing text";
-    }, 1600);
   }
 
   const importCandidateUrl = event.target.closest("[data-import-candidate]")?.dataset.importCandidate;

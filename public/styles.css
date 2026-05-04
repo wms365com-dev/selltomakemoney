@@ -646,6 +646,69 @@ h2 {
   margin-top: 14px;
 }
 
+.facebook-helper-card {
+  width: min(760px, 100%);
+}
+
+.facebook-copy-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.facebook-copy-card {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  min-height: 120px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  text-align: left;
+  padding: 14px;
+}
+
+.facebook-copy-card-long {
+  grid-column: 1 / -1;
+  min-height: 220px;
+}
+
+.facebook-copy-card:hover {
+  border-color: rgba(255, 153, 0, 0.62);
+  background: rgba(254, 189, 105, 0.08);
+}
+
+.facebook-copy-label {
+  color: var(--nav);
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.facebook-copy-hint {
+  color: #007185;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.facebook-copy-value {
+  color: var(--ink);
+  font-weight: 700;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.facebook-copy-value.multiline {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.facebook-helper-actions {
+  margin-top: 16px;
+}
+
 .product-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -2508,6 +2571,10 @@ body[data-view="mobile"] .import-url-form {
 }
 
 body[data-view="mobile"] .alert-signup-form {
+  grid-template-columns: 1fr;
+}
+
+body[data-view="mobile"] .facebook-copy-grid {
   grid-template-columns: 1fr;
 }
 
