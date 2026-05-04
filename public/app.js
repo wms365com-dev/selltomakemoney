@@ -468,6 +468,7 @@ function adminProductDetailMarkup(product, _products) {
           <strong>Drop replacement photos here or click to choose</strong>
           <small data-image-hint>Leave empty to keep current photos.</small>
         </label>
+        <label class="wide-field">Photo folder / image URLs<textarea name="remoteImageUrls" rows="3" placeholder="Paste a public folder/gallery URL or direct image URLs, one per line"></textarea></label>
         ${product.imageUrls?.length ? `<div class="admin-editor-image-preview wide-field"><strong>Current photos</strong><div class="admin-image-strip">${product.imageUrls.map((url) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" alt="${escapeHtml(product.name)} image"></a>`).join("")}</div></div>` : ""}
         <div class="row-actions wide-field simple-product-actions">
           <button class="primary" type="submit">Save changes</button>

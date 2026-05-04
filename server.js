@@ -414,6 +414,76 @@ async function downloadImage(imageUrl) {
   }
 }
 
+function looksLikeDirectImageUrl(value) {
+  const text = String(value || "").trim().toLowerCase();
+  return /\.(avif|gif|jpe?g|png|webp)(\?|#|$)/i.test(text);
+}
+
+function uniqueUrls(values) {
+  return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+}
+
+function parseRemoteImageSources(value) {
+  return uniqueUrls(
+    String(value || "")
+      .split(/\r?\n|,/)
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+  );
+}
+
+async function extractImageUrlsFromFolderPage(folderUrl) {
+  const parsedBase = await assertSafeImportUrl(folderUrl);
+  const html = await fetchText(parsedBase.toString());
+  const $ = cheerio.load(html);
+  const candidates = [];
+  const addCandidate = (rawUrl) => {
+    if (!rawUrl) return;
+    let absolute;
+    try {
+      absolute = new URL(rawUrl, parsedBase).toString();
+    } catch (_error) {
+      return;
+    }
+    if (!looksLikeDirectImageUrl(absolute)) return;
+    candidates.push(absolute);
+  };
+  $("img[src]").each((_index, element) => addCandidate($(element).attr("src")));
+  $("a[href]").each((_index, element) => addCandidate($(element).attr("href")));
+  return uniqueUrls(candidates).slice(0, 12);
+}
+
+async function resolveRemoteImageUrls(value, fallbackSingleUrl = "") {
+  const sources = parseRemoteImageSources(value);
+  const combined = sources.length ? sources : (fallbackSingleUrl ? [fallbackSingleUrl] : []);
+  if (!combined.length) return [];
+  if (combined.length === 1 && !looksLikeDirectImageUrl(combined[0])) {
+    return extractImageUrlsFromFolderPage(combined[0]);
+  }
+  const resolved = [];
+  for (const source of combined) {
+    if (looksLikeDirectImageUrl(source)) {
+      resolved.push(source);
+      continue;
+    }
+    const scraped = await extractImageUrlsFromFolderPage(source);
+    resolved.push(...scraped);
+    if (resolved.length >= 12) break;
+  }
+  return uniqueUrls(resolved).slice(0, 12);
+}
+
+async function downloadedRemoteImageUrls(value, fallbackSingleUrl = "") {
+  const remoteUrls = await resolveRemoteImageUrls(value, fallbackSingleUrl);
+  const downloaded = [];
+  for (const remoteUrl of remoteUrls) {
+    const imageUrl = await downloadImage(remoteUrl);
+    if (imageUrl) downloaded.push(imageUrl);
+    if (downloaded.length >= 12) break;
+  }
+  return uniqueUrls(downloaded);
+}
+
 function slugifyFilePart(value, fallback = "product-image") {
   const slug = String(value || "")
     .toLowerCase()
@@ -2454,9 +2524,9 @@ app.post("/api/admin/products", requireAdmin, productImageUpload, async (req, re
     if (!req.body.name) return res.status(400).json({ error: "Product name is required." });
     const productName = String(req.body.name || "").trim();
     let imageUrls = uploadedImageUrls(req);
-    if (!imageUrls.length && req.body.remoteImageUrl) {
-      const downloadedImage = await downloadImage(String(req.body.remoteImageUrl || "").trim());
-      if (downloadedImage) imageUrls = [downloadedImage];
+    if (!imageUrls.length) {
+      const downloadedImages = await downloadedRemoteImageUrls(req.body.remoteImageUrls, String(req.body.remoteImageUrl || "").trim());
+      if (downloadedImages.length) imageUrls = downloadedImages;
     }
     imageUrls = renameImagesForSeo(imageUrls, productName);
     const quantityOnHand = Math.max(0, Math.floor(Number(req.body.quantityOnHand || 0)));
@@ -2490,9 +2560,9 @@ app.patch("/api/admin/products/:id", requireAdmin, productImageUpload, async (re
   if (!existing) return res.status(404).json({ error: "Product not found." });
   const productName = String(req.body.name || existing.name || "").trim();
   let newImageUrls = uploadedImageUrls(req);
-  if (!newImageUrls.length && req.body.remoteImageUrl) {
-    const downloadedImage = await downloadImage(String(req.body.remoteImageUrl || "").trim());
-    if (downloadedImage) newImageUrls = [downloadedImage];
+  if (!newImageUrls.length) {
+    const downloadedImages = await downloadedRemoteImageUrls(req.body.remoteImageUrls, String(req.body.remoteImageUrl || "").trim());
+    if (downloadedImages.length) newImageUrls = downloadedImages;
   }
   if (newImageUrls.length) newImageUrls = renameImagesForSeo(newImageUrls, productName);
   const imageUrls = newImageUrls.length ? newImageUrls : (existing.imageUrls || (existing.imageUrl ? [existing.imageUrl] : []));
