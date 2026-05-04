@@ -224,6 +224,10 @@ button {
   width: 100%;
 }
 
+.mobile-only-nav {
+  display: none;
+}
+
 .nav-button:hover,
 button:hover {
   border-color: rgba(255, 153, 0, 0.72);
@@ -707,6 +711,17 @@ h2 {
 
 .facebook-helper-actions {
   margin-top: 16px;
+}
+
+.facebook-mobile-page {
+  display: grid;
+  gap: 14px;
+}
+
+.facebook-mobile-product-list {
+  max-height: 42vh;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .product-grid {
@@ -2217,6 +2232,10 @@ body[data-view="mobile"] .nav-button {
   min-height: 48px;
 }
 
+body[data-view="mobile"] .mobile-only-nav {
+  display: inline-flex;
+}
+
 body[data-view="mobile"] nav .nav-button,
 body[data-view="mobile"] nav button {
   border-color: rgba(255, 255, 255, 0.18);
@@ -2621,6 +2640,10 @@ body[data-view="mobile"] .admin-editor-section,
 body[data-view="mobile"] .admin-product-list-panel,
 body[data-view="mobile"] .admin-product-detail-panel {
   border-radius: 8px;
+}
+
+body[data-view="mobile"] .facebook-mobile-product-list {
+  max-height: none;
 }
 
 body[data-view="mobile"] .admin-mobile-actions {

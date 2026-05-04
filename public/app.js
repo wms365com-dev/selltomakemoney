@@ -18,7 +18,8 @@ const views = {
   login: document.querySelector("#loginView"),
   register: document.querySelector("#registerView"),
   cart: document.querySelector("#cartView"),
-  admin: document.querySelector("#adminView")
+  admin: document.querySelector("#adminView"),
+  facebook: document.querySelector("#facebookView")
 };
 
 const productGrid = document.querySelector("#productGrid");
@@ -59,6 +60,8 @@ let adminProductsCache = [];
 let bulkProductSearch = "";
 let bulkNewRowSequence = 1;
 let activeFacebookListingProductId = null;
+let selectedFacebookProductId = null;
+let facebookProductSearch = "";
 
 function showStatus(message = "Working...") {
   statusDepth += 1;
@@ -148,6 +151,7 @@ function setRoute(route) {
     else renderCart();
   }
   if (route === "admin") loadAdmin();
+  if (route === "facebook") loadFacebookPage();
 }
 
 function routeFromHash() {
@@ -250,6 +254,16 @@ function adminProductListItem(product, isSelected = false) {
       <strong>${escapeHtml(product.name)}</strong>
       <span>${escapeHtml(product.category || "No category")}${product.brand ? ` | ${escapeHtml(product.brand)}` : ""}</span>
       <span>${product.price || "$0.00"} | Qty ${escapeHtml(product.quantityOnHand ?? 0)} | ${product.active ? "Live" : "Hidden"}</span>
+    </button>
+  `;
+}
+
+function facebookProductListItem(product, isSelected = false) {
+  return `
+    <button type="button" class="admin-product-list-item ${isSelected ? "selected" : ""}" data-select-facebook-product="${product.id}">
+      <strong>${escapeHtml(product.name)}</strong>
+      <span>${product.price || "$0.00"}${product.productSpecs?.condition ? ` | ${escapeHtml(product.productSpecs.condition)}` : ""}</span>
+      <span>${escapeHtml(product.brand || product.category || "Product")} | Qty ${escapeHtml(product.quantityOnHand ?? 0)}</span>
     </button>
   `;
 }
@@ -830,8 +844,12 @@ function renderFacebookListingHelper(product) {
   if (!host || !product) return;
   activeFacebookListingProductId = product.id;
   if (title) title.textContent = `Facebook listing helper: ${product.name}`;
-  const fields = facebookListingFields(product);
-  host.innerHTML = fields.map((field) => `
+  host.innerHTML = facebookCopyCardsMarkup(product);
+  if (copyFullButton) copyFullButton.textContent = "Copy full listing";
+}
+
+function facebookCopyCardsMarkup(product) {
+  return facebookListingFields(product).map((field) => `
     <button
       type="button"
       class="facebook-copy-card ${field.tone === "long" ? "facebook-copy-card-long" : ""}"
@@ -843,7 +861,32 @@ function renderFacebookListingHelper(product) {
       <span class="facebook-copy-value ${field.tone === "long" ? "multiline" : ""}">${escapeHtml(field.value)}</span>
     </button>
   `).join("");
-  if (copyFullButton) copyFullButton.textContent = "Copy full listing";
+}
+
+function renderFacebookMobilePage(products) {
+  const listHost = document.querySelector("#facebookProductList");
+  const fieldsHost = document.querySelector("#facebookMobileFields");
+  const copyButton = document.querySelector("#copyFacebookMobileFullButton");
+  const mobileView = document.body.dataset.view === "mobile";
+  if (!listHost || !fieldsHost || !copyButton) return;
+  if (!mobileView) {
+    listHost.innerHTML = "<p class=\"mini-note\">This page is built for mobile, but you can still copy from here on desktop if needed.</p>";
+  }
+  const search = facebookProductSearch.trim().toLowerCase();
+  const filteredProducts = products.filter((product) => adminProductMatchesSearch(product, search));
+  if (!filteredProducts.length) {
+    listHost.innerHTML = "<p>No matching products.</p>";
+    fieldsHost.innerHTML = "";
+    return;
+  }
+  if (!filteredProducts.some((product) => product.id === selectedFacebookProductId)) {
+    selectedFacebookProductId = filteredProducts[0].id;
+  }
+  const selectedProduct = filteredProducts.find((product) => product.id === selectedFacebookProductId) || filteredProducts[0];
+  activeFacebookListingProductId = selectedProduct.id;
+  listHost.innerHTML = filteredProducts.map((product) => facebookProductListItem(product, product.id === selectedProduct.id)).join("");
+  fieldsHost.innerHTML = facebookCopyCardsMarkup(selectedProduct);
+  copyButton.textContent = "Copy full listing";
 }
 
 function openFacebookListingHelper(productId) {
@@ -1139,8 +1182,15 @@ async function loadAdmin() {
   }
   renderAdminProducts(adminProductsCache);
   renderBulkProductEditor(adminProductsCache);
+  renderFacebookMobilePage(adminProductsCache);
 
   setupImageDropzones(document.querySelector("#adminView"));
+}
+
+async function loadFacebookPage() {
+  if (sessionUser?.role !== "admin") return setRoute("store");
+  if (!adminProductsCache.length) await loadAdmin();
+  renderFacebookMobilePage(adminProductsCache);
 }
 
 document.addEventListener("click", async (event) => {
@@ -1199,6 +1249,13 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
+  const selectFacebookProductId = event.target.closest("[data-select-facebook-product]")?.dataset.selectFacebookProduct;
+  if (selectFacebookProductId) {
+    selectedFacebookProductId = Number(selectFacebookProductId);
+    renderFacebookMobilePage(adminProductsCache);
+    return;
+  }
+
   const copyFacebookField = event.target.closest("[data-copy-facebook-field]");
   if (copyFacebookField) {
     await copyTextValue(copyFacebookField.dataset.copyText || "");
@@ -1217,6 +1274,20 @@ document.addEventListener("click", async (event) => {
     if (!product) return;
     await copyTextValue(facebookListingText(product));
     const button = event.target.closest("#copyFacebookFullButton");
+    const original = button.textContent;
+    button.textContent = "Copied";
+    setTimeout(() => {
+      button.textContent = original;
+    }, 1000);
+    return;
+  }
+
+  if (event.target.closest("#copyFacebookMobileFullButton")) {
+    const product = adminProductsCache.find((entry) => entry.id === Number(activeFacebookListingProductId))
+      || productCache.find((entry) => entry.id === Number(activeFacebookListingProductId));
+    if (!product) return;
+    await copyTextValue(facebookListingText(product));
+    const button = event.target.closest("#copyFacebookMobileFullButton");
     const original = button.textContent;
     button.textContent = "Copied";
     setTimeout(() => {
@@ -1563,6 +1634,7 @@ const productForm = document.querySelector("#productForm");
 const openMobileListingButton = document.querySelector("#openMobileListing");
 const closeMobileListingButton = document.querySelector("#closeMobileListing");
 const toggleMobileListingDetailsButton = document.querySelector("#toggleMobileListingDetails");
+const facebookProductSearchInput = document.querySelector("#facebookProductSearch");
 
 function mobileListingMode() {
   return document.body.dataset.view === "mobile";
@@ -1593,6 +1665,10 @@ function closeMobileListing() {
 
 storeSearch.addEventListener("input", () => renderProducts(Boolean(sessionUser?.canSeePrices)));
 storeCategory.addEventListener("change", () => renderProducts(Boolean(sessionUser?.canSeePrices)));
+facebookProductSearchInput?.addEventListener("input", () => {
+  facebookProductSearch = facebookProductSearchInput.value || "";
+  renderFacebookMobilePage(adminProductsCache);
+});
 document.querySelector("#storeSearchButton")?.addEventListener("click", () => {
   storeSearch.focus();
   renderProducts(Boolean(sessionUser?.canSeePrices));

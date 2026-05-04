@@ -51,12 +51,12 @@
       ]
     }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=storefront-uniform-3">
+  <link rel="stylesheet" href="/styles.css?v=storefront-uniform-4">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#store" data-route="store" aria-label="selltomakemoney.com home">
-      <img src="/assets/logo.svg?v=storefront-uniform-3" alt="selltomakemoney.com">
+      <img src="/assets/logo.svg?v=storefront-uniform-4" alt="selltomakemoney.com">
     </a>
     <div class="header-actions">
       <button class="cart-icon-button" type="button" data-route="cart" aria-label="Open cart">
@@ -74,6 +74,7 @@
             <a class="nav-button" href="/dealers">Dealer Info</a>
             <button class="nav-button" data-route="cart">Cart</button>
             <button class="nav-button admin-only hidden" data-route="admin">Admin</button>
+            <button class="nav-button admin-only hidden mobile-only-nav" data-route="facebook">Facebook</button>
             <button class="nav-button signed-in hidden" id="logoutButton">Logout</button>
           </div>
         </details>
@@ -400,6 +401,23 @@
         </div>
       </div>
     </section>
+
+    <section id="facebookView" class="view hidden">
+      <div class="section-head compact">
+        <div>
+          <p class="eyebrow">Facebook Marketplace</p>
+          <h1>Copy and list fast.</h1>
+        </div>
+      </div>
+      <section class="panel facebook-mobile-page">
+        <label class="admin-product-search">Find product<input id="facebookProductSearch" type="search" placeholder="Search by title, SKU, UPC, brand"></label>
+        <div id="facebookProductList" class="facebook-mobile-product-list stack"></div>
+        <div id="facebookMobileFields" class="facebook-copy-grid"></div>
+        <div class="row-actions facebook-helper-actions">
+          <button type="button" id="copyFacebookMobileFullButton">Copy full listing</button>
+        </div>
+      </section>
+    </section>
   </main>
 
   <footer class="site-footer">
@@ -414,6 +432,6 @@
     <div>Copyright &copy; <span data-year>2026</span> selltomakemoney.com. All rights reserved.</div>
   </footer>
 
-  <script src="/app.js?v=storefront-uniform-3"></script>
+  <script src="/app.js?v=storefront-uniform-4"></script>
 </body>
 </html>
