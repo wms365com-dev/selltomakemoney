@@ -57,6 +57,7 @@ let selectedAdminProductId = null;
 let adminProductSearch = "";
 let adminProductMobileDetailOpen = false;
 let adminProductsCache = [];
+let adminSummary = null;
 let bulkProductSearch = "";
 let bulkNewRowSequence = 1;
 let activeFacebookListingProductId = null;
@@ -253,8 +254,22 @@ function adminProductListItem(product, isSelected = false) {
     <button type="button" class="admin-product-list-item ${isSelected ? "selected" : ""}" data-select-product="${product.id}">
       <strong>${escapeHtml(product.name)}</strong>
       <span>${escapeHtml(product.category || "No category")}${product.brand ? ` | ${escapeHtml(product.brand)}` : ""}</span>
-      <span>${product.price || "$0.00"} | Qty ${escapeHtml(product.quantityOnHand ?? 0)} | ${product.active ? "Live" : "Hidden"}</span>
+      <span>${product.price || "$0.00"} | Qty ${escapeHtml(product.quantityOnHand ?? 0)} | Views ${escapeHtml(product.viewCount ?? 0)} | ${product.active ? "Live" : "Hidden"}</span>
     </button>
+  `;
+}
+
+function renderAdminMetrics(summary) {
+  const host = document.querySelector("#adminMetrics");
+  if (!host) return;
+  if (!summary) {
+    host.innerHTML = "";
+    return;
+  }
+  host.innerHTML = `
+    <div class="panel admin-metric-card"><strong>${escapeHtml(summary.siteVisits ?? 0)}</strong><span>Site visits</span></div>
+    <div class="panel admin-metric-card"><strong>${escapeHtml(summary.uniqueVisitors ?? 0)}</strong><span>Visitors</span></div>
+    <div class="panel admin-metric-card"><strong>${escapeHtml(summary.listingViews ?? 0)}</strong><span>Listing views</span></div>
   `;
 }
 
@@ -453,7 +468,7 @@ function adminProductDetailMarkup(product, _products) {
         <button type="button" class="nav-button admin-product-back" data-back-products>Back to list</button>
         <div>
           <h3>${escapeHtml(product.name)}</h3>
-          <p>${product.price || "$0.00"} | Qty ${escapeHtml(product.quantityOnHand ?? 0)} | ${escapeHtml(product.category || "No category")} | ${product.active ? "Live" : "Hidden"}</p>
+          <p>${product.price || "$0.00"} | Qty ${escapeHtml(product.quantityOnHand ?? 0)} | Views ${escapeHtml(product.viewCount ?? 0)} | ${escapeHtml(product.category || "No category")} | ${product.active ? "Live" : "Hidden"}</p>
         </div>
       </div>
       <form class="product-edit-form simple-product-form" data-product-edit="${product.id}">
@@ -1172,14 +1187,22 @@ async function loadAdmin() {
   if (adminRequest) return adminRequest;
   const adminProducts = document.querySelector("#adminProducts");
   if (adminProducts) adminProducts.innerHTML = loadingRows(3);
-  adminRequest = withStatus("Loading products...", () => api("/api/admin/products"));
-  const products = await adminRequest;
+  adminRequest = withStatus("Loading products...", async () => {
+    const [products, summary] = await Promise.all([
+      api("/api/admin/products"),
+      api("/api/admin/summary")
+    ]);
+    return { products, summary };
+  });
+  const { products, summary } = await adminRequest;
   adminRequest = null;
 
+  adminSummary = summary;
   adminProductsCache = products.products;
   if (!selectedAdminProductId && adminProductsCache.length) {
     selectedAdminProductId = adminProductsCache[0].id;
   }
+  renderAdminMetrics(adminSummary);
   renderAdminProducts(adminProductsCache);
   renderBulkProductEditor(adminProductsCache);
   renderFacebookMobilePage(adminProductsCache);

@@ -1348,6 +1348,29 @@ body:not([data-view="mobile"]) .mobile-listing-quickbar {
   align-items: start;
 }
 
+.admin-metrics-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.admin-metric-card {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+}
+
+.admin-metric-card strong {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.admin-metric-card span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .admin-secondary-column {
   display: grid;
   gap: 18px;
@@ -2493,6 +2516,10 @@ body[data-view="mobile"] .admin-bulk-tools {
 }
 
 body[data-view="mobile"] .admin-simple-layout {
+  grid-template-columns: 1fr;
+}
+
+body[data-view="mobile"] .admin-metrics-strip {
   grid-template-columns: 1fr;
 }
 

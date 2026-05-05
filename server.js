@@ -1,5 +1,6 @@
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 const dns = require("dns").promises;
 const net = require("net");
 const express = require("express");
@@ -21,6 +22,7 @@ const ADMIN_EMAIL = "k.prathab@gmail.com";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "DealerStore!2026";
 const AMAZON_AFFILIATE_TAG = process.env.AMAZON_AFFILIATE_TAG || "dealerstore-20";
 const PRODUCT_LISTING_PULL_API_KEY = process.env.PRODUCT_LISTING_PULL_API_KEY || "";
+const VISITOR_COOKIE_NAME = "stm_vid";
 const PRODUCT_CATEGORIES = [
   "Electronics",
   "Scooters & Mobility",
@@ -533,7 +535,9 @@ function emptyJsonStore() {
     comparisons: [],
     orders: [],
     alertLeads: [],
-    bugReports: []
+    bugReports: [],
+    siteVisitors: [],
+    productViews: []
   };
 }
 
@@ -548,6 +552,8 @@ function readJsonStore() {
   data.orders ||= [];
   data.alertLeads ||= [];
   data.bugReports ||= [];
+  data.siteVisitors ||= [];
+  data.productViews ||= [];
   data.products = data.products.map((product) => ({
     brand: "",
     upc: "",
@@ -623,6 +629,63 @@ function createJsonDatabase() {
     },
     async listBugReports() {
       return [...store.bugReports].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    },
+    async recordSiteVisit(visitorKey, pathName, userId = null) {
+      const now = new Date().toISOString();
+      const existing = store.siteVisitors.find((entry) => entry.visitorKey === visitorKey);
+      if (existing) {
+        existing.visitCount = Number(existing.visitCount || 0) + 1;
+        existing.lastSeenAt = now;
+        existing.lastPath = pathName || existing.lastPath || "";
+        if (userId && !existing.userId) existing.userId = userId;
+        writeJsonStore(store);
+        return existing;
+      }
+      const created = {
+        visitorKey,
+        visitCount: 1,
+        firstSeenAt: now,
+        lastSeenAt: now,
+        lastPath: pathName || "",
+        userId: userId || null
+      };
+      store.siteVisitors.push(created);
+      writeJsonStore(store);
+      return created;
+    },
+    async recordProductView(productId, visitorKey, userId = null) {
+      const now = new Date().toISOString();
+      const existing = store.productViews.find((entry) => Number(entry.productId) === Number(productId) && entry.visitorKey === visitorKey);
+      if (existing) {
+        existing.viewCount = Number(existing.viewCount || 0) + 1;
+        existing.lastSeenAt = now;
+        if (userId && !existing.userId) existing.userId = userId;
+        writeJsonStore(store);
+        return existing;
+      }
+      const created = {
+        productId: Number(productId),
+        visitorKey,
+        viewCount: 1,
+        firstSeenAt: now,
+        lastSeenAt: now,
+        userId: userId || null
+      };
+      store.productViews.push(created);
+      writeJsonStore(store);
+      return created;
+    },
+    async getProductMetrics(productIds = []) {
+      const wantedIds = productIds.map(Number).filter(Boolean);
+      const wanted = new Set(wantedIds);
+      return wantedIds.reduce((metrics, productId) => {
+        const views = store.productViews.filter((entry) => wanted.has(Number(entry.productId)) && Number(entry.productId) === productId);
+        metrics[productId] = {
+          viewCount: views.reduce((sum, entry) => sum + Number(entry.viewCount || 0), 0),
+          uniqueViewers: views.length
+        };
+        return metrics;
+      }, {});
     },
     async listUsers() {
       return [...store.users].map((user) => {
@@ -744,6 +807,9 @@ function createJsonDatabase() {
         alertLeads: store.alertLeads.length,
         bugReports: store.bugReports.filter((report) => report.status === "new").length,
         returningCustomers: new Set(store.orders.map((order) => order.userId).filter((userId) => store.orders.filter((order) => order.userId === userId).length > 1)).size,
+        siteVisits: store.siteVisitors.reduce((sum, entry) => sum + Number(entry.visitCount || 0), 0),
+        uniqueVisitors: store.siteVisitors.length,
+        listingViews: store.productViews.reduce((sum, entry) => sum + Number(entry.viewCount || 0), 0),
         amazonAffiliateTag: AMAZON_AFFILIATE_TAG
       };
     }
@@ -1049,6 +1115,23 @@ function createPostgresDatabase() {
           status TEXT NOT NULL DEFAULT 'new',
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+        CREATE TABLE IF NOT EXISTS site_visitors (
+          visitor_key TEXT PRIMARY KEY,
+          visit_count INTEGER NOT NULL DEFAULT 1,
+          first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          last_path TEXT NOT NULL DEFAULT '',
+          user_id INTEGER REFERENCES users(id)
+        );
+        CREATE TABLE IF NOT EXISTS product_views (
+          product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+          visitor_key TEXT NOT NULL,
+          view_count INTEGER NOT NULL DEFAULT 1,
+          first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          user_id INTEGER REFERENCES users(id),
+          PRIMARY KEY (product_id, visitor_key)
+        );
         CREATE INDEX IF NOT EXISTS idx_products_upc ON products(upc);
         ALTER TABLE products ADD COLUMN IF NOT EXISTS brand TEXT NOT NULL DEFAULT '';
         ALTER TABLE products ADD COLUMN IF NOT EXISTS image_urls TEXT NOT NULL DEFAULT '[]';
@@ -1064,6 +1147,8 @@ function createPostgresDatabase() {
         CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
         CREATE INDEX IF NOT EXISTS idx_alert_leads_created ON alert_leads(created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_bug_reports_created ON bug_reports(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_product_views_product ON product_views(product_id);
+        CREATE INDEX IF NOT EXISTS idx_site_visitors_last_seen ON site_visitors(last_seen_at DESC);
       `);
       await migrateFromJsonIfEmpty();
     },
@@ -1121,6 +1206,47 @@ function createPostgresDatabase() {
     },
     async listBugReports() {
       return (await query("SELECT * FROM bug_reports ORDER BY created_at DESC LIMIT 200")).rows.map(camelBugReport);
+    },
+    async recordSiteVisit(visitorKey, pathName, userId = null) {
+      await query(`
+        INSERT INTO site_visitors (visitor_key, visit_count, first_seen_at, last_seen_at, last_path, user_id)
+        VALUES ($1, 1, NOW(), NOW(), $2, $3)
+        ON CONFLICT (visitor_key) DO UPDATE SET
+          visit_count = site_visitors.visit_count + 1,
+          last_seen_at = NOW(),
+          last_path = EXCLUDED.last_path,
+          user_id = COALESCE(site_visitors.user_id, EXCLUDED.user_id)
+      `, [visitorKey, pathName || "", userId || null]);
+    },
+    async recordProductView(productId, visitorKey, userId = null) {
+      await query(`
+        INSERT INTO product_views (product_id, visitor_key, view_count, first_seen_at, last_seen_at, user_id)
+        VALUES ($1, $2, 1, NOW(), NOW(), $3)
+        ON CONFLICT (product_id, visitor_key) DO UPDATE SET
+          view_count = product_views.view_count + 1,
+          last_seen_at = NOW(),
+          user_id = COALESCE(product_views.user_id, EXCLUDED.user_id)
+      `, [productId, visitorKey, userId || null]);
+    },
+    async getProductMetrics(productIds = []) {
+      const ids = productIds.map(Number).filter(Boolean);
+      if (!ids.length) return {};
+      const result = await query(`
+        SELECT product_id AS "productId",
+               COALESCE(SUM(view_count), 0)::int AS "viewCount",
+               COUNT(*)::int AS "uniqueViewers"
+        FROM product_views
+        WHERE product_id = ANY($1::int[])
+        GROUP BY product_id
+      `, [ids]);
+      const metrics = Object.fromEntries(ids.map((id) => [id, { viewCount: 0, uniqueViewers: 0 }]));
+      result.rows.forEach((row) => {
+        metrics[Number(row.productId)] = {
+          viewCount: Number(row.viewCount || 0),
+          uniqueViewers: Number(row.uniqueViewers || 0)
+        };
+      });
+      return metrics;
     },
     async listUsers() {
       return (await query(`
@@ -1297,7 +1423,10 @@ function createPostgresDatabase() {
           (SELECT COUNT(*) FROM orders WHERE status = 'new')::int AS orders,
           (SELECT COUNT(*) FROM alert_leads)::int AS "alertLeads",
           (SELECT COUNT(*) FROM bug_reports WHERE status = 'new')::int AS "bugReports",
-          (SELECT COUNT(*) FROM (SELECT user_id FROM orders GROUP BY user_id HAVING COUNT(*) > 1) returning_customers)::int AS "returningCustomers"
+          (SELECT COUNT(*) FROM (SELECT user_id FROM orders GROUP BY user_id HAVING COUNT(*) > 1) returning_customers)::int AS "returningCustomers",
+          (SELECT COALESCE(SUM(visit_count), 0) FROM site_visitors)::int AS "siteVisits",
+          (SELECT COUNT(*) FROM site_visitors)::int AS "uniqueVisitors",
+          (SELECT COALESCE(SUM(view_count), 0) FROM product_views)::int AS "listingViews"
       `);
       return {
         ...result.rows[0],
@@ -1354,6 +1483,55 @@ app.use(session({
     maxAge: 1000 * 60 * 60 * 24 * 7
   }
 }));
+
+function readCookie(req, name) {
+  const raw = String(req.headers.cookie || "");
+  if (!raw) return "";
+  const target = `${name}=`;
+  for (const chunk of raw.split(";")) {
+    const value = chunk.trim();
+    if (!value.startsWith(target)) continue;
+    return decodeURIComponent(value.slice(target.length));
+  }
+  return "";
+}
+
+function ensureVisitorKey(req, res) {
+  const existing = readCookie(req, VISITOR_COOKIE_NAME);
+  if (existing) return existing;
+  const visitorKey = crypto.randomUUID();
+  res.cookie(VISITOR_COOKIE_NAME, visitorKey, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: false,
+    maxAge: 1000 * 60 * 60 * 24 * 365 * 2
+  });
+  return visitorKey;
+}
+
+async function recordSiteVisit(req, res, pathName = req.path) {
+  try {
+    const visitorKey = ensureVisitorKey(req, res);
+    const user = await currentUser(req);
+    await db.recordSiteVisit(visitorKey, pathName, user?.id || null);
+    return visitorKey;
+  } catch (error) {
+    console.error("Could not record site visit", error);
+    return "";
+  }
+}
+
+async function recordProductView(req, res, productId) {
+  try {
+    const visitorKey = await recordSiteVisit(req, res, req.path);
+    if (!visitorKey || !productId) return;
+    const user = await currentUser(req);
+    await db.recordProductView(Number(productId), visitorKey, user?.id || null);
+  } catch (error) {
+    console.error("Could not record product view", error);
+  }
+}
+
 app.use("/uploads", express.static(UPLOAD_DIR, {
   etag: true,
   maxAge: "7d",
@@ -1391,19 +1569,23 @@ function appHtml(forcedView = "") {
     .replace("</head>", `${forceScript}\n</head>`);
 }
 
-function sendDesktopApp(_req, res) {
+async function sendDesktopApp(req, res) {
+  await recordSiteVisit(req, res, "/desktop");
   res.type("html").send(appHtml("desktop"));
 }
 
-function sendMobileApp(_req, res) {
+async function sendMobileApp(req, res) {
+  await recordSiteVisit(req, res, "/mobile");
   res.type("html").send(appHtml("mobile"));
 }
 
-function sendCatalog(_req, res) {
+async function sendCatalog(req, res) {
+  await recordSiteVisit(req, res, "/catalog");
   res.sendFile(path.join(ROOT, "public", "catalog.html"));
 }
 
-function sendDealers(_req, res) {
+async function sendDealers(req, res) {
+  await recordSiteVisit(req, res, "/dealers");
   res.sendFile(path.join(ROOT, "public", "dealers.html"));
 }
 
@@ -1654,6 +1836,7 @@ function safeJsonScript(json) {
 async function sendProductPage(req, res) {
   const product = await db.getProduct(Number(req.params.id));
   if (!product || !product.active) return res.status(404).send("Product not found.");
+  await recordProductView(req, res, product.id);
   const baseUrl = publicBaseUrl(req).replace(/\/$/, "");
   const canonicalPath = productPath(product);
   const canonicalUrl = `${baseUrl}${canonicalPath}`;
@@ -1752,7 +1935,7 @@ async function requireAdmin(req, res, next) {
   next();
 }
 
-async function productPayload(product, showPrice, includeAdminData = false) {
+async function productPayload(product, showPrice, includeAdminData = false, productMetrics = null) {
   const normalizedCategory = normalizeCategory(product.category, { fallback: "Other" });
   const payload = {
     id: product.id,
@@ -1788,10 +1971,13 @@ async function productPayload(product, showPrice, includeAdminData = false) {
   }));
   if (!includeAdminData) return payload;
   const comparisons = await db.listComparisons(product.id);
+  const metrics = productMetrics || { viewCount: 0, uniqueViewers: 0 };
   return {
     ...payload,
     sourceUrl: product.sourceUrl || "",
     quantityOnHand: product.quantityOnHand || 0,
+    viewCount: Number(metrics.viewCount || 0),
+    uniqueViewers: Number(metrics.uniqueViewers || 0),
     comparisons: comparisons.map((comparison) => ({
       id: comparison.id,
       site: comparison.site,
@@ -2440,7 +2626,8 @@ app.patch("/api/admin/users/:id", requireAdmin, async (req, res) => {
 
 app.get("/api/admin/products", requireAdmin, async (_req, res) => {
   const products = await db.listProducts();
-  res.json({ products: await Promise.all(products.map((product) => productPayload(product, true, true))) });
+  const metricsByProductId = await db.getProductMetrics(products.map((product) => product.id));
+  res.json({ products: await Promise.all(products.map((product) => productPayload(product, true, true, metricsByProductId[product.id]))) });
 });
 
 app.get("/api/admin/products/export", requireAdmin, async (_req, res) => {
@@ -2586,7 +2773,8 @@ app.patch("/api/admin/products/:id", requireAdmin, productImageUpload, async (re
     recommendedAddonIds: parseRecommendedAddonIds(req.body.recommendedAddonIds, existing.id),
     active: req.body.active !== "false"
   });
-  res.json({ product: await productPayload(product, true, true) });
+  const metricsByProductId = await db.getProductMetrics([product.id]);
+  res.json({ product: await productPayload(product, true, true, metricsByProductId[product.id]) });
 });
 
 app.post("/api/admin/products/:id/archive", requireAdmin, async (req, res) => {
@@ -2600,7 +2788,8 @@ app.post("/api/admin/products/:id/archive", requireAdmin, async (req, res) => {
       listingStatus: "archived"
     }
   });
-  res.json({ ok: true, product: await productPayload(product, true, true) });
+  const metricsByProductId = await db.getProductMetrics([product.id]);
+  res.json({ ok: true, product: await productPayload(product, true, true, metricsByProductId[product.id]) });
 });
 
 app.post("/api/admin/products/:id/restore", requireAdmin, async (req, res) => {
@@ -2616,7 +2805,8 @@ app.post("/api/admin/products/:id/restore", requireAdmin, async (req, res) => {
         : (existing.productSpecs?.listingStatus || "draft")
     }
   });
-  res.json({ ok: true, product: await productPayload(product, true, true) });
+  const metricsByProductId = await db.getProductMetrics([product.id]);
+  res.json({ ok: true, product: await productPayload(product, true, true, metricsByProductId[product.id]) });
 });
 
 app.delete("/api/admin/products/:id", requireAdmin, async (req, res) => {
