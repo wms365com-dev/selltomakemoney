@@ -1837,6 +1837,8 @@ async function sendProductPage(req, res) {
   const product = await db.getProduct(Number(req.params.id));
   if (!product || !product.active) return res.status(404).send("Product not found.");
   await recordProductView(req, res, product.id);
+  const metricsByProductId = await db.getProductMetrics([product.id]);
+  const productMetrics = metricsByProductId[product.id] || { viewCount: 0, uniqueViewers: 0 };
   const baseUrl = publicBaseUrl(req).replace(/\/$/, "");
   const canonicalPath = productPath(product);
   const canonicalUrl = `${baseUrl}${canonicalPath}`;
@@ -1889,6 +1891,7 @@ async function sendProductPage(req, res) {
         <p class="eyebrow">${escapeHtml(product.category || "Available inventory")}</p>
         <h1>${escapeHtml(product.name)}</h1>
         <p class="sku">${escapeHtml([product.brand, product.sku, product.upc ? `UPC ${product.upc}` : ""].filter(Boolean).join(" | "))}</p>
+        <p class="product-view-count">Viewed ${escapeHtml(productMetrics.viewCount)} times</p>
         <div class="price">${escapeHtml(price)}</div>
         <div class="fulfillment-alert ${fulfillmentType === "ships_or_pickup" ? "ships" : "pickup"}">${escapeHtml(fulfillmentText)}</div>
         ${formatProductDescriptionHtml(product.description)}
@@ -1937,6 +1940,7 @@ async function requireAdmin(req, res, next) {
 
 async function productPayload(product, showPrice, includeAdminData = false, productMetrics = null) {
   const normalizedCategory = normalizeCategory(product.category, { fallback: "Other" });
+  const metrics = productMetrics || { viewCount: 0, uniqueViewers: 0 };
   const payload = {
     id: product.id,
     url: productPath(product),
@@ -1956,6 +1960,8 @@ async function productPayload(product, showPrice, includeAdminData = false, prod
     price: dollars(product.priceCents),
     dealerPriceCents: showPrice ? product.dealerPriceCents : null,
     dealerPrice: showPrice ? dollars(product.dealerPriceCents) : null,
+    viewCount: Number(metrics.viewCount || 0),
+    uniqueViewers: Number(metrics.uniqueViewers || 0),
     searchLinks: searchLinks(product)
   };
   const recommendedAddons = await db.getProductsByIds(product.recommendedAddonIds || [], { activeOnly: !includeAdminData });
@@ -1971,7 +1977,6 @@ async function productPayload(product, showPrice, includeAdminData = false, prod
   }));
   if (!includeAdminData) return payload;
   const comparisons = await db.listComparisons(product.id);
-  const metrics = productMetrics || { viewCount: 0, uniqueViewers: 0 };
   return {
     ...payload,
     sourceUrl: product.sourceUrl || "",
@@ -2512,7 +2517,8 @@ app.get("/api/products", async (req, res) => {
   const user = await currentUser(req);
   const showPrice = Boolean(user && user.status === "approved");
   const products = await db.listProducts({ activeOnly: true });
-  res.json({ products: await Promise.all(products.map((product) => productPayload(product, showPrice, false))), canSeePrices: showPrice });
+  const metricsByProductId = await db.getProductMetrics(products.map((product) => product.id));
+  res.json({ products: await Promise.all(products.map((product) => productPayload(product, showPrice, false, metricsByProductId[product.id]))), canSeePrices: showPrice });
 });
 
 app.post("/api/integrations/product-listing-pull/products", requireProductListingPull, async (req, res) => {

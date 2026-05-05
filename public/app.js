@@ -1048,6 +1048,7 @@ function renderProducts(canSeePrices = false) {
             <div>
               <h2><a class="product-title-link" href="${escapeHtml(product.url || `/products/${product.id}`)}">${escapeHtml(product.name)}</a></h2>
               <p class="sku">${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.category ? `| ${escapeHtml(product.category)}` : ""}</p>
+              <p class="product-view-count">Viewed ${escapeHtml(product.viewCount ?? 0)} times</p>
             </div>
             ${productSpecsSummary(product)}
             ${fulfillmentBadge(product)}

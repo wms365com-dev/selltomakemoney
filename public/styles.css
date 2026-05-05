@@ -829,6 +829,12 @@ h2 {
   text-decoration: underline;
 }
 
+.product-view-count {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
 .product-body > p:not(.sku):not(.spec-summary) {
   display: -webkit-box;
   min-height: 42px;
@@ -983,6 +989,10 @@ h2 {
   display: grid;
   align-content: start;
   gap: 14px;
+}
+
+.product-detail-body .product-view-count {
+  margin-top: -6px;
 }
 
 .product-description {
