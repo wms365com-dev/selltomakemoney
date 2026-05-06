@@ -24,6 +24,9 @@ const AMAZON_AFFILIATE_TAG = process.env.AMAZON_AFFILIATE_TAG || "dealerstore-20
 const PRODUCT_LISTING_PULL_API_KEY = process.env.PRODUCT_LISTING_PULL_API_KEY || "";
 const VISITOR_COOKIE_NAME = "stm_vid";
 const CONSENT_COOKIE_NAME = "stm_consent";
+const GOOGLE_SITE_VERIFICATION = process.env.GOOGLE_SITE_VERIFICATION || "";
+const GOOGLE_SITE_VERIFICATION_FILE = process.env.GOOGLE_SITE_VERIFICATION_FILE || "";
+const GOOGLE_SITE_VERIFICATION_CONTENT = process.env.GOOGLE_SITE_VERIFICATION_CONTENT || "";
 const PRODUCT_CATEGORIES = [
   "Electronics",
   "Scooters & Mobility",
@@ -2178,9 +2181,12 @@ function appHtml(forcedView = "", entryRoute = "") {
   const view = forcedView === "mobile" || forcedView === "desktop" ? forcedView : "";
   const forceScript = `<script>window.__FORCED_VIEW=${JSON.stringify(view)};</script>`;
   const routeScript = `<script>window.__ENTRY_ROUTE=${JSON.stringify(entryRoute || "")};</script>`;
+  const verificationMeta = GOOGLE_SITE_VERIFICATION
+    ? `\n<meta name="google-site-verification" content="${escapeHtml(GOOGLE_SITE_VERIFICATION)}">`
+    : "";
   return html
     .replace("<body>", `<body data-entry-view="${view || "auto"}">`)
-    .replace("</head>", `${forceScript}\n${routeScript}\n</head>`);
+    .replace("</head>", `${verificationMeta}${forceScript}\n${routeScript}\n</head>`);
 }
 
 async function sendDesktopApp(req, res) {
@@ -2333,6 +2339,14 @@ app.get("/robots.txt", (req, res) => {
   res.type("text/plain").send([
     "User-agent: *",
     "Allow: /",
+    "Disallow: /admin",
+    "Disallow: /admin/",
+    "Disallow: /dealer",
+    "Disallow: /dealer/",
+    "Disallow: /shopper",
+    "Disallow: /shopper/",
+    "Disallow: /mobile",
+    "Disallow: /api/",
     `Sitemap: ${baseUrl}/sitemap.xml`,
     ""
   ].join("\n"));
@@ -2341,12 +2355,31 @@ app.get("/robots.txt", (req, res) => {
 app.get("/sitemap.xml", async (req, res) => {
   const baseUrl = publicBaseUrl(req).replace(/\/$/, "");
   const products = await db.listProducts({ activeOnly: true });
-  const urls = ["", "/catalog", "/s/catalog", "/dealers", "/shopper", "/dealer", "/desktop", "/mobile", ...products.flatMap((product) => [productPath(product), shortProductPath(product)])];
+  const staticUrls = [
+    { path: "", changefreq: "daily", priority: "1.0" },
+    { path: "/catalog", changefreq: "daily", priority: "0.9" },
+    { path: "/dealers", changefreq: "monthly", priority: "0.6" },
+    { path: "/privacy", changefreq: "yearly", priority: "0.3" }
+  ];
+  const productUrls = products.map((product) => ({
+    path: productPath(product),
+    changefreq: "weekly",
+    priority: "0.7",
+    lastmod: product.createdAt ? new Date(product.createdAt).toISOString() : ""
+  }));
+  const urls = [...staticUrls, ...productUrls];
   res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map((url) => `  <url><loc>${baseUrl}${url}</loc><changefreq>${url.startsWith("/products/") ? "weekly" : "daily"}</changefreq><priority>${url === "" ? "1.0" : url.startsWith("/products/") ? "0.7" : "0.8"}</priority></url>`).join("\n")}
+${urls.map((url) => `  <url><loc>${baseUrl}${url.path}</loc>${url.lastmod ? `<lastmod>${url.lastmod}</lastmod>` : ""}<changefreq>${url.changefreq}</changefreq><priority>${url.priority}</priority></url>`).join("\n")}
 </urlset>`);
 });
+
+if (GOOGLE_SITE_VERIFICATION_FILE) {
+  app.get(`/${GOOGLE_SITE_VERIFICATION_FILE}`, (_req, res) => {
+    const content = GOOGLE_SITE_VERIFICATION_CONTENT || `google-site-verification: ${GOOGLE_SITE_VERIFICATION_FILE}`;
+    res.type("text/plain").send(content);
+  });
+}
 
 app.get("/s/catalog", (_req, res) => {
   res.redirect(302, "/catalog");
