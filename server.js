@@ -1709,6 +1709,33 @@ function parseDeviceContext(userAgent = "") {
   return { deviceType, browserName, osName };
 }
 
+function headerLocationHints(req) {
+  const country = String(
+    req.get("cf-ipcountry")
+    || req.get("x-vercel-ip-country")
+    || req.get("x-country-code")
+    || req.get("fastly-client-country-code")
+    || ""
+  ).trim();
+  const region = String(
+    req.get("x-vercel-ip-country-region")
+    || req.get("x-region")
+    || req.get("cloudfront-viewer-country-region")
+    || ""
+  ).trim();
+  const city = String(
+    req.get("x-vercel-ip-city")
+    || req.get("x-city")
+    || req.get("cloudfront-viewer-city")
+    || ""
+  ).trim();
+  return {
+    city: city && city.toLowerCase() !== "unknown" ? city : "",
+    region: region && region.toLowerCase() !== "unknown" ? region : "",
+    country: country && country.toLowerCase() !== "xx" && country.toLowerCase() !== "unknown" ? country : ""
+  };
+}
+
 async function geoLookup(ipAddress) {
   if (!ipAddress || privateIpAddress(ipAddress)) return { city: "", region: "", country: "" };
   if (geoLookupCache.has(ipAddress)) return geoLookupCache.get(ipAddress);
@@ -1740,7 +1767,11 @@ async function visitorMetadata(req) {
   const ipAddress = clientIpAddress(req);
   const userAgent = String(req.get("user-agent") || "").trim();
   const referrer = String(req.get("referer") || "").trim();
-  const { city, region, country } = await geoLookup(ipAddress);
+  const hinted = headerLocationHints(req);
+  const fallback = (!hinted.city || !hinted.region || !hinted.country) ? await geoLookup(ipAddress) : { city: "", region: "", country: "" };
+  const city = hinted.city || fallback.city || "";
+  const region = hinted.region || fallback.region || "";
+  const country = hinted.country || fallback.country || "";
   const { deviceType, browserName, osName } = parseDeviceContext(userAgent);
   return {
     ipAddress,
