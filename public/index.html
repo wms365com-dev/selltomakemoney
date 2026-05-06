@@ -73,6 +73,7 @@
             <button class="nav-button signed-out" data-route="register">Register</button>
             <a class="nav-button" href="/dealers">Dealer Info</a>
             <a class="nav-button" href="/privacy">Privacy</a>
+            <a class="nav-button dealer-only hidden" href="/dealer">Dealer</a>
             <button class="nav-button" data-route="cart">Cart</button>
             <button class="nav-button admin-only hidden" data-route="admin">Admin</button>
             <button class="nav-button admin-only hidden mobile-only-nav" data-route="facebook">Facebook</button>
@@ -92,13 +93,13 @@
     <section id="storeView" class="view">
       <div class="section-head compact plain-head">
         <div class="plain-head-copy">
-          <p class="eyebrow">Inventory catalog</p>
-          <h1>Current products</h1>
-          <p class="hero-copy">Browse available items, compare retail links, and add items to your cart. Checkout requires an account.</p>
+          <p class="eyebrow" id="storeEyebrow">Inventory catalog</p>
+          <h1 id="storeHeading">Current products</h1>
+          <p class="hero-copy" id="storeHeroCopy">Browse available items, compare retail links, and add items to your cart. Checkout requires an account.</p>
         </div>
         <div class="plain-head-actions">
           <p class="price-note" id="priceNote">Public pricing is visible. Create an account before checkout. No credit cards accepted.</p>
-          <button type="button" data-copy-catalog>Share catalog</button>
+          <button type="button" id="shareCatalogButton" data-copy-catalog>Share catalog</button>
         </div>
       </div>
       <section class="store-tools" aria-label="Store filters">

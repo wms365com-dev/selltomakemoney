@@ -24,6 +24,10 @@ const views = {
 
 const productGrid = document.querySelector("#productGrid");
 const priceNote = document.querySelector("#priceNote");
+const storeEyebrow = document.querySelector("#storeEyebrow");
+const storeHeading = document.querySelector("#storeHeading");
+const storeHeroCopy = document.querySelector("#storeHeroCopy");
+const shareCatalogButton = document.querySelector("#shareCatalogButton");
 const storeSearch = document.querySelector("#storeSearch");
 const storeCategory = document.querySelector("#storeCategory");
 const categoryTiles = document.querySelector("#categoryTiles");
@@ -33,6 +37,7 @@ const minimumStatusMs = 140;
 let productsRequest = null;
 let adminRequest = null;
 let viewModeRaf = 0;
+let currentStoreMode = "store";
 const productCategories = [
   "Electronics",
   "Scooters & Mobility",
@@ -146,19 +151,28 @@ async function api(path, options = {}) {
 }
 
 function setRoute(route) {
-  Object.entries(views).forEach(([name, element]) => element.classList.toggle("hidden", name !== route));
-  if (route === "store") loadProducts();
+  const requestedRoute = route || "store";
+  if (requestedRoute === "dealer" && !(sessionUser?.canSeePrices || sessionUser?.role === "admin")) {
+    window.location.hash = "login";
+    return setRoute("login");
+  }
+  const visibleRoute = requestedRoute === "dealer" ? "store" : requestedRoute;
+  currentStoreMode = requestedRoute === "dealer" ? "dealer" : "store";
+  document.body.dataset.storeMode = currentStoreMode;
+  Object.entries(views).forEach(([name, element]) => element.classList.toggle("hidden", name !== visibleRoute));
+  if (visibleRoute === "store") loadProducts(currentStoreMode);
   if (route === "cart") {
     if (cart.length && !productCache.length) loadProducts().then(renderCart);
     else renderCart();
   }
-  if (route === "admin") loadAdmin();
-  if (route === "facebook") loadFacebookPage();
+  if (visibleRoute === "admin") loadAdmin();
+  if (visibleRoute === "facebook") loadFacebookPage();
 }
 
 function routeFromHash() {
   const route = window.location.hash.replace("#", "");
-  return views[route] ? route : "store";
+  if (route) return views[route] ? route : (route === "dealer" ? "dealer" : "store");
+  return window.__ENTRY_ROUTE === "dealer" ? "dealer" : "store";
 }
 
 function updateNav() {
@@ -166,6 +180,7 @@ function updateNav() {
   document.querySelectorAll(".signed-in").forEach((item) => item.classList.toggle("hidden", !signedIn));
   document.querySelectorAll(".signed-out").forEach((item) => item.classList.toggle("hidden", signedIn));
   document.querySelectorAll(".admin-only").forEach((item) => item.classList.toggle("hidden", sessionUser?.role !== "admin"));
+  document.querySelectorAll(".dealer-only").forEach((item) => item.classList.toggle("hidden", !(sessionUser?.canSeePrices || sessionUser?.role === "admin")));
   updateCartCount();
 }
 
@@ -1134,6 +1149,27 @@ function renderProducts(canSeePrices = false) {
   if (products.length) startProductRotator();
 }
 
+function applyStoreModeCopy(canSeePrices = false) {
+  const dealerMode = currentStoreMode === "dealer";
+  if (storeEyebrow) storeEyebrow.textContent = dealerMode ? "Dealer pricing" : "Inventory catalog";
+  if (storeHeading) storeHeading.textContent = dealerMode ? "Dealer products" : "Current products";
+  if (storeHeroCopy) {
+    storeHeroCopy.textContent = dealerMode
+      ? "Dealer account view. Compare dealer pricing against retail, review listing interest, and add items to your cart."
+      : "Browse available items, compare retail links, and add items to your cart. Checkout requires an account.";
+  }
+  if (priceNote) {
+    priceNote.textContent = dealerMode
+      ? "Dealer account pricing is active. If dealer price is missing on an item, contact the person that sent you the link."
+      : (canSeePrices
+        ? "Account pricing is visible on your approved account."
+        : "Public pricing is visible. Create an account before checkout. Pickup is currently in Mississauga only.");
+  }
+  if (shareCatalogButton) {
+    shareCatalogButton.textContent = dealerMode ? "Share dealer page" : "Share catalog";
+  }
+}
+
 function renderLookupResults(data, quantityOnHand) {
   const results = document.querySelector("#upcLookupResults");
   const links = data.searchLinks.map((link) => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener">${escapeHtml(link.site)}</a>`).join("");
@@ -1193,9 +1229,12 @@ function populateProductFormFromImport(listing, quantityOnHand = 1) {
   form.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-async function loadProducts() {
+async function loadProducts(mode = currentStoreMode) {
+  currentStoreMode = mode || "store";
+  document.body.dataset.storeMode = currentStoreMode;
   if (productsRequest) return productsRequest;
   if (productCache.length) {
+    applyStoreModeCopy(Boolean(sessionUser?.canSeePrices));
     renderProducts(Boolean(sessionUser?.canSeePrices));
     return { products: productCache, canSeePrices: Boolean(sessionUser?.canSeePrices) };
   }
@@ -1205,9 +1244,7 @@ async function loadProducts() {
     productCache = data.products;
     renderStoreCategories(productCache);
     updateStoreStructuredData(productCache);
-    priceNote.textContent = data.canSeePrices
-      ? "Dealer account pricing is active. If dealer price is missing on an item, contact the person that sent you the link."
-      : "Public pricing is visible. Create an account before checkout. Pickup is currently in Mississauga only.";
+    applyStoreModeCopy(data.canSeePrices);
     renderProducts(data.canSeePrices);
     return data;
   });
@@ -1596,7 +1633,13 @@ document.querySelector("#loginForm").addEventListener("submit", async (event) =>
     }));
     sessionUser = data.user;
     updateNav();
-    setRoute(sessionUser.role === "admin" ? "admin" : "store");
+    if (sessionUser.role === "admin") {
+      setRoute("admin");
+    } else if (sessionUser.canSeePrices) {
+      window.location.assign("/dealer");
+    } else {
+      setRoute("store");
+    }
     restore();
   } catch (error) {
     message.textContent = error.message;
@@ -2095,6 +2138,10 @@ document.querySelector("#logoutButton").addEventListener("click", async () => {
   sessionUser = null;
   updateNav();
   document.querySelector("#mainMenu")?.removeAttribute("open");
+  if (window.location.pathname.toLowerCase().includes("/dealer")) {
+    window.location.assign("/desktop");
+    return;
+  }
   setRoute("store");
 });
 

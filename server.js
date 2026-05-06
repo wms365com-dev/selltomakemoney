@@ -1757,24 +1757,30 @@ function isMobileRequest(req) {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(ua);
 }
 
-function appHtml(forcedView = "") {
+function appHtml(forcedView = "", entryRoute = "") {
   const indexPath = path.join(ROOT, "public", "index.html");
   const html = fs.readFileSync(indexPath, "utf8");
   const view = forcedView === "mobile" || forcedView === "desktop" ? forcedView : "";
   const forceScript = `<script>window.__FORCED_VIEW=${JSON.stringify(view)};</script>`;
+  const routeScript = `<script>window.__ENTRY_ROUTE=${JSON.stringify(entryRoute || "")};</script>`;
   return html
     .replace("<body>", `<body data-entry-view="${view || "auto"}">`)
-    .replace("</head>", `${forceScript}\n</head>`);
+    .replace("</head>", `${forceScript}\n${routeScript}\n</head>`);
 }
 
 async function sendDesktopApp(req, res) {
   await recordSiteVisit(req, res, "/desktop");
-  res.type("html").send(appHtml("desktop"));
+  res.type("html").send(appHtml("desktop", "store"));
 }
 
 async function sendMobileApp(req, res) {
   await recordSiteVisit(req, res, "/mobile");
-  res.type("html").send(appHtml("mobile"));
+  res.type("html").send(appHtml("mobile", "store"));
+}
+
+async function sendDealerApp(req, res) {
+  await recordSiteVisit(req, res, "/dealer");
+  res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "dealer"));
 }
 
 async function sendCatalog(req, res) {
@@ -1903,7 +1909,7 @@ app.get("/robots.txt", (req, res) => {
 app.get("/sitemap.xml", async (req, res) => {
   const baseUrl = publicBaseUrl(req).replace(/\/$/, "");
   const products = await db.listProducts({ activeOnly: true });
-  const urls = ["", "/catalog", "/s/catalog", "/dealers", "/desktop", "/mobile", ...products.flatMap((product) => [productPath(product), shortProductPath(product)])];
+  const urls = ["", "/catalog", "/s/catalog", "/dealers", "/dealer", "/desktop", "/mobile", ...products.flatMap((product) => [productPath(product), shortProductPath(product)])];
   res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map((url) => `  <url><loc>${baseUrl}${url}</loc><changefreq>${url.startsWith("/products/") ? "weekly" : "daily"}</changefreq><priority>${url === "" ? "1.0" : url.startsWith("/products/") ? "0.7" : "0.8"}</priority></url>`).join("\n")}
@@ -3190,6 +3196,7 @@ app.get("/", (req, res) => {
 app.get("/products/:id/:slug?", sendProductPage);
 app.get("/desktop", sendDesktopApp);
 app.get("/mobile", sendMobileApp);
+app.get("/dealer", sendDealerApp);
 app.get("/catalog", sendCatalog);
 app.get("/dealers", sendDealers);
 app.get("/privacy", sendPrivacyPage);
