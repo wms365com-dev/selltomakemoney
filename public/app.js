@@ -976,6 +976,28 @@ function saveCart() {
   updateCartCount();
 }
 
+async function submitQuickInquiry(productId, note, button, busyText = "Sending...") {
+  if (!sessionUser) {
+    window.location.hash = "login";
+    setRoute("login");
+    const message = document.querySelector("#loginMessage");
+    if (message) message.textContent = "Please login or register first, then ask about the item.";
+    return;
+  }
+  const restore = setButtonBusy(button, busyText);
+  try {
+    await withStatus("Sending request...", () => api("/api/inquiries", {
+      method: "POST",
+      body: JSON.stringify({ productId, quantity: 1, note })
+    }));
+    button.textContent = "Sent";
+    button.disabled = true;
+  } catch (error) {
+    alert(error.message);
+    restore();
+  }
+}
+
 function updateCartCount() {
   const count = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const cartCount = document.querySelector("#cartCount");
@@ -1296,6 +1318,19 @@ function fulfillmentBadge(product) {
   return `<div class="fulfillment-alert ${canShip ? "ships" : "pickup"}">${escapeHtml(fulfillmentLabel(product))}</div>`;
 }
 
+function productSalesBadges(product) {
+  const badges = [];
+  const qty = Number(product.quantityOnHand || 0);
+  const createdAt = product.createdAt ? new Date(product.createdAt) : null;
+  if (qty > 0 && qty <= 2) badges.push(["Low stock", "low-stock"]);
+  if (Number(product.viewCount || 0) >= 10 || Number(product.uniqueViewers || 0) >= 5) badges.push(["Popular", "popular"]);
+  if (createdAt && !Number.isNaN(createdAt.getTime()) && (Date.now() - createdAt.getTime()) <= (1000 * 60 * 60 * 24 * 14)) {
+    badges.push(["New arrival", "new-arrival"]);
+  }
+  if (!badges.length) return "";
+  return `<div class="sales-badges">${badges.map(([label, tone]) => `<span class="sales-badge ${tone}">${escapeHtml(label)}</span>`).join("")}</div>`;
+}
+
 function productText(product) {
   return [product.name, product.brand, product.sku, product.upc, product.category, product.description].join(" ").toLowerCase();
 }
@@ -1362,6 +1397,7 @@ function renderProducts(canSeePrices = false) {
               <p class="sku">${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.category ? `| ${escapeHtml(product.category)}` : ""}</p>
               <p class="product-view-count">Viewed ${escapeHtml(product.viewCount ?? 0)} times</p>
             </div>
+            ${productSalesBadges(product)}
             ${productSpecsSummary(product)}
             ${fulfillmentBadge(product)}
             ${pricingBlock(product, canSeePrices)}
@@ -1372,6 +1408,10 @@ function renderProducts(canSeePrices = false) {
               <button class="primary" data-add-cart="${product.id}">Add to cart</button>
               <button type="button" data-copy-share="${product.id}" data-copy-url="${escapeHtml(absoluteUrl(product.shortUrl || product.url || `/products/${product.id}`))}">Share</button>
               <a class="nav-button" href="${escapeHtml(product.url || `/products/${product.id}`)}">Details</a>
+            </div>
+            <div class="product-cta-links">
+              <button type="button" class="linkish-button" data-quick-inquiry="${product.id}" data-inquiry-note="Asked about this item from the store listing.">Ask about this item</button>
+              <button type="button" class="linkish-button" data-hold-request="${product.id}" data-inquiry-note="Please hold this item for pickup in Mississauga.">Hold for pickup</button>
             </div>
           </div>
         </div>
@@ -1796,6 +1836,20 @@ document.addEventListener("click", async (event) => {
     const productId = addCartButton?.dataset.addCart;
     const product = productCache.find((entry) => entry.id === Number(productId));
     trackEvent("product_detail", { productId, label: product?.name || productDetailLink.textContent.trim() });
+  }
+
+  const quickInquiryId = event.target.closest("[data-quick-inquiry]")?.dataset.quickInquiry;
+  if (quickInquiryId) {
+    const button = event.target.closest("[data-quick-inquiry]");
+    await submitQuickInquiry(quickInquiryId, button.dataset.inquiryNote || "Asked about this item.", button, "Sending...");
+    return;
+  }
+
+  const holdRequestId = event.target.closest("[data-hold-request]")?.dataset.holdRequest;
+  if (holdRequestId) {
+    const button = event.target.closest("[data-hold-request]");
+    await submitQuickInquiry(holdRequestId, button.dataset.inquiryNote || "Please hold this item for pickup.", button, "Holding...");
+    return;
   }
 
   if (event.target.closest("[data-close-exit-alert]")) {

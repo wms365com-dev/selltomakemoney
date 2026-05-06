@@ -833,7 +833,7 @@ h2 {
 
 .product-card-footer {
   align-content: end;
-  min-height: 142px;
+  min-height: 188px;
 }
 
 .product-body h2 {
@@ -973,6 +973,41 @@ h2 {
   line-height: 1.4;
 }
 
+.sales-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sales-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.sales-badge.low-stock {
+  background: #fff1f0;
+  border: 1px solid rgba(177, 39, 4, 0.18);
+  color: #b12704;
+}
+
+.sales-badge.popular {
+  background: #eef7ff;
+  border: 1px solid rgba(0, 113, 133, 0.18);
+  color: #007185;
+}
+
+.sales-badge.new-arrival {
+  background: #eef9f0;
+  border: 1px solid rgba(15, 107, 73, 0.18);
+  color: #0f6b49;
+}
+
 .product-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(78px, 0.55fr);
@@ -991,6 +1026,26 @@ h2 {
 
 .product-actions > :last-child {
   grid-column: 1 / -1;
+}
+
+.product-cta-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.linkish-button {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--nav);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.linkish-button:hover {
+  background: var(--bg-strong);
 }
 
 .shopping-links {
@@ -1053,6 +1108,43 @@ h2 {
   display: grid;
   align-content: start;
   gap: 14px;
+}
+
+.product-detail-trust {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fffaf2;
+}
+
+.product-detail-trust div {
+  display: grid;
+  gap: 3px;
+}
+
+.product-detail-trust strong {
+  color: var(--nav);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.product-detail-trust span {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.product-detail-cta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.product-detail-cta .form-message {
+  grid-column: 1 / -1;
+  margin: 0;
 }
 
 .product-detail-body .product-view-count {

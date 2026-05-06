@@ -2673,6 +2673,19 @@ function fulfillmentLabel(value) {
   return value === "ships_or_pickup" ? "Shipping or Mississauga pickup" : "Mississauga pickup only";
 }
 
+function salesBadgeMarkup({ quantityOnHand = 0, viewCount = 0, uniqueViewers = 0, createdAt = "" } = {}) {
+  const badges = [];
+  const qty = Number(quantityOnHand || 0);
+  if (qty > 0 && qty <= 2) badges.push(["Low stock", "low-stock"]);
+  if (Number(viewCount || 0) >= 10 || Number(uniqueViewers || 0) >= 5) badges.push(["Popular", "popular"]);
+  const created = createdAt ? new Date(createdAt) : null;
+  if (created && !Number.isNaN(created.getTime()) && (Date.now() - created.getTime()) <= (1000 * 60 * 60 * 24 * 14)) {
+    badges.push(["New arrival", "new-arrival"]);
+  }
+  if (!badges.length) return "";
+  return `<div class="sales-badges">${badges.map(([label, tone]) => `<span class="sales-badge ${tone}">${escapeHtml(label)}</span>`).join("")}</div>`;
+}
+
 function publicProductSpecs(specs = {}) {
   return Object.fromEntries(Object.entries(specs || {}).filter(([key]) => !HIDDEN_PRODUCT_SPEC_KEYS.has(key)));
 }
@@ -2724,6 +2737,14 @@ async function sendProductPage(req, res) {
   const specs = productSpecsLines(product);
   const fulfillmentType = product.productSpecs?.fulfillmentType || "pickup_only";
   const fulfillmentText = fulfillmentLabel(fulfillmentType);
+  const includedComponents = cleanProductSpecValue(product.productSpecs?.includedComponents || "");
+  const conditionText = cleanProductSpecValue(product.productSpecs?.condition || "");
+  const productBadges = salesBadgeMarkup({
+    quantityOnHand: product.quantityOnHand,
+    viewCount: productMetrics.viewCount,
+    uniqueViewers: productMetrics.uniqueViewers,
+    createdAt: product.createdAt
+  });
   res.type("html").send(`<!doctype html>
 <html lang="en">
 <head>
@@ -2764,6 +2785,7 @@ async function sendProductPage(req, res) {
         <h1>${escapeHtml(product.name)}</h1>
         <p class="sku">${escapeHtml([product.brand, product.sku, product.upc ? `UPC ${product.upc}` : ""].filter(Boolean).join(" | "))}</p>
         <p class="product-view-count">Viewed ${escapeHtml(productMetrics.viewCount)} times</p>
+        ${productBadges}
         ${showDealerPricing && dealerPrice
           ? `<div class="product-pricing dealer-pricing">
               <div>
@@ -2785,11 +2807,24 @@ async function sendProductPage(req, res) {
               </div>`
             : `<div class="price">${escapeHtml(price)}</div>`}
         <div class="fulfillment-alert ${fulfillmentType === "ships_or_pickup" ? "ships" : "pickup"}">${escapeHtml(fulfillmentText)}</div>
+        <div class="product-detail-trust">
+          ${conditionText ? `<div><strong>Condition</strong><span>${escapeHtml(conditionText)}</span></div>` : ""}
+          <div><strong>Qty on hand</strong><span>${escapeHtml(product.quantityOnHand || 0)} available</span></div>
+          <div><strong>Pickup</strong><span>Mississauga only right now</span></div>
+          <div><strong>Payments</strong><span>${fulfillmentType === "ships_or_pickup" ? "E-transfer, cash on pickup, or eligible shipped-card checkout" : "E-transfer or cash on pickup"}</span></div>
+          ${includedComponents ? `<div><strong>Includes</strong><span>${escapeHtml(includedComponents)}</span></div>` : ""}
+          <div><strong>Support</strong><span>Use ask or hold below and we can follow up</span></div>
+        </div>
         ${formatProductDescriptionHtml(product.description)}
         ${specs.length ? `<dl class="product-spec-list">${specs.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>` : ""}
         <div class="checkout-notice">
           <strong>Checkout requires an account.</strong>
           <span>Pickup orders use e-transfer or cash to keep fees down. Credit card is available only for eligible shipped items.</span>
+        </div>
+        <div class="product-detail-cta">
+          <button class="nav-button" type="button" data-ask-product="${product.id}" data-inquiry-note="Asked about this item from the product page.">Ask about this item</button>
+          <button class="nav-button primary" type="button" data-hold-product="${product.id}" data-inquiry-note="Please hold this item for pickup in Mississauga.">Hold for pickup</button>
+          <p id="productDetailMessage" class="form-message"></p>
         </div>
         <div class="catalog-actions">
           <a class="nav-button primary" href="/desktop">Open store to add to cart</a>
@@ -2806,6 +2841,40 @@ async function sendProductPage(req, res) {
     </div>
     <div>Copyright &copy; ${currentYear} selltomakemoney.com. All rights reserved.</div>
   </footer>
+  <script>
+    const detailMessage = document.getElementById('productDetailMessage');
+    async function sendProductInquiry(note, button) {
+      detailMessage.textContent = '';
+      button.disabled = true;
+      const original = button.textContent;
+      button.textContent = 'Sending...';
+      try {
+        const response = await fetch('/api/inquiries', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productId: ${product.id}, quantity: 1, note })
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Could not send request.');
+        detailMessage.textContent = 'Request sent. We can follow up on this item.';
+        button.textContent = 'Sent';
+      } catch (error) {
+        if (String(error.message || '').includes('login')) {
+          window.location.href = '/desktop#login';
+          return;
+        }
+        detailMessage.textContent = error.message || 'Could not send request.';
+        button.disabled = false;
+        button.textContent = original;
+      }
+    }
+    document.querySelector('[data-ask-product]')?.addEventListener('click', function () {
+      sendProductInquiry(this.dataset.inquiryNote || 'Asked about this item.', this);
+    });
+    document.querySelector('[data-hold-product]')?.addEventListener('click', function () {
+      sendProductInquiry(this.dataset.inquiryNote || 'Please hold this item for pickup.', this);
+    });
+  </script>
 </body>
 </html>`);
 }
@@ -2846,6 +2915,8 @@ async function productPayload(product, showPrice, includeAdminData = false, prod
     imageUrls: product.imageUrls || (product.imageUrl ? [product.imageUrl] : []),
     productSpecs: includeAdminData ? (product.productSpecs || {}) : publicProductSpecs(product.productSpecs || {}),
     active: Boolean(product.active),
+    quantityOnHand: Number(product.quantityOnHand || 0),
+    createdAt: product.createdAt || "",
     recommendedAddonIds: product.recommendedAddonIds || [],
     priceCents: product.priceCents,
     price: dollars(product.priceCents),
