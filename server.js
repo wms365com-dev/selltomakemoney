@@ -1783,6 +1783,11 @@ async function sendDealerApp(req, res) {
   res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "dealer"));
 }
 
+async function sendAdminApp(req, res) {
+  await recordSiteVisit(req, res, "/admin");
+  res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "admin"));
+}
+
 async function sendCatalog(req, res) {
   await recordSiteVisit(req, res, "/catalog");
   res.sendFile(path.join(ROOT, "public", "catalog.html"));
@@ -3197,6 +3202,7 @@ app.get("/products/:id/:slug?", sendProductPage);
 app.get("/desktop", sendDesktopApp);
 app.get("/mobile", sendMobileApp);
 app.get("/dealer", sendDealerApp);
+app.get("/admin", sendAdminApp);
 app.get("/catalog", sendCatalog);
 app.get("/dealers", sendDealers);
 app.get("/privacy", sendPrivacyPage);

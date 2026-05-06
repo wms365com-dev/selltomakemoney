@@ -152,6 +152,10 @@ async function api(path, options = {}) {
 
 function setRoute(route) {
   const requestedRoute = route || "store";
+  if (requestedRoute === "admin" && sessionUser?.role !== "admin") {
+    window.location.hash = "login";
+    return setRoute("login");
+  }
   if (requestedRoute === "dealer" && !(sessionUser?.canSeePrices || sessionUser?.role === "admin")) {
     window.location.hash = "login";
     return setRoute("login");
@@ -172,7 +176,9 @@ function setRoute(route) {
 function routeFromHash() {
   const route = window.location.hash.replace("#", "");
   if (route) return views[route] ? route : (route === "dealer" ? "dealer" : "store");
-  return window.__ENTRY_ROUTE === "dealer" ? "dealer" : "store";
+  if (window.__ENTRY_ROUTE === "dealer") return "dealer";
+  if (window.__ENTRY_ROUTE === "admin") return "admin";
+  return "store";
 }
 
 function updateNav() {
@@ -1634,7 +1640,7 @@ document.querySelector("#loginForm").addEventListener("submit", async (event) =>
     sessionUser = data.user;
     updateNav();
     if (sessionUser.role === "admin") {
-      setRoute("admin");
+      window.location.assign("/admin");
     } else if (sessionUser.canSeePrices) {
       window.location.assign("/dealer");
     } else {
@@ -2138,7 +2144,7 @@ document.querySelector("#logoutButton").addEventListener("click", async () => {
   sessionUser = null;
   updateNav();
   document.querySelector("#mainMenu")?.removeAttribute("open");
-  if (window.location.pathname.toLowerCase().includes("/dealer")) {
+  if (window.location.pathname.toLowerCase().includes("/dealer") || window.location.pathname.toLowerCase().includes("/admin")) {
     window.location.assign("/desktop");
     return;
   }
