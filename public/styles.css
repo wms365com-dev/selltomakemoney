@@ -1009,6 +1009,18 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.privacy-page {
+  width: min(900px, 100%);
+  margin: 32px auto;
+}
+
+.privacy-page ul {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+
 .product-spec-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1379,6 +1391,28 @@ body:not([data-view="mobile"]) .mobile-listing-quickbar {
 .admin-metric-card span {
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.visitor-activity-item {
+  display: grid;
+  gap: 6px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.visitor-activity-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.visitor-activity-item div {
+  display: grid;
+  gap: 2px;
+}
+
+.visitor-activity-item span {
+  color: var(--muted);
+  font-size: 0.92rem;
 }
 
 .admin-secondary-column {

@@ -630,7 +630,7 @@ function createJsonDatabase() {
     async listBugReports() {
       return [...store.bugReports].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
     },
-    async recordSiteVisit(visitorKey, pathName, userId = null) {
+    async recordSiteVisit(visitorKey, pathName, userId = null, metadata = {}) {
       const now = new Date().toISOString();
       const existing = store.siteVisitors.find((entry) => entry.visitorKey === visitorKey);
       if (existing) {
@@ -638,6 +638,17 @@ function createJsonDatabase() {
         existing.lastSeenAt = now;
         existing.lastPath = pathName || existing.lastPath || "";
         if (userId && !existing.userId) existing.userId = userId;
+        Object.assign(existing, {
+          ipAddress: metadata.ipAddress || existing.ipAddress || "",
+          city: metadata.city || existing.city || "",
+          region: metadata.region || existing.region || "",
+          country: metadata.country || existing.country || "",
+          deviceType: metadata.deviceType || existing.deviceType || "",
+          browserName: metadata.browserName || existing.browserName || "",
+          osName: metadata.osName || existing.osName || "",
+          userAgent: metadata.userAgent || existing.userAgent || "",
+          referrer: metadata.referrer || existing.referrer || ""
+        });
         writeJsonStore(store);
         return existing;
       }
@@ -647,7 +658,16 @@ function createJsonDatabase() {
         firstSeenAt: now,
         lastSeenAt: now,
         lastPath: pathName || "",
-        userId: userId || null
+        userId: userId || null,
+        ipAddress: metadata.ipAddress || "",
+        city: metadata.city || "",
+        region: metadata.region || "",
+        country: metadata.country || "",
+        deviceType: metadata.deviceType || "",
+        browserName: metadata.browserName || "",
+        osName: metadata.osName || "",
+        userAgent: metadata.userAgent || "",
+        referrer: metadata.referrer || ""
       };
       store.siteVisitors.push(created);
       writeJsonStore(store);
@@ -686,6 +706,11 @@ function createJsonDatabase() {
         };
         return metrics;
       }, {});
+    },
+    async listVisitors(limit = 100) {
+      return [...store.siteVisitors]
+        .sort((a, b) => new Date(b.lastSeenAt || b.createdAt || 0) - new Date(a.lastSeenAt || a.createdAt || 0))
+        .slice(0, Math.max(1, Number(limit) || 100));
     },
     async listUsers() {
       return [...store.users].map((user) => {
@@ -1121,7 +1146,16 @@ function createPostgresDatabase() {
           first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           last_path TEXT NOT NULL DEFAULT '',
-          user_id INTEGER REFERENCES users(id)
+          user_id INTEGER REFERENCES users(id),
+          ip_address TEXT NOT NULL DEFAULT '',
+          city TEXT NOT NULL DEFAULT '',
+          region TEXT NOT NULL DEFAULT '',
+          country TEXT NOT NULL DEFAULT '',
+          device_type TEXT NOT NULL DEFAULT '',
+          browser_name TEXT NOT NULL DEFAULT '',
+          os_name TEXT NOT NULL DEFAULT '',
+          user_agent TEXT NOT NULL DEFAULT '',
+          referrer TEXT NOT NULL DEFAULT ''
         );
         CREATE TABLE IF NOT EXISTS product_views (
           product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
@@ -1149,6 +1183,15 @@ function createPostgresDatabase() {
         CREATE INDEX IF NOT EXISTS idx_bug_reports_created ON bug_reports(created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_product_views_product ON product_views(product_id);
         CREATE INDEX IF NOT EXISTS idx_site_visitors_last_seen ON site_visitors(last_seen_at DESC);
+        ALTER TABLE site_visitors ADD COLUMN IF NOT EXISTS ip_address TEXT NOT NULL DEFAULT '';
+        ALTER TABLE site_visitors ADD COLUMN IF NOT EXISTS city TEXT NOT NULL DEFAULT '';
+        ALTER TABLE site_visitors ADD COLUMN IF NOT EXISTS region TEXT NOT NULL DEFAULT '';
+        ALTER TABLE site_visitors ADD COLUMN IF NOT EXISTS country TEXT NOT NULL DEFAULT '';
+        ALTER TABLE site_visitors ADD COLUMN IF NOT EXISTS device_type TEXT NOT NULL DEFAULT '';
+        ALTER TABLE site_visitors ADD COLUMN IF NOT EXISTS browser_name TEXT NOT NULL DEFAULT '';
+        ALTER TABLE site_visitors ADD COLUMN IF NOT EXISTS os_name TEXT NOT NULL DEFAULT '';
+        ALTER TABLE site_visitors ADD COLUMN IF NOT EXISTS user_agent TEXT NOT NULL DEFAULT '';
+        ALTER TABLE site_visitors ADD COLUMN IF NOT EXISTS referrer TEXT NOT NULL DEFAULT '';
       `);
       await migrateFromJsonIfEmpty();
     },
@@ -1207,16 +1250,41 @@ function createPostgresDatabase() {
     async listBugReports() {
       return (await query("SELECT * FROM bug_reports ORDER BY created_at DESC LIMIT 200")).rows.map(camelBugReport);
     },
-    async recordSiteVisit(visitorKey, pathName, userId = null) {
+    async recordSiteVisit(visitorKey, pathName, userId = null, metadata = {}) {
       await query(`
-        INSERT INTO site_visitors (visitor_key, visit_count, first_seen_at, last_seen_at, last_path, user_id)
-        VALUES ($1, 1, NOW(), NOW(), $2, $3)
+        INSERT INTO site_visitors (
+          visitor_key, visit_count, first_seen_at, last_seen_at, last_path, user_id,
+          ip_address, city, region, country, device_type, browser_name, os_name, user_agent, referrer
+        )
+        VALUES ($1, 1, NOW(), NOW(), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         ON CONFLICT (visitor_key) DO UPDATE SET
           visit_count = site_visitors.visit_count + 1,
           last_seen_at = NOW(),
           last_path = EXCLUDED.last_path,
-          user_id = COALESCE(site_visitors.user_id, EXCLUDED.user_id)
-      `, [visitorKey, pathName || "", userId || null]);
+          user_id = COALESCE(site_visitors.user_id, EXCLUDED.user_id),
+          ip_address = COALESCE(NULLIF(site_visitors.ip_address, ''), EXCLUDED.ip_address),
+          city = COALESCE(NULLIF(site_visitors.city, ''), EXCLUDED.city),
+          region = COALESCE(NULLIF(site_visitors.region, ''), EXCLUDED.region),
+          country = COALESCE(NULLIF(site_visitors.country, ''), EXCLUDED.country),
+          device_type = COALESCE(NULLIF(site_visitors.device_type, ''), EXCLUDED.device_type),
+          browser_name = COALESCE(NULLIF(site_visitors.browser_name, ''), EXCLUDED.browser_name),
+          os_name = COALESCE(NULLIF(site_visitors.os_name, ''), EXCLUDED.os_name),
+          user_agent = COALESCE(NULLIF(site_visitors.user_agent, ''), EXCLUDED.user_agent),
+          referrer = COALESCE(NULLIF(site_visitors.referrer, ''), EXCLUDED.referrer)
+      `, [
+        visitorKey,
+        pathName || "",
+        userId || null,
+        metadata.ipAddress || "",
+        metadata.city || "",
+        metadata.region || "",
+        metadata.country || "",
+        metadata.deviceType || "",
+        metadata.browserName || "",
+        metadata.osName || "",
+        metadata.userAgent || "",
+        metadata.referrer || ""
+      ]);
     },
     async recordProductView(productId, visitorKey, userId = null) {
       await query(`
@@ -1247,6 +1315,29 @@ function createPostgresDatabase() {
         };
       });
       return metrics;
+    },
+    async listVisitors(limit = 100) {
+      const result = await query(`
+        SELECT visitor_key AS "visitorKey",
+               visit_count AS "visitCount",
+               first_seen_at AS "firstSeenAt",
+               last_seen_at AS "lastSeenAt",
+               last_path AS "lastPath",
+               user_id AS "userId",
+               ip_address AS "ipAddress",
+               city,
+               region,
+               country,
+               device_type AS "deviceType",
+               browser_name AS "browserName",
+               os_name AS "osName",
+               user_agent AS "userAgent",
+               referrer
+        FROM site_visitors
+        ORDER BY last_seen_at DESC
+        LIMIT $1
+      `, [Math.max(1, Number(limit) || 100)]);
+      return result.rows;
     },
     async listUsers() {
       return (await query(`
@@ -1513,7 +1604,8 @@ async function recordSiteVisit(req, res, pathName = req.path) {
   try {
     const visitorKey = ensureVisitorKey(req, res);
     const user = await currentUser(req);
-    await db.recordSiteVisit(visitorKey, pathName, user?.id || null);
+    const metadata = await visitorMetadata(req);
+    await db.recordSiteVisit(visitorKey, pathName, user?.id || null, metadata);
     return visitorKey;
   } catch (error) {
     console.error("Could not record site visit", error);
@@ -1530,6 +1622,112 @@ async function recordProductView(req, res, productId) {
   } catch (error) {
     console.error("Could not record product view", error);
   }
+}
+
+const geoLookupCache = new Map();
+
+function clientIpAddress(req) {
+  const forwarded = String(req.get("x-forwarded-for") || "").split(",")[0].trim();
+  const raw = forwarded
+    || String(req.get("cf-connecting-ip") || "").trim()
+    || String(req.get("x-real-ip") || "").trim()
+    || String(req.ip || "").trim();
+  const normalized = raw.replace(/^::ffff:/, "").replace(/^\[|\]$/g, "");
+  if (!normalized || normalized === "::1") return "127.0.0.1";
+  return normalized;
+}
+
+function privateIpAddress(ipAddress = "") {
+  const ip = String(ipAddress || "").toLowerCase();
+  if (!ip) return true;
+  if (ip === "127.0.0.1" || ip === "::1") return true;
+  if (ip.startsWith("10.") || ip.startsWith("192.168.") || ip.startsWith("169.254.")) return true;
+  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(ip)) return true;
+  if (ip.startsWith("fc") || ip.startsWith("fd") || ip.startsWith("fe80:")) return true;
+  return false;
+}
+
+function parseDeviceContext(userAgent = "") {
+  const ua = String(userAgent || "");
+  const lower = ua.toLowerCase();
+  const deviceType = /ipad|tablet|playbook|silk/.test(lower)
+    ? "tablet"
+    : /mobi|iphone|ipod|android/.test(lower)
+      ? "mobile"
+      : /bot|spider|crawl|slurp/.test(lower)
+        ? "bot"
+        : "desktop";
+  const browserName = /edg\//i.test(ua)
+    ? "Edge"
+    : /chrome\//i.test(ua) && !/edg\//i.test(ua)
+      ? "Chrome"
+      : /safari\//i.test(ua) && !/chrome\//i.test(ua)
+        ? "Safari"
+        : /firefox\//i.test(ua)
+          ? "Firefox"
+          : /opr\//i.test(ua)
+            ? "Opera"
+            : /msie|trident/i.test(ua)
+              ? "Internet Explorer"
+              : "Other";
+  const osName = /windows nt/i.test(ua)
+    ? "Windows"
+    : /android/i.test(ua)
+      ? "Android"
+      : /iphone|ipad|ipod/i.test(ua)
+        ? "iOS"
+        : /mac os x/i.test(ua)
+          ? "macOS"
+          : /linux/i.test(ua)
+            ? "Linux"
+            : "Other";
+  return { deviceType, browserName, osName };
+}
+
+async function geoLookup(ipAddress) {
+  if (!ipAddress || privateIpAddress(ipAddress)) return { city: "", region: "", country: "" };
+  if (geoLookupCache.has(ipAddress)) return geoLookupCache.get(ipAddress);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 1800);
+  try {
+    const response = await fetch(`https://ipwho.is/${encodeURIComponent(ipAddress)}`, {
+      signal: controller.signal,
+      headers: { "user-agent": "selltomakemoney.com Analytics/1.0" }
+    });
+    const payload = await response.json();
+    const result = payload && payload.success !== false
+      ? {
+          city: String(payload.city || "").trim(),
+          region: String(payload.region || "").trim(),
+          country: String(payload.country || "").trim()
+        }
+      : { city: "", region: "", country: "" };
+    geoLookupCache.set(ipAddress, result);
+    return result;
+  } catch (_error) {
+    return { city: "", region: "", country: "" };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function visitorMetadata(req) {
+  const ipAddress = clientIpAddress(req);
+  const userAgent = String(req.get("user-agent") || "").trim();
+  const referrer = String(req.get("referer") || "").trim();
+  const { city, region, country } = await geoLookup(ipAddress);
+  const { deviceType, browserName, osName } = parseDeviceContext(userAgent);
+  return {
+    ipAddress,
+    city,
+    region,
+    country,
+    deviceType,
+    browserName,
+    osName,
+    userAgent,
+    referrer
+  };
 }
 
 app.use("/uploads", express.static(UPLOAD_DIR, {
@@ -1587,6 +1785,61 @@ async function sendCatalog(req, res) {
 async function sendDealers(req, res) {
   await recordSiteVisit(req, res, "/dealers");
   res.sendFile(path.join(ROOT, "public", "dealers.html"));
+}
+
+async function sendPrivacyPage(req, res) {
+  await recordSiteVisit(req, res, "/privacy");
+  const currentYear = new Date().getFullYear();
+  res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Privacy notice for selltomakemoney.com visitor analytics, account data, checkout requests, and inventory activity tracking.">
+  <meta name="robots" content="index,follow">
+  <title>Privacy | selltomakemoney.com</title>
+  <link rel="stylesheet" href="/styles.css?v=storefront-uniform-6">
+</head>
+<body>
+  <header class="topbar catalog-topbar">
+    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=storefront-uniform-6" alt="selltomakemoney.com"></a>
+    <nav><a class="nav-button" href="/desktop">Store</a><a class="nav-button" href="/catalog">Catalog</a><a class="nav-button" href="/dealers">Dealer Info</a></nav>
+  </header>
+  <main>
+    <section class="panel privacy-page">
+      <p class="eyebrow">Privacy</p>
+      <h1>Visitor tracking notice</h1>
+      <p>When you use selltomakemoney.com, we collect operational and analytics data to run the site, protect it, understand traffic, and see which listings are drawing interest.</p>
+      <h2>What we track</h2>
+      <ul>
+        <li>Visits to the site and product pages</li>
+        <li>IP address</li>
+        <li>Approximate city, region, and country derived from IP address</li>
+        <li>Device type, browser, operating system, and user agent</li>
+        <li>Referrer, last page visited, and timestamps</li>
+        <li>Account, cart, checkout, and inquiry activity when you choose to use those features</li>
+      </ul>
+      <h2>Why we track it</h2>
+      <ul>
+        <li>To keep the site running and defend against abuse</li>
+        <li>To understand return visitors and listing interest</li>
+        <li>To improve catalog layout, checkout flow, and product merchandising</li>
+        <li>To support customer service, follow-up, and order handling</li>
+      </ul>
+      <h2>How it is used</h2>
+      <p>We use this data as first-party site analytics and operational logging. We may review aggregate traffic, per-listing popularity, and recent visitor activity in the admin tools.</p>
+      <h2>Your use of the site</h2>
+      <p>By continuing to use this site, you acknowledge this tracking and the collection of the information described above. If you do not want this information collected, please do not use the site.</p>
+      <h2>Questions</h2>
+      <p>For privacy questions, contact the site operator through the contact details shared during checkout or account communication.</p>
+    </section>
+  </main>
+  <footer class="site-footer">
+    <div><strong>selltomakemoney.com</strong><span>Visitor analytics and operational tracking are active on this site.</span></div>
+    <div>Copyright &copy; ${currentYear} selltomakemoney.com. All rights reserved.</div>
+  </footer>
+</body>
+</html>`);
 }
 
 function escapeHtml(value) {
@@ -1875,12 +2128,12 @@ async function sendProductPage(req, res) {
   ${absoluteImage ? `<meta name="twitter:image" content="${escapeHtml(absoluteImage)}">` : ""}
   <title>${escapeHtml(title)}</title>
   <script type="application/ld+json">${safeJsonScript(productJsonLd(product, canonicalUrl, absoluteImage))}</script>
-  <link rel="stylesheet" href="/styles.css?v=sell-share-tools-1">
+  <link rel="stylesheet" href="/styles.css?v=storefront-uniform-6">
 </head>
 <body>
   <header class="topbar catalog-topbar">
-    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=sell-share-tools-1" alt="selltomakemoney.com"></a>
-    <nav><a class="nav-button" href="/desktop">Store</a><a class="nav-button" href="/catalog">Catalog</a><a class="nav-button primary" href="/desktop#cart">Checkout</a></nav>
+    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=storefront-uniform-6" alt="selltomakemoney.com"></a>
+    <nav><a class="nav-button" href="/desktop">Store</a><a class="nav-button" href="/catalog">Catalog</a><a class="nav-button" href="/privacy">Privacy</a><a class="nav-button primary" href="/desktop#cart">Checkout</a></nav>
   </header>
   <main>
     <article class="product-detail">
@@ -1911,7 +2164,7 @@ async function sendProductPage(req, res) {
   <footer class="site-footer">
     <div>
       <strong>selltomakemoney.com</strong>
-      <span>Public deals, Mississauga pickup, and select shippable inventory.</span>
+      <span>Public deals, Mississauga pickup, and select shippable inventory. Visitor analytics are active. <a href="/privacy">Privacy</a></span>
     </div>
     <div>Copyright &copy; ${currentYear} selltomakemoney.com. All rights reserved.</div>
   </footer>
@@ -2610,6 +2863,10 @@ app.get("/api/admin/summary", requireAdmin, async (_req, res) => {
   res.json(await db.summary());
 });
 
+app.get("/api/admin/visitors", requireAdmin, async (_req, res) => {
+  res.json({ visitors: await db.listVisitors(100) });
+});
+
 app.get("/api/admin/users", requireAdmin, async (_req, res) => {
   const users = (await db.listUsers()).map(({ passwordHash, ...user }) => user);
   res.json({ users });
@@ -2913,6 +3170,7 @@ app.get("/desktop", sendDesktopApp);
 app.get("/mobile", sendMobileApp);
 app.get("/catalog", sendCatalog);
 app.get("/dealers", sendDealers);
+app.get("/privacy", sendPrivacyPage);
 
 app.get("*", sendDesktopApp);
 

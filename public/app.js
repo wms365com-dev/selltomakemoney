@@ -58,6 +58,7 @@ let adminProductSearch = "";
 let adminProductMobileDetailOpen = false;
 let adminProductsCache = [];
 let adminSummary = null;
+let recentVisitors = [];
 let bulkProductSearch = "";
 let bulkNewRowSequence = 1;
 let activeFacebookListingProductId = null;
@@ -271,6 +272,44 @@ function renderAdminMetrics(summary) {
     <div class="panel admin-metric-card"><strong>${escapeHtml(summary.uniqueVisitors ?? 0)}</strong><span>Visitors</span></div>
     <div class="panel admin-metric-card"><strong>${escapeHtml(summary.listingViews ?? 0)}</strong><span>Listing views</span></div>
   `;
+}
+
+function formatDateTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString();
+}
+
+function visitorActivityItem(visitor) {
+  const location = [visitor.city, visitor.region, visitor.country].filter(Boolean).join(", ") || "Unknown location";
+  const device = [visitor.deviceType, visitor.browserName, visitor.osName].filter(Boolean).join(" | ") || "Unknown device";
+  return `
+    <article class="visitor-activity-item">
+      <div>
+        <strong>${escapeHtml(location)}</strong>
+        <span>${escapeHtml(device)}</span>
+      </div>
+      <div>
+        <strong>${escapeHtml(visitor.ipAddress || "Unknown IP")}</strong>
+        <span>${escapeHtml(visitor.visitCount ?? 0)} visits | Last page ${escapeHtml(visitor.lastPath || "/")}</span>
+      </div>
+      <div>
+        <strong>${escapeHtml(formatDateTime(visitor.lastSeenAt) || "Just now")}</strong>
+        <span>${escapeHtml(visitor.referrer || "Direct visit")}</span>
+      </div>
+    </article>
+  `;
+}
+
+function renderVisitorActivity(visitors) {
+  const host = document.querySelector("#visitorActivity");
+  if (!host) return;
+  if (!visitors?.length) {
+    host.innerHTML = "<p>No visitor activity yet.</p>";
+    return;
+  }
+  host.innerHTML = visitors.map((visitor) => visitorActivityItem(visitor)).join("");
 }
 
 function facebookProductListItem(product, isSelected = false) {
@@ -1189,21 +1228,24 @@ async function loadAdmin() {
   const adminProducts = document.querySelector("#adminProducts");
   if (adminProducts) adminProducts.innerHTML = loadingRows(3);
   adminRequest = withStatus("Loading products...", async () => {
-    const [products, summary] = await Promise.all([
+    const [products, summary, visitors] = await Promise.all([
       api("/api/admin/products"),
-      api("/api/admin/summary")
+      api("/api/admin/summary"),
+      api("/api/admin/visitors")
     ]);
-    return { products, summary };
+    return { products, summary, visitors };
   });
-  const { products, summary } = await adminRequest;
+  const { products, summary, visitors } = await adminRequest;
   adminRequest = null;
 
   adminSummary = summary;
+  recentVisitors = visitors.visitors || [];
   adminProductsCache = products.products;
   if (!selectedAdminProductId && adminProductsCache.length) {
     selectedAdminProductId = adminProductsCache[0].id;
   }
   renderAdminMetrics(adminSummary);
+  renderVisitorActivity(recentVisitors);
   renderAdminProducts(adminProductsCache);
   renderBulkProductEditor(adminProductsCache);
   renderFacebookMobilePage(adminProductsCache);

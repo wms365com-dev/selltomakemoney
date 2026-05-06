@@ -51,12 +51,12 @@
       ]
     }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=storefront-uniform-5">
+  <link rel="stylesheet" href="/styles.css?v=storefront-uniform-6">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#store" data-route="store" aria-label="selltomakemoney.com home">
-      <img src="/assets/logo.svg?v=storefront-uniform-5" alt="selltomakemoney.com">
+      <img src="/assets/logo.svg?v=storefront-uniform-6" alt="selltomakemoney.com">
     </a>
     <div class="header-actions">
       <button class="cart-icon-button" type="button" data-route="cart" aria-label="Open cart">
@@ -72,6 +72,7 @@
             <button class="nav-button signed-out" data-route="login">Login</button>
             <button class="nav-button signed-out" data-route="register">Register</button>
             <a class="nav-button" href="/dealers">Dealer Info</a>
+            <a class="nav-button" href="/privacy">Privacy</a>
             <button class="nav-button" data-route="cart">Cart</button>
             <button class="nav-button admin-only hidden" data-route="admin">Admin</button>
             <button class="nav-button admin-only hidden mobile-only-nav" data-route="facebook">Facebook</button>
@@ -399,6 +400,16 @@
               <p class="form-message" id="bulkProductMessage"></p>
             </form>
           </section>
+          <section class="panel visitor-activity-panel">
+            <div class="admin-workspace-head">
+              <div>
+                <p class="eyebrow">Visitor tracking</p>
+                <h2>Recent visitors</h2>
+                <p class="admin-panel-subhead">Recent traffic with device, location, IP, and last page viewed.</p>
+              </div>
+            </div>
+            <div id="visitorActivity" class="stack"></div>
+          </section>
         </div>
       </div>
     </section>
@@ -428,11 +439,11 @@
     </div>
     <div>
       <strong>selltomakemoney.com</strong>
-      <span>Public deals, Mississauga pickup, and select shippable inventory.</span>
+      <span>Public deals, Mississauga pickup, and select shippable inventory. Visitor analytics are active. <a href="/privacy">Privacy</a></span>
     </div>
     <div>Copyright &copy; <span data-year>2026</span> selltomakemoney.com. All rights reserved.</div>
   </footer>
 
-  <script src="/app.js?v=storefront-uniform-5"></script>
+  <script src="/app.js?v=storefront-uniform-6"></script>
 </body>
 </html>
