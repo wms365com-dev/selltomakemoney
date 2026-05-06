@@ -541,6 +541,12 @@ function emptyJsonStore() {
   };
 }
 
+function normalizeAccountType(value, fallback = "shopper") {
+  return ["shopper", "dealer"].includes(String(value || "").trim().toLowerCase())
+    ? String(value || "").trim().toLowerCase()
+    : fallback;
+}
+
 function readJsonStore() {
   if (!fs.existsSync(DB_PATH)) return emptyJsonStore();
   const data = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
@@ -564,6 +570,10 @@ function readJsonStore() {
     imageUrls: product.imageUrls || (product.imageUrl ? [product.imageUrl] : []),
     recommendedAddonIds: product.recommendedAddonIds || [],
     ...product
+  }));
+  data.users = (data.users || []).map((user) => ({
+    accountType: user.role === "admin" ? "admin" : normalizeAccountType(user.accountType, user.role === "dealer" ? "dealer" : "shopper"),
+    ...user
   }));
   return data;
 }
@@ -595,7 +605,8 @@ function createJsonDatabase() {
         contactName: "K. Prathab",
         phone: "",
         status: "approved",
-        role: "admin"
+        role: "admin",
+        accountType: "admin"
       });
     },
     async seedProducts() {
@@ -732,6 +743,13 @@ function createJsonDatabase() {
       writeJsonStore(store);
       return user;
     },
+    async updateUserAccountType(id, accountType) {
+      const user = store.users.find((item) => item.id === Number(id) && item.role !== "admin");
+      if (!user) return null;
+      user.accountType = normalizeAccountType(accountType, user.accountType || "shopper");
+      writeJsonStore(store);
+      return user;
+    },
     async listProducts({ activeOnly = false } = {}) {
       const products = store.products.filter((product) => !activeOnly || product.active);
       return products.sort((a, b) => b.id - a.id);
@@ -852,6 +870,7 @@ function camelUser(row) {
     phone: row.phone,
     status: row.status,
     role: row.role,
+    accountType: row.account_type || row.accountType || (row.role === "admin" ? "admin" : "shopper"),
     createdAt: row.created_at
   };
 }
@@ -1062,6 +1081,7 @@ function createPostgresDatabase() {
           phone TEXT NOT NULL DEFAULT '',
           status TEXT NOT NULL DEFAULT 'pending',
           role TEXT NOT NULL DEFAULT 'dealer',
+          account_type TEXT NOT NULL DEFAULT 'shopper',
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
         CREATE TABLE IF NOT EXISTS products (
@@ -1176,6 +1196,7 @@ function createPostgresDatabase() {
         ALTER TABLE products ADD COLUMN IF NOT EXISTS recommended_addon_ids TEXT NOT NULL DEFAULT '[]';
         ALTER TABLE alert_leads ADD COLUMN IF NOT EXISTS first_name TEXT NOT NULL DEFAULT '';
         ALTER TABLE alert_leads ADD COLUMN IF NOT EXISTS last_name TEXT NOT NULL DEFAULT '';
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS account_type TEXT NOT NULL DEFAULT 'shopper';
         CREATE INDEX IF NOT EXISTS idx_products_search ON products USING gin(to_tsvector('english', name || ' ' || description || ' ' || sku || ' ' || upc || ' ' || brand));
         CREATE INDEX IF NOT EXISTS idx_price_comparisons_product ON price_comparisons(product_id);
         CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
@@ -1199,8 +1220,8 @@ function createPostgresDatabase() {
       const existing = await this.getUserByEmail(ADMIN_EMAIL);
       if (existing) return;
       await query(`
-        INSERT INTO users (email, password_hash, company, contact_name, status, role)
-        VALUES ($1,$2,'Owner','K. Prathab','approved','admin')
+        INSERT INTO users (email, password_hash, company, contact_name, status, role, account_type)
+        VALUES ($1,$2,'Owner','K. Prathab','approved','admin','admin')
       `, [ADMIN_EMAIL, bcrypt.hashSync(ADMIN_PASSWORD, 12)]);
     },
     async seedProducts() {
@@ -1216,9 +1237,9 @@ function createPostgresDatabase() {
     },
     async createUser(user) {
       const result = await query(`
-        INSERT INTO users (email, password_hash, company, contact_name, phone, status, role)
-        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *
-      `, [user.email, user.passwordHash, user.company, user.contactName, user.phone, user.status, user.role]);
+        INSERT INTO users (email, password_hash, company, contact_name, phone, status, role, account_type)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *
+      `, [user.email, user.passwordHash, user.company, user.contactName, user.phone, user.status, user.role, normalizeAccountType(user.accountType, user.role === "admin" ? "admin" : "shopper")]);
       return camelUser(result.rows[0]);
     },
     async createAlertLead(lead) {
@@ -1357,6 +1378,10 @@ function createPostgresDatabase() {
     },
     async updateUserStatus(id, status) {
       const result = await query("UPDATE users SET status = $1 WHERE id = $2 AND role != 'admin' RETURNING *", [status, id]);
+      return camelUser(result.rows[0]);
+    },
+    async updateUserAccountType(id, accountType) {
+      const result = await query("UPDATE users SET account_type = $1 WHERE id = $2 AND role != 'admin' RETURNING *", [normalizeAccountType(accountType), id]);
       return camelUser(result.rows[0]);
     },
     async listProducts({ activeOnly = false } = {}) {
@@ -1783,6 +1808,11 @@ async function sendDealerApp(req, res) {
   res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "dealer"));
 }
 
+async function sendShopperApp(req, res) {
+  await recordSiteVisit(req, res, "/shopper");
+  res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "shopper"));
+}
+
 async function sendAdminApp(req, res) {
   await recordSiteVisit(req, res, "/admin");
   res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "admin"));
@@ -1914,7 +1944,7 @@ app.get("/robots.txt", (req, res) => {
 app.get("/sitemap.xml", async (req, res) => {
   const baseUrl = publicBaseUrl(req).replace(/\/$/, "");
   const products = await db.listProducts({ activeOnly: true });
-  const urls = ["", "/catalog", "/s/catalog", "/dealers", "/dealer", "/desktop", "/mobile", ...products.flatMap((product) => [productPath(product), shortProductPath(product)])];
+  const urls = ["", "/catalog", "/s/catalog", "/dealers", "/shopper", "/dealer", "/desktop", "/mobile", ...products.flatMap((product) => [productPath(product), shortProductPath(product)])];
   res.type("application/xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.map((url) => `  <url><loc>${baseUrl}${url}</loc><changefreq>${url.startsWith("/products/") ? "weekly" : "daily"}</changefreq><priority>${url === "" ? "1.0" : url.startsWith("/products/") ? "0.7" : "0.8"}</priority></url>`).join("\n")}
@@ -1941,7 +1971,8 @@ function publicUser(user) {
     phone: user.phone,
     status: user.status,
     role: user.role,
-    canSeePrices: user.status === "approved"
+    accountType: user.accountType || (user.role === "admin" ? "admin" : "shopper"),
+    canSeePrices: user.role === "admin" || (user.status === "approved" && (user.accountType || "shopper") === "dealer")
   };
 }
 
@@ -2740,7 +2771,8 @@ app.post("/api/register", async (req, res) => {
     contactName: contactName.trim(),
     phone: (phone || "").trim(),
     status: "pending",
-    role: "dealer"
+    role: "dealer",
+    accountType: "shopper"
   });
   res.status(201).json({ ok: true, message: "Registration sent. You can login after admin approval." });
 });
@@ -2914,10 +2946,17 @@ app.get("/api/admin/bug-reports", requireAdmin, async (_req, res) => {
 });
 
 app.patch("/api/admin/users/:id", requireAdmin, async (req, res) => {
-  if (!["pending", "approved", "rejected"].includes(req.body.status)) return res.status(400).json({ error: "Invalid status." });
-  const user = await db.updateUserStatus(Number(req.params.id), req.body.status);
+  const userId = Number(req.params.id);
+  let user = null;
+  if (req.body.status) {
+    if (!["pending", "approved", "rejected"].includes(req.body.status)) return res.status(400).json({ error: "Invalid status." });
+    user = await db.updateUserStatus(userId, req.body.status);
+  }
+  if (req.body.accountType) {
+    user = await db.updateUserAccountType(userId, req.body.accountType);
+  }
   if (!user) return res.status(404).json({ error: "User not found." });
-  res.json({ ok: true });
+  res.json({ ok: true, user: publicUser(user) });
 });
 
 app.get("/api/admin/products", requireAdmin, async (_req, res) => {
@@ -3201,6 +3240,7 @@ app.get("/", (req, res) => {
 app.get("/products/:id/:slug?", sendProductPage);
 app.get("/desktop", sendDesktopApp);
 app.get("/mobile", sendMobileApp);
+app.get("/shopper", sendShopperApp);
 app.get("/dealer", sendDealerApp);
 app.get("/admin", sendAdminApp);
 app.get("/catalog", sendCatalog);

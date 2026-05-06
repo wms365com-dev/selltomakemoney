@@ -73,6 +73,7 @@
             <button class="nav-button signed-out" data-route="register">Register</button>
             <a class="nav-button" href="/dealers">Dealer Info</a>
             <a class="nav-button" href="/privacy">Privacy</a>
+            <a class="nav-button shopper-only hidden" href="/shopper">Shopper</a>
             <a class="nav-button dealer-only hidden" href="/dealer">Dealer</a>
             <button class="nav-button" data-route="cart">Cart</button>
             <a class="nav-button admin-only hidden" href="/admin">Admin</a>
@@ -371,6 +372,16 @@
           </form>
         </section>
         <div class="admin-secondary-column wide">
+          <section class="panel admin-users-panel">
+            <div class="admin-workspace-head">
+              <div>
+                <p class="eyebrow">User management</p>
+                <h2>Users</h2>
+                <p class="admin-panel-subhead">Approve accounts and assign each user as a shopper or dealer.</p>
+              </div>
+            </div>
+            <div id="adminUsers" class="stack"></div>
+          </section>
           <section class="panel admin-products-panel">
             <div class="admin-workspace-head">
               <div>

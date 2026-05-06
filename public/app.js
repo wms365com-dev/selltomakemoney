@@ -64,6 +64,7 @@ let adminProductMobileDetailOpen = false;
 let adminProductsCache = [];
 let adminSummary = null;
 let recentVisitors = [];
+let adminUsersCache = [];
 let bulkProductSearch = "";
 let bulkNewRowSequence = 1;
 let activeFacebookListingProductId = null;
@@ -160,8 +161,12 @@ function setRoute(route) {
     window.location.hash = "login";
     return setRoute("login");
   }
+  if (requestedRoute === "shopper" && !sessionUser) {
+    window.location.hash = "login";
+    return setRoute("login");
+  }
   const visibleRoute = requestedRoute === "dealer" ? "store" : requestedRoute;
-  currentStoreMode = requestedRoute === "dealer" ? "dealer" : "store";
+  currentStoreMode = requestedRoute === "dealer" ? "dealer" : requestedRoute === "shopper" ? "shopper" : "store";
   document.body.dataset.storeMode = currentStoreMode;
   Object.entries(views).forEach(([name, element]) => element.classList.toggle("hidden", name !== visibleRoute));
   if (visibleRoute === "store") loadProducts(currentStoreMode);
@@ -175,8 +180,9 @@ function setRoute(route) {
 
 function routeFromHash() {
   const route = window.location.hash.replace("#", "");
-  if (route) return views[route] ? route : (route === "dealer" ? "dealer" : "store");
+  if (route) return views[route] ? route : (route === "dealer" || route === "shopper" ? route : "store");
   if (window.__ENTRY_ROUTE === "dealer") return "dealer";
+  if (window.__ENTRY_ROUTE === "shopper") return "shopper";
   if (window.__ENTRY_ROUTE === "admin") return "admin";
   return "store";
 }
@@ -186,6 +192,7 @@ function updateNav() {
   document.querySelectorAll(".signed-in").forEach((item) => item.classList.toggle("hidden", !signedIn));
   document.querySelectorAll(".signed-out").forEach((item) => item.classList.toggle("hidden", signedIn));
   document.querySelectorAll(".admin-only").forEach((item) => item.classList.toggle("hidden", sessionUser?.role !== "admin"));
+  document.querySelectorAll(".shopper-only").forEach((item) => item.classList.toggle("hidden", sessionUser?.accountType !== "shopper"));
   document.querySelectorAll(".dealer-only").forEach((item) => item.classList.toggle("hidden", !(sessionUser?.canSeePrices || sessionUser?.role === "admin")));
   updateCartCount();
 }
@@ -331,6 +338,44 @@ function renderVisitorActivity(visitors) {
     return;
   }
   host.innerHTML = visitors.map((visitor) => visitorActivityItem(visitor)).join("");
+}
+
+function adminUserItem(user) {
+  const accountType = user.accountType || "shopper";
+  const userStatus = user.status || "pending";
+  return `
+    <article class="admin-user-item">
+      <div>
+        <strong>${escapeHtml(user.contactName || user.company || user.email)}</strong>
+        <span>${escapeHtml(user.email)}${user.company ? ` | ${escapeHtml(user.company)}` : ""}</span>
+      </div>
+      <div class="admin-user-controls">
+        <label>Type
+          <select data-user-account-type="${user.id}">
+            <option value="shopper" ${accountType === "shopper" ? "selected" : ""}>Shopper</option>
+            <option value="dealer" ${accountType === "dealer" ? "selected" : ""}>Dealer</option>
+          </select>
+        </label>
+        <label>Status
+          <select data-user-status="${user.id}">
+            <option value="pending" ${userStatus === "pending" ? "selected" : ""}>Pending</option>
+            <option value="approved" ${userStatus === "approved" ? "selected" : ""}>Approved</option>
+            <option value="rejected" ${userStatus === "rejected" ? "selected" : ""}>Rejected</option>
+          </select>
+        </label>
+      </div>
+    </article>
+  `;
+}
+
+function renderAdminUsers(users) {
+  const host = document.querySelector("#adminUsers");
+  if (!host) return;
+  if (!users?.length) {
+    host.innerHTML = "<p>No users yet.</p>";
+    return;
+  }
+  host.innerHTML = users.map((user) => adminUserItem(user)).join("");
 }
 
 function facebookProductListItem(product, isSelected = false) {
@@ -1157,22 +1202,27 @@ function renderProducts(canSeePrices = false) {
 
 function applyStoreModeCopy(canSeePrices = false) {
   const dealerMode = currentStoreMode === "dealer";
-  if (storeEyebrow) storeEyebrow.textContent = dealerMode ? "Dealer pricing" : "Inventory catalog";
-  if (storeHeading) storeHeading.textContent = dealerMode ? "Dealer products" : "Current products";
+  const shopperMode = currentStoreMode === "shopper";
+  if (storeEyebrow) storeEyebrow.textContent = dealerMode ? "Dealer pricing" : shopperMode ? "Shopper account" : "Inventory catalog";
+  if (storeHeading) storeHeading.textContent = dealerMode ? "Dealer products" : shopperMode ? "Shopper products" : "Current products";
   if (storeHeroCopy) {
     storeHeroCopy.textContent = dealerMode
       ? "Dealer account view. Compare dealer pricing against retail, review listing interest, and add items to your cart."
-      : "Browse available items, compare retail links, and add items to your cart. Checkout requires an account.";
+      : shopperMode
+        ? "Shopper account view. Save your cart, check out faster, and keep your buying separate from the public storefront."
+        : "Browse available items, compare retail links, and add items to your cart. Checkout requires an account.";
   }
   if (priceNote) {
     priceNote.textContent = dealerMode
       ? "Dealer account pricing is active. If dealer price is missing on an item, contact the person that sent you the link."
-      : (canSeePrices
+      : shopperMode
+        ? "Shopper account is active. Public pricing is shown here for checkout and saved activity."
+        : (canSeePrices
         ? "Account pricing is visible on your approved account."
         : "Public pricing is visible. Create an account before checkout. Pickup is currently in Mississauga only.");
   }
   if (shareCatalogButton) {
-    shareCatalogButton.textContent = dealerMode ? "Share dealer page" : "Share catalog";
+    shareCatalogButton.textContent = dealerMode ? "Share dealer page" : shopperMode ? "Share shopper page" : "Share catalog";
   }
 }
 
@@ -1295,23 +1345,26 @@ async function loadAdmin() {
   const adminProducts = document.querySelector("#adminProducts");
   if (adminProducts) adminProducts.innerHTML = loadingRows(3);
   adminRequest = withStatus("Loading products...", async () => {
-    const [products, summary, visitors] = await Promise.all([
+    const [products, summary, visitors, users] = await Promise.all([
       api("/api/admin/products"),
       api("/api/admin/summary"),
-      api("/api/admin/visitors")
+      api("/api/admin/visitors"),
+      api("/api/admin/users")
     ]);
-    return { products, summary, visitors };
+    return { products, summary, visitors, users };
   });
-  const { products, summary, visitors } = await adminRequest;
+  const { products, summary, visitors, users } = await adminRequest;
   adminRequest = null;
 
   adminSummary = summary;
   recentVisitors = visitors.visitors || [];
+  adminUsersCache = users.users || [];
   adminProductsCache = products.products;
   if (!selectedAdminProductId && adminProductsCache.length) {
     selectedAdminProductId = adminProductsCache[0].id;
   }
   renderAdminMetrics(adminSummary);
+  renderAdminUsers(adminUsersCache);
   renderVisitorActivity(recentVisitors);
   renderAdminProducts(adminProductsCache);
   renderBulkProductEditor(adminProductsCache);
@@ -1516,21 +1569,6 @@ document.addEventListener("click", async (event) => {
     renderCart();
   }
 
-  const userId = event.target.closest("[data-user]")?.dataset.user;
-  const status = event.target.closest("[data-status]")?.dataset.status;
-  if (userId && status) {
-    const restore = setButtonBusy(event.target.closest("[data-user]"), status === "approved" ? "Approving..." : "Saving...");
-    try {
-      await withStatus("Updating dealer status...", () => api(`/api/admin/users/${userId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status })
-      }));
-      await loadAdmin();
-    } finally {
-      restore();
-    }
-  }
-
   const productId = event.target.closest("[data-inquire]")?.dataset.inquire;
   if (productId) {
     const button = event.target.closest("[data-inquire]");
@@ -1627,6 +1665,41 @@ document.addEventListener("click", async (event) => {
   }
 });
 
+document.addEventListener("change", async (event) => {
+  const userStatusSelect = event.target.closest("[data-user-status]");
+  if (userStatusSelect) {
+    const userStatusId = userStatusSelect.dataset.userStatus;
+    const status = userStatusSelect.value;
+    const restore = setButtonBusy(userStatusSelect, status === "approved" ? "Approving..." : "Saving...");
+    try {
+      await withStatus("Updating user status...", () => api(`/api/admin/users/${userStatusId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status })
+      }));
+      await loadAdmin();
+    } finally {
+      restore();
+    }
+    return;
+  }
+
+  const userAccountTypeSelect = event.target.closest("[data-user-account-type]");
+  if (userAccountTypeSelect) {
+    const userAccountTypeId = userAccountTypeSelect.dataset.userAccountType;
+    const accountType = userAccountTypeSelect.value;
+    const restore = setButtonBusy(userAccountTypeSelect, "Saving...");
+    try {
+      await withStatus("Updating user type...", () => api(`/api/admin/users/${userAccountTypeId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ accountType })
+      }));
+      await loadAdmin();
+    } finally {
+      restore();
+    }
+  }
+});
+
 document.querySelector("#loginForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const message = document.querySelector("#loginMessage");
@@ -1641,8 +1714,10 @@ document.querySelector("#loginForm").addEventListener("submit", async (event) =>
     updateNav();
     if (sessionUser.role === "admin") {
       window.location.assign("/admin");
-    } else if (sessionUser.canSeePrices) {
+    } else if (sessionUser.accountType === "dealer") {
       window.location.assign("/dealer");
+    } else if (sessionUser.accountType === "shopper") {
+      window.location.assign("/shopper");
     } else {
       setRoute("store");
     }

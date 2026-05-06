@@ -1453,6 +1453,34 @@ body:not([data-view="mobile"]) .mobile-listing-quickbar {
   font-size: 0.92rem;
 }
 
+.admin-user-item {
+  display: grid;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.admin-user-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.admin-user-item > div {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-user-item span {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.admin-user-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .admin-secondary-column {
   display: grid;
   gap: 18px;
@@ -2602,6 +2630,10 @@ body[data-view="mobile"] .admin-simple-layout {
 }
 
 body[data-view="mobile"] .admin-metrics-strip {
+  grid-template-columns: 1fr;
+}
+
+body[data-view="mobile"] .admin-user-controls {
   grid-template-columns: 1fr;
 }
 
