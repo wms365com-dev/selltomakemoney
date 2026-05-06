@@ -51,12 +51,12 @@
       ]
     }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=storefront-uniform-7">
+  <link rel="stylesheet" href="/styles.css?v=storefront-uniform-8">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#store" data-route="store" aria-label="selltomakemoney.com home">
-      <img src="/assets/logo.svg?v=storefront-uniform-7" alt="selltomakemoney.com">
+            <img src="/assets/logo.svg?v=storefront-uniform-8" alt="selltomakemoney.com">
     </a>
     <div class="header-actions">
       <button class="cart-icon-button" type="button" data-route="cart" aria-label="Open cart">
@@ -415,10 +415,41 @@
           <section class="panel visitor-activity-panel">
             <div class="admin-workspace-head">
               <div>
-                <p class="eyebrow">Visitor tracking</p>
-                <h2>Recent visitors</h2>
-                <p class="admin-panel-subhead">Recent traffic with device, location, IP, and last page viewed.</p>
+                <p class="eyebrow">Analytics</p>
+                <h2>Visitor activity</h2>
+                <p class="admin-panel-subhead">Grouped traffic, last 10 visitors, and today by hour.</p>
               </div>
+            </div>
+            <div class="visitor-analytics-toolbar">
+              <label>Country
+                <input id="visitorCountryFilter" type="search" placeholder="Canada, USA...">
+              </label>
+              <label>Device
+                <select id="visitorDeviceFilter">
+                  <option value="">All devices</option>
+                  <option value="desktop">Desktop</option>
+                  <option value="mobile">Mobile</option>
+                  <option value="tablet">Tablet</option>
+                  <option value="bot">Bot</option>
+                </select>
+              </label>
+              <label>Page
+                <select id="visitorPathFilter">
+                  <option value="">All pages</option>
+                  <option value="/desktop">Public store</option>
+                  <option value="/shopper">Shopper</option>
+                  <option value="/dealer">Dealer</option>
+                  <option value="/admin">Admin</option>
+                  <option value="/catalog">Catalog</option>
+                  <option value="/product/">Product pages</option>
+                </select>
+              </label>
+            </div>
+            <div id="visitorAnalyticsSummary" class="visitor-analytics-summary"></div>
+            <div id="visitorHourlyChart" class="visitor-hourly-chart"></div>
+            <div class="visitor-activity-list-head">
+              <strong>Last 10 grouped visitors</strong>
+              <span>Latest matching visitors by location, device, and path.</span>
             </div>
             <div id="visitorActivity" class="stack"></div>
           </section>
@@ -456,6 +487,6 @@
     <div>Copyright &copy; <span data-year>2026</span> selltomakemoney.com. All rights reserved.</div>
   </footer>
 
-  <script src="/app.js?v=storefront-uniform-7"></script>
+  <script src="/app.js?v=storefront-uniform-8"></script>
 </body>
 </html>

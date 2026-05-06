@@ -64,12 +64,14 @@ let adminProductMobileDetailOpen = false;
 let adminProductsCache = [];
 let adminSummary = null;
 let recentVisitors = [];
+let visitorAnalytics = null;
 let adminUsersCache = [];
 let bulkProductSearch = "";
 let bulkNewRowSequence = 1;
 let activeFacebookListingProductId = null;
 let selectedFacebookProductId = null;
 let facebookProductSearch = "";
+let adminVisitorFilters = { country: "", deviceType: "", path: "" };
 
 function showStatus(message = "Working...") {
   statusDepth += 1;
@@ -330,6 +332,60 @@ function visitorActivityItem(visitor) {
   `;
 }
 
+function visitorSummaryCard(label, value) {
+  return `
+    <div class="panel visitor-summary-card">
+      <strong>${escapeHtml(value ?? 0)}</strong>
+      <span>${escapeHtml(label)}</span>
+    </div>
+  `;
+}
+
+function renderVisitorAnalyticsSummary(analytics) {
+  const host = document.querySelector("#visitorAnalyticsSummary");
+  if (!host) return;
+  if (!analytics) {
+    host.innerHTML = "";
+    return;
+  }
+  const topCountry = analytics.topCountries?.[0]?.country || "No location yet";
+  host.innerHTML = [
+    visitorSummaryCard("Today visits", analytics.todayVisits ?? 0),
+    visitorSummaryCard("Unique visitors today", analytics.uniqueVisitorsToday ?? 0),
+    visitorSummaryCard("Top country today", topCountry)
+  ].join("");
+}
+
+function renderVisitorHourlyChart(analytics) {
+  const host = document.querySelector("#visitorHourlyChart");
+  if (!host) return;
+  const hourly = analytics?.hourly || [];
+  if (!hourly.length) {
+    host.innerHTML = "<p class=\"muted\">No visitor activity yet for today.</p>";
+    return;
+  }
+  const maxVisits = Math.max(1, ...hourly.map((entry) => Number(entry.visits || 0)));
+  host.innerHTML = `
+    <div class="visitor-chart-head">
+      <strong>Today by hour</strong>
+      <span>${escapeHtml((analytics?.todayVisits ?? 0).toString())} total visits today</span>
+    </div>
+    <div class="visitor-chart-bars">
+      ${hourly.map((entry) => {
+        const visits = Number(entry.visits || 0);
+        const height = Math.max(10, Math.round((visits / maxVisits) * 100));
+        const label = `${String(entry.hour).padStart(2, "0")}:00`;
+        return `
+          <div class="visitor-chart-bar-wrap" title="${escapeHtml(`${label} - ${visits} visits`)}">
+            <div class="visitor-chart-bar" style="height:${height}%"></div>
+            <span>${escapeHtml(String(entry.hour).padStart(2, "0"))}</span>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
 function renderVisitorActivity(visitors) {
   const host = document.querySelector("#visitorActivity");
   if (!host) return;
@@ -338,6 +394,30 @@ function renderVisitorActivity(visitors) {
     return;
   }
   host.innerHTML = visitors.map((visitor) => visitorActivityItem(visitor)).join("");
+}
+
+function syncVisitorFilterControls() {
+  const country = document.querySelector("#visitorCountryFilter");
+  const device = document.querySelector("#visitorDeviceFilter");
+  const path = document.querySelector("#visitorPathFilter");
+  if (country) country.value = adminVisitorFilters.country || "";
+  if (device) device.value = adminVisitorFilters.deviceType || "";
+  if (path) path.value = adminVisitorFilters.path || "";
+}
+
+async function loadVisitorAnalytics() {
+  if (sessionUser?.role !== "admin") return;
+  const query = new URLSearchParams();
+  if (adminVisitorFilters.country) query.set("country", adminVisitorFilters.country);
+  if (adminVisitorFilters.deviceType) query.set("deviceType", adminVisitorFilters.deviceType);
+  if (adminVisitorFilters.path) query.set("path", adminVisitorFilters.path);
+  const analytics = await api(`/api/admin/visitors${query.toString() ? `?${query}` : ""}`);
+  visitorAnalytics = analytics;
+  recentVisitors = analytics.recentVisitors || [];
+  renderVisitorAnalyticsSummary(visitorAnalytics);
+  renderVisitorHourlyChart(visitorAnalytics);
+  renderVisitorActivity(recentVisitors);
+  syncVisitorFilterControls();
 }
 
 function adminUserItem(user) {
@@ -1345,10 +1425,14 @@ async function loadAdmin() {
   const adminProducts = document.querySelector("#adminProducts");
   if (adminProducts) adminProducts.innerHTML = loadingRows(3);
   adminRequest = withStatus("Loading products...", async () => {
+    const visitorQuery = new URLSearchParams();
+    if (adminVisitorFilters.country) visitorQuery.set("country", adminVisitorFilters.country);
+    if (adminVisitorFilters.deviceType) visitorQuery.set("deviceType", adminVisitorFilters.deviceType);
+    if (adminVisitorFilters.path) visitorQuery.set("path", adminVisitorFilters.path);
     const [products, summary, visitors, users] = await Promise.all([
       api("/api/admin/products"),
       api("/api/admin/summary"),
-      api("/api/admin/visitors"),
+      api(`/api/admin/visitors${visitorQuery.toString() ? `?${visitorQuery}` : ""}`),
       api("/api/admin/users")
     ]);
     return { products, summary, visitors, users };
@@ -1357,7 +1441,8 @@ async function loadAdmin() {
   adminRequest = null;
 
   adminSummary = summary;
-  recentVisitors = visitors.visitors || [];
+  visitorAnalytics = visitors;
+  recentVisitors = visitors.recentVisitors || [];
   adminUsersCache = users.users || [];
   adminProductsCache = products.products;
   if (!selectedAdminProductId && adminProductsCache.length) {
@@ -1365,10 +1450,13 @@ async function loadAdmin() {
   }
   renderAdminMetrics(adminSummary);
   renderAdminUsers(adminUsersCache);
+  renderVisitorAnalyticsSummary(visitorAnalytics);
+  renderVisitorHourlyChart(visitorAnalytics);
   renderVisitorActivity(recentVisitors);
   renderAdminProducts(adminProductsCache);
   renderBulkProductEditor(adminProductsCache);
   renderFacebookMobilePage(adminProductsCache);
+  syncVisitorFilterControls();
 
   setupImageDropzones(document.querySelector("#adminView"));
 }
@@ -1662,6 +1750,32 @@ document.addEventListener("click", async (event) => {
     } finally {
       restore();
     }
+  }
+});
+
+document.addEventListener("change", async (event) => {
+  if (event.target.matches("#visitorDeviceFilter, #visitorPathFilter")) {
+    adminVisitorFilters = {
+      country: document.querySelector("#visitorCountryFilter")?.value.trim() || "",
+      deviceType: document.querySelector("#visitorDeviceFilter")?.value || "",
+      path: document.querySelector("#visitorPathFilter")?.value || ""
+    };
+    await withStatus("Refreshing visitor analytics...", async () => loadVisitorAnalytics());
+    return;
+  }
+});
+
+document.addEventListener("input", async (event) => {
+  if (event.target.matches("#visitorCountryFilter")) {
+    window.clearTimeout(window.__visitorFilterTimer);
+    window.__visitorFilterTimer = window.setTimeout(async () => {
+      adminVisitorFilters = {
+        country: document.querySelector("#visitorCountryFilter")?.value.trim() || "",
+        deviceType: document.querySelector("#visitorDeviceFilter")?.value || "",
+        path: document.querySelector("#visitorPathFilter")?.value || ""
+      };
+      await withStatus("Refreshing visitor analytics...", async () => loadVisitorAnalytics());
+    }, 220);
   }
 });
 

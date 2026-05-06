@@ -537,7 +537,8 @@ function emptyJsonStore() {
     alertLeads: [],
     bugReports: [],
     siteVisitors: [],
-    productViews: []
+    productViews: [],
+    siteVisitEvents: []
   };
 }
 
@@ -560,6 +561,7 @@ function readJsonStore() {
   data.bugReports ||= [];
   data.siteVisitors ||= [];
   data.productViews ||= [];
+  data.siteVisitEvents ||= [];
   data.products = data.products.map((product) => ({
     brand: "",
     upc: "",
@@ -644,6 +646,24 @@ function createJsonDatabase() {
     async recordSiteVisit(visitorKey, pathName, userId = null, metadata = {}) {
       const now = new Date().toISOString();
       const existing = store.siteVisitors.find((entry) => entry.visitorKey === visitorKey);
+      store.siteVisitEvents.push({
+        visitorKey,
+        path: pathName || "",
+        at: now,
+        userId: userId || null,
+        ipAddress: metadata.ipAddress || "",
+        city: metadata.city || "",
+        region: metadata.region || "",
+        country: metadata.country || "",
+        deviceType: metadata.deviceType || "",
+        browserName: metadata.browserName || "",
+        osName: metadata.osName || "",
+        userAgent: metadata.userAgent || "",
+        referrer: metadata.referrer || ""
+      });
+      if (store.siteVisitEvents.length > 5000) {
+        store.siteVisitEvents = store.siteVisitEvents.slice(-5000);
+      }
       if (existing) {
         existing.visitCount = Number(existing.visitCount || 0) + 1;
         existing.lastSeenAt = now;
@@ -718,10 +738,48 @@ function createJsonDatabase() {
         return metrics;
       }, {});
     },
-    async listVisitors(limit = 100) {
+    async listVisitors({ limit = 10, country = "", deviceType = "", path = "" } = {}) {
+      const normalizedCountry = String(country || "").trim().toLowerCase();
+      const normalizedDevice = String(deviceType || "").trim().toLowerCase();
+      const normalizedPath = String(path || "").trim().toLowerCase();
       return [...store.siteVisitors]
+        .filter((visitor) => !normalizedCountry || String(visitor.country || "").toLowerCase().includes(normalizedCountry))
+        .filter((visitor) => !normalizedDevice || String(visitor.deviceType || "").toLowerCase() === normalizedDevice)
+        .filter((visitor) => !normalizedPath || String(visitor.lastPath || "").toLowerCase().includes(normalizedPath))
         .sort((a, b) => new Date(b.lastSeenAt || b.createdAt || 0) - new Date(a.lastSeenAt || a.createdAt || 0))
-        .slice(0, Math.max(1, Number(limit) || 100));
+        .slice(0, Math.max(1, Number(limit) || 10));
+    },
+    async visitorAnalytics(filters = {}) {
+      const normalizedCountry = String(filters.country || "").trim().toLowerCase();
+      const normalizedDevice = String(filters.deviceType || "").trim().toLowerCase();
+      const normalizedPath = String(filters.path || "").trim().toLowerCase();
+      const now = new Date();
+      const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const filteredEvents = store.siteVisitEvents.filter((event) => {
+        if (!normalizedCountry && !normalizedDevice && !normalizedPath) return true;
+        if (normalizedCountry && !String(event.country || "").toLowerCase().includes(normalizedCountry)) return false;
+        if (normalizedDevice && String(event.deviceType || "").toLowerCase() !== normalizedDevice) return false;
+        if (normalizedPath && !String(event.path || "").toLowerCase().includes(normalizedPath)) return false;
+        return true;
+      });
+      const todayEvents = filteredEvents.filter((event) => new Date(event.at || 0).getTime() >= dayStart);
+      const hourly = Array.from({ length: 24 }, (_, hour) => ({ hour, visits: 0 }));
+      todayEvents.forEach((event) => {
+        const at = new Date(event.at || 0);
+        const hour = Number.isNaN(at.getTime()) ? -1 : at.getHours();
+        if (hour >= 0 && hour < 24) hourly[hour].visits += 1;
+      });
+      return {
+        recentVisitors: await this.listVisitors({ ...filters, limit: 10 }),
+        todayVisits: todayEvents.length,
+        uniqueVisitorsToday: new Set(todayEvents.map((event) => event.visitorKey).filter(Boolean)).size,
+        topCountries: Object.entries(todayEvents.reduce((acc, event) => {
+          const key = String(event.country || "Unknown");
+          acc[key] = (acc[key] || 0) + 1;
+          return acc;
+        }, {})).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([countryName, visits]) => ({ country: countryName, visits })),
+        hourly
+      };
     },
     async listUsers() {
       return [...store.users].map((user) => {
@@ -1177,6 +1235,22 @@ function createPostgresDatabase() {
           user_agent TEXT NOT NULL DEFAULT '',
           referrer TEXT NOT NULL DEFAULT ''
         );
+        CREATE TABLE IF NOT EXISTS site_visit_events (
+          id SERIAL PRIMARY KEY,
+          visitor_key TEXT NOT NULL,
+          path TEXT NOT NULL DEFAULT '',
+          visited_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          user_id INTEGER REFERENCES users(id),
+          ip_address TEXT NOT NULL DEFAULT '',
+          city TEXT NOT NULL DEFAULT '',
+          region TEXT NOT NULL DEFAULT '',
+          country TEXT NOT NULL DEFAULT '',
+          device_type TEXT NOT NULL DEFAULT '',
+          browser_name TEXT NOT NULL DEFAULT '',
+          os_name TEXT NOT NULL DEFAULT '',
+          user_agent TEXT NOT NULL DEFAULT '',
+          referrer TEXT NOT NULL DEFAULT ''
+        );
         CREATE TABLE IF NOT EXISTS product_views (
           product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
           visitor_key TEXT NOT NULL,
@@ -1204,6 +1278,8 @@ function createPostgresDatabase() {
         CREATE INDEX IF NOT EXISTS idx_bug_reports_created ON bug_reports(created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_product_views_product ON product_views(product_id);
         CREATE INDEX IF NOT EXISTS idx_site_visitors_last_seen ON site_visitors(last_seen_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_site_visit_events_visited ON site_visit_events(visited_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_site_visit_events_path ON site_visit_events(path);
         ALTER TABLE site_visitors ADD COLUMN IF NOT EXISTS ip_address TEXT NOT NULL DEFAULT '';
         ALTER TABLE site_visitors ADD COLUMN IF NOT EXISTS city TEXT NOT NULL DEFAULT '';
         ALTER TABLE site_visitors ADD COLUMN IF NOT EXISTS region TEXT NOT NULL DEFAULT '';
@@ -1273,6 +1349,26 @@ function createPostgresDatabase() {
     },
     async recordSiteVisit(visitorKey, pathName, userId = null, metadata = {}) {
       await query(`
+        INSERT INTO site_visit_events (
+          visitor_key, path, visited_at, user_id, ip_address, city, region, country,
+          device_type, browser_name, os_name, user_agent, referrer
+        )
+        VALUES ($1, $2, NOW(), $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `, [
+        visitorKey,
+        pathName || "",
+        userId || null,
+        metadata.ipAddress || "",
+        metadata.city || "",
+        metadata.region || "",
+        metadata.country || "",
+        metadata.deviceType || "",
+        metadata.browserName || "",
+        metadata.osName || "",
+        metadata.userAgent || "",
+        metadata.referrer || ""
+      ]);
+      await query(`
         INSERT INTO site_visitors (
           visitor_key, visit_count, first_seen_at, last_seen_at, last_path, user_id,
           ip_address, city, region, country, device_type, browser_name, os_name, user_agent, referrer
@@ -1337,7 +1433,22 @@ function createPostgresDatabase() {
       });
       return metrics;
     },
-    async listVisitors(limit = 100) {
+    async listVisitors({ limit = 10, country = "", deviceType = "", path = "" } = {}) {
+      const clauses = [];
+      const params = [];
+      if (country) {
+        params.push(`%${String(country).trim()}%`);
+        clauses.push(`LOWER(country) LIKE LOWER($${params.length})`);
+      }
+      if (deviceType) {
+        params.push(String(deviceType).trim());
+        clauses.push(`LOWER(device_type) = LOWER($${params.length})`);
+      }
+      if (path) {
+        params.push(`%${String(path).trim()}%`);
+        clauses.push(`LOWER(last_path) LIKE LOWER($${params.length})`);
+      }
+      params.push(Math.max(1, Number(limit) || 10));
       const result = await query(`
         SELECT visitor_key AS "visitorKey",
                visit_count AS "visitCount",
@@ -1355,10 +1466,57 @@ function createPostgresDatabase() {
                user_agent AS "userAgent",
                referrer
         FROM site_visitors
+        ${clauses.length ? `WHERE ${clauses.join(" AND ")}` : ""}
         ORDER BY last_seen_at DESC
-        LIMIT $1
-      `, [Math.max(1, Number(limit) || 100)]);
+        LIMIT $${params.length}
+      `, params);
       return result.rows;
+    },
+    async visitorAnalytics(filters = {}) {
+      const clauses = ["visited_at >= date_trunc('day', NOW())"];
+      const params = [];
+      if (filters.country) {
+        params.push(`%${String(filters.country).trim()}%`);
+        clauses.push(`LOWER(country) LIKE LOWER($${params.length})`);
+      }
+      if (filters.deviceType) {
+        params.push(String(filters.deviceType).trim());
+        clauses.push(`LOWER(device_type) = LOWER($${params.length})`);
+      }
+      if (filters.path) {
+        params.push(`%${String(filters.path).trim()}%`);
+        clauses.push(`LOWER(path) LIKE LOWER($${params.length})`);
+      }
+      const whereClause = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+      const hourlyResult = await query(`
+        SELECT EXTRACT(HOUR FROM visited_at)::int AS hour, COUNT(*)::int AS visits
+        FROM site_visit_events
+        ${whereClause}
+        GROUP BY 1
+        ORDER BY 1
+      `, params);
+      const summaryResult = await query(`
+        SELECT COUNT(*)::int AS "todayVisits",
+               COUNT(DISTINCT visitor_key)::int AS "uniqueVisitorsToday"
+        FROM site_visit_events
+        ${whereClause}
+      `, params);
+      const topCountryResult = await query(`
+        SELECT CASE WHEN country = '' THEN 'Unknown' ELSE country END AS country, COUNT(*)::int AS visits
+        FROM site_visit_events
+        ${whereClause}
+        GROUP BY 1
+        ORDER BY visits DESC, country ASC
+        LIMIT 5
+      `, params);
+      const hourlyMap = new Map(hourlyResult.rows.map((row) => [Number(row.hour), Number(row.visits || 0)]));
+      return {
+        recentVisitors: await this.listVisitors({ ...filters, limit: 10 }),
+        todayVisits: Number(summaryResult.rows[0]?.todayVisits || 0),
+        uniqueVisitorsToday: Number(summaryResult.rows[0]?.uniqueVisitorsToday || 0),
+        topCountries: topCountryResult.rows.map((row) => ({ country: row.country, visits: Number(row.visits || 0) })),
+        hourly: Array.from({ length: 24 }, (_, hour) => ({ hour, visits: hourlyMap.get(hour) || 0 }))
+      };
     },
     async listUsers() {
       return (await query(`
@@ -2959,8 +3117,13 @@ app.get("/api/admin/summary", requireAdmin, async (_req, res) => {
   res.json(await db.summary());
 });
 
-app.get("/api/admin/visitors", requireAdmin, async (_req, res) => {
-  res.json({ visitors: await db.listVisitors(100) });
+app.get("/api/admin/visitors", requireAdmin, async (req, res) => {
+  const filters = {
+    country: String(req.query.country || "").trim(),
+    deviceType: String(req.query.deviceType || "").trim(),
+    path: String(req.query.path || "").trim()
+  };
+  res.json(await db.visitorAnalytics(filters));
 });
 
 app.get("/api/admin/users", requireAdmin, async (_req, res) => {

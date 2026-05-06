@@ -1438,6 +1438,85 @@ body:not([data-view="mobile"]) .mobile-listing-quickbar {
   border-top: 1px solid var(--line);
 }
 
+.visitor-analytics-toolbar,
+.visitor-analytics-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.visitor-analytics-toolbar label,
+.visitor-summary-card {
+  display: grid;
+  gap: 6px;
+}
+
+.visitor-summary-card {
+  padding: 14px 16px;
+}
+
+.visitor-summary-card strong {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.visitor-summary-card span,
+.visitor-chart-head span,
+.visitor-activity-list-head span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.visitor-hourly-chart {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fffaf2;
+}
+
+.visitor-chart-head,
+.visitor-activity-list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 12px;
+}
+
+.visitor-chart-bars {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  gap: 6px;
+  align-items: end;
+  min-height: 170px;
+}
+
+.visitor-chart-bar-wrap {
+  display: grid;
+  gap: 8px;
+  align-items: end;
+  justify-items: center;
+  min-width: 0;
+}
+
+.visitor-chart-bar {
+  width: 100%;
+  min-height: 10px;
+  border-radius: 999px 999px 4px 4px;
+  background: linear-gradient(180deg, #ffbf5a 0%, #ff9900 100%);
+  border: 1px solid rgba(151, 81, 0, 0.12);
+}
+
+.visitor-chart-bar-wrap span {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.visitor-activity-list-head {
+  margin-top: 4px;
+}
+
 .visitor-activity-item:first-child {
   border-top: 0;
   padding-top: 0;
@@ -2631,6 +2710,26 @@ body[data-view="mobile"] .admin-simple-layout {
 
 body[data-view="mobile"] .admin-metrics-strip {
   grid-template-columns: 1fr;
+}
+
+body[data-view="mobile"] .visitor-analytics-toolbar,
+body[data-view="mobile"] .visitor-analytics-summary {
+  grid-template-columns: 1fr;
+}
+
+body[data-view="mobile"] .visitor-chart-head,
+body[data-view="mobile"] .visitor-activity-list-head {
+  display: grid;
+  justify-content: start;
+}
+
+body[data-view="mobile"] .visitor-chart-bars {
+  gap: 4px;
+  min-height: 140px;
+}
+
+body[data-view="mobile"] .visitor-chart-bar-wrap span {
+  font-size: 0.68rem;
 }
 
 body[data-view="mobile"] .admin-user-controls {
