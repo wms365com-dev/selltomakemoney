@@ -191,6 +191,7 @@ function routeFromHash() {
   if (window.__ENTRY_ROUTE === "dealer") return "dealer";
   if (window.__ENTRY_ROUTE === "shopper") return "shopper";
   if (window.__ENTRY_ROUTE === "admin") return "admin";
+  if (window.__ENTRY_ROUTE === "facebook") return "facebook";
   return "store";
 }
 

@@ -2208,6 +2208,11 @@ async function sendAdminApp(req, res) {
   res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "admin"));
 }
 
+async function sendAdminFacebookApp(req, res) {
+  await recordSiteVisit(req, res, "/admin/facebookmobile");
+  res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "facebook"));
+}
+
 async function sendCatalog(req, res) {
   await recordSiteVisit(req, res, "/catalog");
   res.sendFile(path.join(ROOT, "public", "catalog.html"));
@@ -3674,6 +3679,7 @@ app.get("/mobile", sendMobileApp);
 app.get("/shopper", sendShopperApp);
 app.get("/dealer", sendDealerApp);
 app.get("/admin", sendAdminApp);
+app.get("/admin/facebookmobile", sendAdminFacebookApp);
 app.get("/catalog", sendCatalog);
 app.get("/dealers", sendDealers);
 app.get("/privacy", sendPrivacyPage);
