@@ -2092,6 +2092,8 @@ async function sendProductPage(req, res) {
   await recordProductView(req, res, product.id);
   const metricsByProductId = await db.getProductMetrics([product.id]);
   const productMetrics = metricsByProductId[product.id] || { viewCount: 0, uniqueViewers: 0 };
+  const user = await currentUser(req);
+  const showDealerPricing = Boolean(user && user.status === "approved");
   const baseUrl = publicBaseUrl(req).replace(/\/$/, "");
   const canonicalPath = productPath(product);
   const canonicalUrl = `${baseUrl}${canonicalPath}`;
@@ -2100,6 +2102,7 @@ async function sendProductPage(req, res) {
   const mainImage = (product.imageUrls?.[0] || product.imageUrl || "");
   const absoluteImage = mainImage ? new URL(mainImage, baseUrl).toString() : "";
   const price = dollars(product.priceCents);
+  const dealerPrice = showDealerPricing ? dollars(product.dealerPriceCents) : null;
   const title = `${product.name} | ${price} | selltomakemoney.com`;
   const description = `${product.brand ? `${product.brand} ` : ""}${product.name}. ${product.description || "Available from selltomakemoney.com."}`.slice(0, 155);
   const specs = productSpecsLines(product);
@@ -2145,7 +2148,26 @@ async function sendProductPage(req, res) {
         <h1>${escapeHtml(product.name)}</h1>
         <p class="sku">${escapeHtml([product.brand, product.sku, product.upc ? `UPC ${product.upc}` : ""].filter(Boolean).join(" | "))}</p>
         <p class="product-view-count">Viewed ${escapeHtml(productMetrics.viewCount)} times</p>
-        <div class="price">${escapeHtml(price)}</div>
+        ${showDealerPricing && dealerPrice
+          ? `<div class="product-pricing dealer-pricing">
+              <div>
+                <span class="pricing-label">Dealer price</span>
+                <div class="price dealer-price-emphasis">${escapeHtml(dealerPrice)}</div>
+              </div>
+              <div>
+                <span class="pricing-label">Retail price</span>
+                <div class="retail-price-muted">${escapeHtml(price)}</div>
+              </div>
+            </div>`
+          : showDealerPricing
+            ? `<div class="product-pricing dealer-pricing">
+                <div>
+                  <span class="pricing-label">Retail price</span>
+                  <div class="price">${escapeHtml(price)}</div>
+                </div>
+                <div class="dealer-contact-note">Dealer price: contact the person that sent this link.</div>
+              </div>`
+            : `<div class="price">${escapeHtml(price)}</div>`}
         <div class="fulfillment-alert ${fulfillmentType === "ships_or_pickup" ? "ships" : "pickup"}">${escapeHtml(fulfillmentText)}</div>
         ${formatProductDescriptionHtml(product.description)}
         ${specs.length ? `<dl class="product-spec-list">${specs.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>` : ""}

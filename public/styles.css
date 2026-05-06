@@ -869,6 +869,20 @@ h2 {
   min-height: 42px;
 }
 
+.dealer-pricing {
+  gap: 10px;
+}
+
+.pricing-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .fulfillment-alert {
   display: inline-flex;
   align-items: center;
@@ -907,6 +921,30 @@ h2 {
   font-size: 13px;
   font-weight: 900;
   padding: 7px 10px;
+}
+
+.dealer-price-emphasis {
+  color: #0f6b49;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.retail-price-muted {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.dealer-contact-note {
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 153, 0, 0.34);
+  border-radius: 10px;
+  background: #fff8e8;
+  color: #8a5400;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
 }
 
 .product-actions {

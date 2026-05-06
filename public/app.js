@@ -664,10 +664,37 @@ function shoppingLinksBlock(product) {
   `;
 }
 
-function dealerPriceBlock(product) {
-  return product.dealerPrice
-    ? `<div class="dealer-price">Dealer price ${escapeHtml(product.dealerPrice)}</div>`
-    : "";
+function pricingBlock(product, canSeePrices = false) {
+  if (canSeePrices && product.dealerPrice) {
+    return `
+      <div class="product-pricing dealer-pricing">
+        <div>
+          <span class="pricing-label">Dealer price</span>
+          <div class="price dealer-price-emphasis">${escapeHtml(product.dealerPrice)}</div>
+        </div>
+        <div>
+          <span class="pricing-label">Retail price</span>
+          <div class="retail-price-muted">${escapeHtml(product.price || "$0.00")}</div>
+        </div>
+      </div>
+    `;
+  }
+  if (canSeePrices) {
+    return `
+      <div class="product-pricing dealer-pricing">
+        <div>
+          <span class="pricing-label">Retail price</span>
+          <div class="price">${escapeHtml(product.price || "$0.00")}</div>
+        </div>
+        <div class="dealer-contact-note">Dealer price: contact the person that sent this link.</div>
+      </div>
+    `;
+  }
+  return `
+    <div class="product-pricing">
+      <div class="price">${escapeHtml(product.price || "$0.00")}</div>
+    </div>
+  `;
 }
 
 function escapeHtml(value) {
@@ -1091,10 +1118,7 @@ function renderProducts(canSeePrices = false) {
             </div>
             ${productSpecsSummary(product)}
             ${fulfillmentBadge(product)}
-            <div class="product-pricing">
-              <div class="price">${escapeHtml(product.price || "$0.00")}</div>
-              ${dealerPriceBlock(product)}
-            </div>
+            ${pricingBlock(product, canSeePrices)}
           </div>
           <div class="product-card-footer">
             ${shoppingLinksBlock(product)}
@@ -1182,7 +1206,7 @@ async function loadProducts() {
     renderStoreCategories(productCache);
     updateStoreStructuredData(productCache);
     priceNote.textContent = data.canSeePrices
-      ? "Account pricing is visible on your approved account."
+      ? "Dealer account pricing is active. If dealer price is missing on an item, contact the person that sent you the link."
       : "Public pricing is visible. Create an account before checkout. Pickup is currently in Mississauga only.";
     renderProducts(data.canSeePrices);
     return data;
