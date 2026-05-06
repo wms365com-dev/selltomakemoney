@@ -2805,7 +2805,7 @@ app.post("/api/register", async (req, res) => {
     role: "dealer",
     accountType: "shopper"
   });
-  res.status(201).json({ ok: true, message: "Registration sent. You can login after admin approval." });
+  res.status(201).json({ ok: true, message: "Registration sent. Your account will be reviewed and approved in the next admin review window." });
 });
 
 app.post("/api/alerts", async (req, res) => {
