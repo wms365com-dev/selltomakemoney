@@ -27,6 +27,34 @@ const CONSENT_COOKIE_NAME = "stm_consent";
 const GOOGLE_SITE_VERIFICATION = process.env.GOOGLE_SITE_VERIFICATION || "";
 const GOOGLE_SITE_VERIFICATION_FILE = process.env.GOOGLE_SITE_VERIFICATION_FILE || "";
 const GOOGLE_SITE_VERIFICATION_CONTENT = process.env.GOOGLE_SITE_VERIFICATION_CONTENT || "";
+const COUNTRY_NAMES = typeof Intl?.DisplayNames === "function"
+  ? new Intl.DisplayNames(["en"], { type: "region" })
+  : null;
+const CANADA_PROVINCES = {
+  AB: "Alberta",
+  BC: "British Columbia",
+  MB: "Manitoba",
+  NB: "New Brunswick",
+  NL: "Newfoundland and Labrador",
+  NS: "Nova Scotia",
+  NT: "Northwest Territories",
+  NU: "Nunavut",
+  ON: "Ontario",
+  PE: "Prince Edward Island",
+  QC: "Quebec",
+  SK: "Saskatchewan",
+  YT: "Yukon"
+};
+const US_STATES = {
+  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California", CO: "Colorado", CT: "Connecticut",
+  DE: "Delaware", FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho", IL: "Illinois", IN: "Indiana",
+  IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana", ME: "Maine", MD: "Maryland", MA: "Massachusetts",
+  MI: "Michigan", MN: "Minnesota", MS: "Mississippi", MO: "Missouri", MT: "Montana", NE: "Nebraska",
+  NV: "Nevada", NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico", NY: "New York", NC: "North Carolina",
+  ND: "North Dakota", OH: "Ohio", OK: "Oklahoma", OR: "Oregon", PA: "Pennsylvania", RI: "Rhode Island",
+  SC: "South Carolina", SD: "South Dakota", TN: "Tennessee", TX: "Texas", UT: "Utah", VT: "Vermont",
+  VA: "Virginia", WA: "Washington", WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming", DC: "District of Columbia"
+};
 const PRODUCT_CATEGORIES = [
   "Electronics",
   "Scooters & Mobility",
@@ -786,6 +814,16 @@ function createJsonDatabase() {
         }, {})).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([countryName, visits]) => ({ country: countryName, visits })),
         hourly
       };
+    },
+    async updateVisitorLocation(visitorKey, metadata = {}) {
+      const existing = store.siteVisitors.find((entry) => entry.visitorKey === visitorKey);
+      if (!existing) return null;
+      if (metadata.city) existing.city = metadata.city;
+      if (metadata.region) existing.region = metadata.region;
+      if (metadata.country) existing.country = metadata.country;
+      if (metadata.ipAddress) existing.ipAddress = metadata.ipAddress;
+      writeJsonStore(store);
+      return existing;
     },
     async recordInteractionEvent(event) {
       const created = {
@@ -1605,6 +1643,30 @@ function createPostgresDatabase() {
         hourly: Array.from({ length: 24 }, (_, hour) => ({ hour, visits: hourlyMap.get(hour) || 0 }))
       };
     },
+    async updateVisitorLocation(visitorKey, metadata = {}) {
+      const result = await query(`
+        UPDATE site_visitors
+        SET ip_address = COALESCE(NULLIF($2, ''), ip_address),
+            city = COALESCE(NULLIF($3, ''), city),
+            region = COALESCE(NULLIF($4, ''), region),
+            country = COALESCE(NULLIF($5, ''), country)
+        WHERE visitor_key = $1
+        RETURNING visitor_key AS "visitorKey",
+                  visit_count AS "visitCount",
+                  first_seen_at AS "firstSeenAt",
+                  last_seen_at AS "lastSeenAt",
+                  last_path AS "lastPath",
+                  user_id AS "userId",
+                  ip_address AS "ipAddress",
+                  city, region, country,
+                  device_type AS "deviceType",
+                  browser_name AS "browserName",
+                  os_name AS "osName",
+                  user_agent AS "userAgent",
+                  referrer
+      `, [visitorKey, metadata.ipAddress || "", metadata.city || "", metadata.region || "", metadata.country || ""]);
+      return result.rows[0] || null;
+    },
     async recordInteractionEvent(event) {
       const result = await query(`
         INSERT INTO interaction_events (
@@ -2098,24 +2160,76 @@ function headerLocationHints(req) {
   };
 }
 
+function expandCountry(country = "") {
+  const value = String(country || "").trim();
+  if (!value) return "";
+  if (value.length === 2 && COUNTRY_NAMES) {
+    return COUNTRY_NAMES.of(value.toUpperCase()) || value.toUpperCase();
+  }
+  return value;
+}
+
+function expandRegion(region = "", country = "") {
+  const value = String(region || "").trim();
+  const countryCode = String(country || "").trim().toUpperCase();
+  if (!value) return "";
+  if (countryCode === "CA" || countryCode === "CANADA") {
+    return CANADA_PROVINCES[value.toUpperCase()] || value;
+  }
+  if (countryCode === "US" || countryCode === "USA" || countryCode === "UNITED STATES") {
+    return US_STATES[value.toUpperCase()] || value;
+  }
+  return value;
+}
+
+function normalizeLocation(location = {}) {
+  const rawCountry = String(location.country || "").trim();
+  const rawRegion = String(location.region || "").trim();
+  return {
+    city: String(location.city || "").trim(),
+    region: expandRegion(rawRegion, rawCountry),
+    country: expandCountry(rawCountry)
+  };
+}
+
+async function fetchGeoFromIpwho(ipAddress, controller) {
+  const response = await fetch(`https://ipwho.is/${encodeURIComponent(ipAddress)}`, {
+    signal: controller.signal,
+    headers: { "user-agent": "selltomakemoney.com Analytics/1.0" }
+  });
+  const payload = await response.json();
+  if (!payload || payload.success === false) return { city: "", region: "", country: "" };
+  return normalizeLocation({
+    city: payload.city,
+    region: payload.region,
+    country: payload.country || payload.country_code
+  });
+}
+
+async function fetchGeoFromIpapi(ipAddress, controller) {
+  const response = await fetch(`https://ipapi.co/${encodeURIComponent(ipAddress)}/json/`, {
+    signal: controller.signal,
+    headers: { "user-agent": "selltomakemoney.com Analytics/1.0" }
+  });
+  const payload = await response.json();
+  if (!payload || payload.error) return { city: "", region: "", country: "" };
+  return normalizeLocation({
+    city: payload.city,
+    region: payload.region || payload.region_code,
+    country: payload.country_name || payload.country
+  });
+}
+
 async function geoLookup(ipAddress) {
   if (!ipAddress || privateIpAddress(ipAddress)) return { city: "", region: "", country: "" };
   if (geoLookupCache.has(ipAddress)) return geoLookupCache.get(ipAddress);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 1800);
   try {
-    const response = await fetch(`https://ipwho.is/${encodeURIComponent(ipAddress)}`, {
-      signal: controller.signal,
-      headers: { "user-agent": "selltomakemoney.com Analytics/1.0" }
-    });
-    const payload = await response.json();
-    const result = payload && payload.success !== false
-      ? {
-          city: String(payload.city || "").trim(),
-          region: String(payload.region || "").trim(),
-          country: String(payload.country || "").trim()
-        }
-      : { city: "", region: "", country: "" };
+    let result = await fetchGeoFromIpwho(ipAddress, controller);
+    if (!result.city && !result.region && !result.country) {
+      result = await fetchGeoFromIpapi(ipAddress, controller);
+    }
     geoLookupCache.set(ipAddress, result);
     return result;
   } catch (_error) {
@@ -2129,7 +2243,7 @@ async function visitorMetadata(req) {
   const ipAddress = clientIpAddress(req);
   const userAgent = String(req.get("user-agent") || "").trim();
   const referrer = String(req.get("referer") || "").trim();
-  const hinted = headerLocationHints(req);
+  const hinted = normalizeLocation(headerLocationHints(req));
   const fallback = (!hinted.city || !hinted.region || !hinted.country) ? await geoLookup(ipAddress) : { city: "", region: "", country: "" };
   const city = hinted.city || fallback.city || "";
   const region = hinted.region || fallback.region || "";
@@ -2146,6 +2260,28 @@ async function visitorMetadata(req) {
     userAgent,
     referrer
   };
+}
+
+async function backfillVisitorLocations(visitors = []) {
+  const updates = [];
+  for (const visitor of visitors) {
+    const missingLocation = !visitor.city || !visitor.region || !visitor.country;
+    if (!missingLocation) continue;
+    if (privateIpAddress(visitor.ipAddress)) continue;
+    const resolved = await geoLookup(visitor.ipAddress);
+    if (!resolved.city && !resolved.region && !resolved.country) continue;
+    const normalized = normalizeLocation(resolved);
+    const updated = await db.updateVisitorLocation(visitor.visitorKey, {
+      ipAddress: visitor.ipAddress || "",
+      city: normalized.city || visitor.city || "",
+      region: normalized.region || visitor.region || "",
+      country: normalized.country || visitor.country || ""
+    });
+    updates.push(updated || { ...visitor, ...normalized });
+  }
+  if (!updates.length) return visitors;
+  const byKey = new Map(updates.filter(Boolean).map((visitor) => [visitor.visitorKey, visitor]));
+  return visitors.map((visitor) => byKey.get(visitor.visitorKey) || visitor);
 }
 
 app.use("/uploads", express.static(UPLOAD_DIR, {
@@ -3398,7 +3534,31 @@ app.get("/api/admin/visitors", requireAdmin, async (req, res) => {
     db.visitorAnalytics(filters),
     db.interactionAnalytics()
   ]);
+  visitors.recentVisitors = await backfillVisitorLocations(visitors.recentVisitors || []);
+  if ((!visitors.topCountries || !visitors.topCountries.length || visitors.topCountries[0]?.country === "Unknown") && visitors.recentVisitors.length) {
+    const counts = visitors.recentVisitors.reduce((acc, visitor) => {
+      const key = visitor.country || "Unknown";
+      acc[key] = (acc[key] || 0) + Number(visitor.visitCount || 1);
+      return acc;
+    }, {});
+    visitors.topCountries = Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([country, visits]) => ({ country, visits }));
+  }
   res.json({ ...visitors, interactions });
+});
+
+app.get("/api/admin/ip-lookup", requireAdmin, async (req, res) => {
+  const ipAddress = String(req.query.ip || "").trim();
+  if (!ipAddress) return res.status(400).json({ error: "IP address is required." });
+  const location = privateIpAddress(ipAddress)
+    ? { city: "", region: "", country: "", note: "Private or local IP addresses cannot be geolocated." }
+    : normalizeLocation(await geoLookup(ipAddress));
+  res.json({
+    ipAddress,
+    ...location
+  });
 });
 
 app.get("/api/admin/users", requireAdmin, async (_req, res) => {
