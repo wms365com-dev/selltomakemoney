@@ -718,6 +718,32 @@ h2 {
   gap: 14px;
 }
 
+.facebook-posting-workspace {
+  display: grid;
+  gap: 16px;
+}
+
+.facebook-posting-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.facebook-posting-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.facebook-selected-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
 .facebook-mobile-product-list {
   max-height: 42vh;
   overflow: auto;
@@ -2866,6 +2892,12 @@ body[data-view="mobile"] .alert-signup-form {
 }
 
 body[data-view="mobile"] .facebook-copy-grid {
+  grid-template-columns: 1fr;
+}
+
+body[data-view="mobile"] .facebook-posting-toolbar,
+body[data-view="mobile"] .facebook-posting-layout,
+body[data-view="mobile"] .facebook-selected-summary {
   grid-template-columns: 1fr;
 }
 

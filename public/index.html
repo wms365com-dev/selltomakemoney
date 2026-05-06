@@ -300,6 +300,9 @@
           <p class="eyebrow">Admin</p>
           <h1>List and update items.</h1>
         </div>
+        <div class="row-actions">
+          <button type="button" class="primary" data-route="facebook">Facebook posting</button>
+        </div>
       </div>
       <div id="adminMetrics" class="admin-metrics-strip"></div>
       <section class="panel admin-users-panel">
@@ -487,15 +490,38 @@
       <div class="section-head compact">
         <div>
           <p class="eyebrow">Facebook Marketplace</p>
-          <h1>Copy and list fast.</h1>
+          <h1>Facebook posting workspace.</h1>
+          <p class="hero-copy">Stay logged in as admin, tap any product, then tap each field to copy and paste into Facebook Marketplace fast.</p>
+        </div>
+        <div class="row-actions">
+          <button type="button" class="nav-button" data-route="admin">Back to admin</button>
         </div>
       </div>
-      <section class="panel facebook-mobile-page">
-        <label class="admin-product-search">Find product<input id="facebookProductSearch" type="search" placeholder="Search by title, SKU, UPC, brand"></label>
-        <div id="facebookProductList" class="facebook-mobile-product-list stack"></div>
-        <div id="facebookMobileFields" class="facebook-copy-grid"></div>
-        <div class="row-actions facebook-helper-actions">
-          <button type="button" id="copyFacebookMobileFullButton">Copy full listing</button>
+      <section class="panel facebook-posting-workspace">
+        <div class="facebook-posting-toolbar">
+          <label class="admin-product-search">Find product<input id="facebookProductSearch" type="search" placeholder="Search by title, SKU, UPC, brand"></label>
+          <div class="row-actions">
+            <button type="button" id="facebookPrevButton">Previous</button>
+            <button type="button" id="facebookNextButton">Next</button>
+            <button type="button" id="copyFacebookMobileFullButton" class="primary">Copy full listing</button>
+          </div>
+        </div>
+        <div class="facebook-posting-layout">
+          <div>
+            <div class="visitor-activity-list-head">
+              <strong>Choose a product</strong>
+              <span>Switch listings without leaving the page.</span>
+            </div>
+            <div id="facebookProductList" class="facebook-mobile-product-list stack"></div>
+          </div>
+          <div>
+            <div class="visitor-activity-list-head">
+              <strong>Tap to copy</strong>
+              <span>Title, price, category, condition, location, and description.</span>
+            </div>
+            <div id="facebookSelectedProductSummary" class="facebook-selected-summary"></div>
+            <div id="facebookMobileFields" class="facebook-copy-grid"></div>
+          </div>
         </div>
       </section>
     </section>

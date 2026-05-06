@@ -160,6 +160,10 @@ function setRoute(route) {
     window.location.hash = "login";
     return setRoute("login");
   }
+  if (requestedRoute === "facebook" && sessionUser?.role !== "admin") {
+    window.location.hash = "login";
+    return setRoute("login");
+  }
   if (requestedRoute === "dealer" && !(sessionUser?.canSeePrices || sessionUser?.role === "admin")) {
     window.location.hash = "login";
     return setRoute("login");
@@ -538,6 +542,25 @@ function facebookProductListItem(product, isSelected = false) {
       <span>${product.price || "$0.00"}${product.productSpecs?.condition ? ` | ${escapeHtml(product.productSpecs.condition)}` : ""}</span>
       <span>${escapeHtml(product.brand || product.category || "Product")} | Qty ${escapeHtml(product.quantityOnHand ?? 0)}</span>
     </button>
+  `;
+}
+
+function renderFacebookSelectedSummary(product, index, total) {
+  const host = document.querySelector("#facebookSelectedProductSummary");
+  if (!host) return;
+  if (!product) {
+    host.innerHTML = "";
+    return;
+  }
+  host.innerHTML = `
+    <div class="panel visitor-summary-card">
+      <strong>${escapeHtml(product.name)}</strong>
+      <span>${escapeHtml(product.brand || product.category || "Product")} | ${escapeHtml(product.price || "$0.00")} | ${escapeHtml(product.productSpecs?.condition || "Condition not set")}</span>
+    </div>
+    <div class="panel visitor-summary-card">
+      <strong>${escapeHtml(index + 1)}</strong>
+      <span>Selected of ${escapeHtml(total)}</span>
+    </div>
   `;
 }
 
@@ -1167,26 +1190,29 @@ function renderFacebookMobilePage(products) {
   const listHost = document.querySelector("#facebookProductList");
   const fieldsHost = document.querySelector("#facebookMobileFields");
   const copyButton = document.querySelector("#copyFacebookMobileFullButton");
-  const mobileView = document.body.dataset.view === "mobile";
   if (!listHost || !fieldsHost || !copyButton) return;
-  if (!mobileView) {
-    listHost.innerHTML = "<p class=\"mini-note\">This page is built for mobile, but you can still copy from here on desktop if needed.</p>";
-  }
   const search = facebookProductSearch.trim().toLowerCase();
   const filteredProducts = products.filter((product) => adminProductMatchesSearch(product, search));
   if (!filteredProducts.length) {
     listHost.innerHTML = "<p>No matching products.</p>";
     fieldsHost.innerHTML = "";
+    renderFacebookSelectedSummary(null, 0, 0);
     return;
   }
   if (!filteredProducts.some((product) => product.id === selectedFacebookProductId)) {
     selectedFacebookProductId = filteredProducts[0].id;
   }
-  const selectedProduct = filteredProducts.find((product) => product.id === selectedFacebookProductId) || filteredProducts[0];
+  const selectedIndex = Math.max(0, filteredProducts.findIndex((product) => product.id === selectedFacebookProductId));
+  const selectedProduct = filteredProducts[selectedIndex] || filteredProducts[0];
   activeFacebookListingProductId = selectedProduct.id;
   listHost.innerHTML = filteredProducts.map((product) => facebookProductListItem(product, product.id === selectedProduct.id)).join("");
   fieldsHost.innerHTML = facebookCopyCardsMarkup(selectedProduct);
+  renderFacebookSelectedSummary(selectedProduct, selectedIndex, filteredProducts.length);
   copyButton.textContent = "Copy full listing";
+  const prevButton = document.querySelector("#facebookPrevButton");
+  const nextButton = document.querySelector("#facebookNextButton");
+  if (prevButton) prevButton.disabled = selectedIndex <= 0;
+  if (nextButton) nextButton.disabled = selectedIndex >= filteredProducts.length - 1;
 }
 
 function openFacebookListingHelper(productId) {
@@ -1639,6 +1665,18 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
+  if (event.target.closest("#facebookPrevButton") || event.target.closest("#facebookNextButton")) {
+    const search = facebookProductSearch.trim().toLowerCase();
+    const filteredProducts = adminProductsCache.filter((product) => adminProductMatchesSearch(product, search));
+    if (!filteredProducts.length) return;
+    const currentIndex = Math.max(0, filteredProducts.findIndex((product) => product.id === selectedFacebookProductId));
+    const direction = event.target.closest("#facebookNextButton") ? 1 : -1;
+    const nextIndex = Math.min(filteredProducts.length - 1, Math.max(0, currentIndex + direction));
+    selectedFacebookProductId = filteredProducts[nextIndex].id;
+    renderFacebookMobilePage(adminProductsCache);
+    return;
+  }
+
   const copyFacebookField = event.target.closest("[data-copy-facebook-field]");
   if (copyFacebookField) {
     await copyTextValue(copyFacebookField.dataset.copyText || "");
@@ -1686,6 +1724,7 @@ document.addEventListener("click", async (event) => {
     document.querySelector("#mainMenu")?.removeAttribute("open");
     if (route === "register") trackEvent("register_start", { label: "Open register" });
     if (route === "cart") trackEvent("checkout_start", { label: "Open cart" });
+    if (route === "facebook") trackEvent("facebook_posting_open", { label: "Open Facebook posting workspace" });
   }
 
   const categoryFilter = event.target.closest("[data-category-filter]");
