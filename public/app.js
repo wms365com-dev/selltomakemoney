@@ -72,6 +72,7 @@ let activeFacebookListingProductId = null;
 let selectedFacebookProductId = null;
 let facebookProductSearch = "";
 let adminVisitorFilters = { country: "", deviceType: "", path: "" };
+let consentState = { consent: "", analyticsEnabled: false };
 
 function showStatus(message = "Working...") {
   statusDepth += 1;
@@ -396,6 +397,75 @@ function renderVisitorActivity(visitors) {
   host.innerHTML = visitors.map((visitor) => visitorActivityItem(visitor)).join("");
 }
 
+function renderInteractionFunnel(interactions) {
+  const host = document.querySelector("#interactionFunnel");
+  if (!host) return;
+  const funnel = interactions?.funnel;
+  if (!funnel) {
+    host.innerHTML = "";
+    return;
+  }
+  host.innerHTML = [
+    visitorSummaryCard("Product detail", funnel.productDetail ?? 0),
+    visitorSummaryCard("Add to cart", funnel.addToCart ?? 0),
+    visitorSummaryCard("Share", funnel.share ?? 0),
+    visitorSummaryCard("Checkout start", funnel.checkoutStart ?? 0),
+    visitorSummaryCard("Register start", funnel.registerStart ?? 0),
+    visitorSummaryCard("Register submit", funnel.registerSubmit ?? 0)
+  ].join("");
+}
+
+function renderInteractionTopProducts(interactions) {
+  const host = document.querySelector("#interactionTopProducts");
+  if (!host) return;
+  const items = interactions?.topProducts || [];
+  if (!items.length) {
+    host.innerHTML = "<p>No tracked product interactions yet today.</p>";
+    return;
+  }
+  host.innerHTML = items.map((item) => `
+    <article class="visitor-activity-item">
+      <div>
+        <strong>${escapeHtml(item.name || `Product #${item.productId}`)}</strong>
+        <span>Product ID ${escapeHtml(item.productId)}</span>
+      </div>
+      <div>
+        <strong>${escapeHtml(item.interactions)}</strong>
+        <span>Tracked interactions today</span>
+      </div>
+    </article>
+  `).join("");
+}
+
+function renderInteractionEvents(interactions) {
+  const host = document.querySelector("#interactionEvents");
+  if (!host) return;
+  const events = interactions?.recentEvents || [];
+  if (!events.length) {
+    host.innerHTML = "<p>No tracked interactions yet today.</p>";
+    return;
+  }
+  host.innerHTML = events.map((event) => {
+    const location = [event.city, event.region, event.country].filter(Boolean).join(", ") || "Unknown location";
+    return `
+      <article class="visitor-activity-item">
+        <div>
+          <strong>${escapeHtml(event.type || "interaction")}</strong>
+          <span>${escapeHtml(event.label || event.path || "/")}</span>
+        </div>
+        <div>
+          <strong>${escapeHtml(location)}</strong>
+          <span>${escapeHtml([event.deviceType, event.browserName].filter(Boolean).join(" | ") || "Unknown device")}</span>
+        </div>
+        <div>
+          <strong>${escapeHtml(formatDateTime(event.createdAt) || "Just now")}</strong>
+          <span>${escapeHtml(event.value || event.referrer || "Tracked event")}</span>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
 function syncVisitorFilterControls() {
   const country = document.querySelector("#visitorCountryFilter");
   const device = document.querySelector("#visitorDeviceFilter");
@@ -417,6 +487,9 @@ async function loadVisitorAnalytics() {
   renderVisitorAnalyticsSummary(visitorAnalytics);
   renderVisitorHourlyChart(visitorAnalytics);
   renderVisitorActivity(recentVisitors);
+  renderInteractionFunnel(visitorAnalytics.interactions);
+  renderInteractionTopProducts(visitorAnalytics.interactions);
+  renderInteractionEvents(visitorAnalytics.interactions);
   syncVisitorFilterControls();
 }
 
@@ -1415,8 +1488,41 @@ async function loadSession() {
   await withStatus("Checking session...", async () => {
     const data = await api("/api/session");
     sessionUser = data.user;
+    consentState = data.consent || consentState;
     updateNav();
+    updateConsentBanner();
   });
+}
+
+function updateConsentBanner() {
+  const banner = document.querySelector("#consentBanner");
+  if (!banner) return;
+  banner.classList.toggle("hidden", Boolean(consentState?.consent));
+}
+
+async function setConsentPreference(consent) {
+  const data = await api("/api/consent", {
+    method: "POST",
+    body: JSON.stringify({ consent })
+  });
+  consentState = data.consent || { consent, analyticsEnabled: consent === "analytics" };
+  updateConsentBanner();
+}
+
+async function trackEvent(type, payload = {}) {
+  if (!consentState?.analyticsEnabled) return;
+  try {
+    await fetch("/api/track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type,
+        path: window.location.pathname + window.location.hash,
+        ...payload
+      }),
+      keepalive: true
+    });
+  } catch {}
 }
 
 async function loadAdmin() {
@@ -1453,6 +1559,9 @@ async function loadAdmin() {
   renderVisitorAnalyticsSummary(visitorAnalytics);
   renderVisitorHourlyChart(visitorAnalytics);
   renderVisitorActivity(recentVisitors);
+  renderInteractionFunnel(visitorAnalytics.interactions);
+  renderInteractionTopProducts(visitorAnalytics.interactions);
+  renderInteractionEvents(visitorAnalytics.interactions);
   renderAdminProducts(adminProductsCache);
   renderBulkProductEditor(adminProductsCache);
   renderFacebookMobilePage(adminProductsCache);
@@ -1575,6 +1684,8 @@ document.addEventListener("click", async (event) => {
     window.location.hash = route;
     setRoute(route);
     document.querySelector("#mainMenu")?.removeAttribute("open");
+    if (route === "register") trackEvent("register_start", { label: "Open register" });
+    if (route === "cart") trackEvent("checkout_start", { label: "Open cart" });
   }
 
   const categoryFilter = event.target.closest("[data-category-filter]");
@@ -1583,12 +1694,15 @@ document.addEventListener("click", async (event) => {
     storeCategory.value = category;
     storeSearch.value = "";
     renderProducts(Boolean(sessionUser?.canSeePrices));
+    trackEvent("category_filter", { label: category || "All categories", value: category || "" });
     productGrid.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   const addCartId = event.target.closest("[data-add-cart]")?.dataset.addCart;
   if (addCartId) {
+    const product = productCache.find((entry) => entry.id === Number(addCartId));
     addToCart(addCartId);
+    trackEvent("add_to_cart", { productId: addCartId, label: product?.name || `Product ${addCartId}`, value: product?.price || "" });
     event.target.textContent = "Added";
     setTimeout(() => {
       event.target.textContent = "Add to cart";
@@ -1610,6 +1724,7 @@ document.addEventListener("click", async (event) => {
       document.execCommand("copy");
       fallback.remove();
     }
+    trackEvent("share", { productId: shareProductId, label: product?.name || `Product ${shareProductId}`, value: url });
     const original = shareButton.textContent;
     shareButton.textContent = "Copied";
     setTimeout(() => { shareButton.textContent = original; }, 900);
@@ -1628,9 +1743,19 @@ document.addEventListener("click", async (event) => {
       document.execCommand("copy");
       fallback.remove();
     }
+    trackEvent("share_catalog", { label: "Catalog share", value: url });
     const original = catalogButton.textContent;
     catalogButton.textContent = "Catalog link copied";
     setTimeout(() => { catalogButton.textContent = original; }, 1000);
+  }
+
+  const productDetailLink = event.target.closest(".product-card a[href*='/products/']");
+  if (productDetailLink) {
+    const productCard = productDetailLink.closest(".product-card");
+    const addCartButton = productCard?.querySelector("[data-add-cart]");
+    const productId = addCartButton?.dataset.addCart;
+    const product = productCache.find((entry) => entry.id === Number(productId));
+    trackEvent("product_detail", { productId, label: product?.name || productDetailLink.textContent.trim() });
   }
 
   if (event.target.closest("[data-close-exit-alert]")) {
@@ -1820,11 +1945,13 @@ document.querySelector("#loginForm").addEventListener("submit", async (event) =>
   try {
     const restore = setButtonBusy(event.target.querySelector("button[type='submit']"), "Logging in...");
     const form = new FormData(event.target);
+    trackEvent("login_submit", { label: String(form.get("email") || "").trim().toLowerCase() });
     const data = await withStatus("Logging in...", () => api("/api/login", {
       method: "POST",
       body: JSON.stringify(Object.fromEntries(form))
     }));
     sessionUser = data.user;
+    consentState = data.consent || consentState;
     updateNav();
     if (sessionUser.role === "admin") {
       window.location.assign("/admin");
@@ -1855,6 +1982,7 @@ document.querySelector("#registerForm").addEventListener("submit", async (event)
   const restore = setButtonBusy(submitButton, "Registering...");
   try {
     const form = new FormData(event.target);
+    trackEvent("register_submit", { label: String(form.get("email") || "").trim().toLowerCase() });
     const data = await withStatus("Submitting registration...", () => api("/api/register", {
       method: "POST",
       body: JSON.stringify(Object.fromEntries(form))
@@ -1993,6 +2121,14 @@ function closeMobileListing() {
 
 storeSearch.addEventListener("input", () => renderProducts(Boolean(sessionUser?.canSeePrices)));
 storeCategory.addEventListener("change", () => renderProducts(Boolean(sessionUser?.canSeePrices)));
+storeSearch.addEventListener("change", () => {
+  const value = String(storeSearch.value || "").trim();
+  if (value) trackEvent("search", { label: value, value });
+});
+storeCategory.addEventListener("change", () => {
+  const value = String(storeCategory.value || "").trim();
+  if (value) trackEvent("category_filter", { label: value, value });
+});
 facebookProductSearchInput?.addEventListener("input", () => {
   facebookProductSearch = facebookProductSearchInput.value || "";
   renderFacebookMobilePage(adminProductsCache);
@@ -2000,6 +2136,8 @@ facebookProductSearchInput?.addEventListener("input", () => {
 document.querySelector("#storeSearchButton")?.addEventListener("click", () => {
   storeSearch.focus();
   renderProducts(Boolean(sessionUser?.canSeePrices));
+  const value = String(storeSearch.value || "").trim();
+  if (value) trackEvent("search", { label: value, value });
 });
 document.querySelector("#checkoutForm")?.elements.fulfillmentMethod?.addEventListener("change", () => updateCheckoutPaymentOptions());
 document.querySelector("#fillAddressBtn")?.addEventListener("click", () => {
@@ -2180,6 +2318,7 @@ document.querySelector("#checkoutForm").addEventListener("submit", async (event)
     note: form.get("note")
   };
   try {
+    trackEvent("checkout_start", { label: body.shipTo.fulfillmentMethod || "checkout", value: `${cart.length} items` });
     const data = await withStatus("Submitting checkout...", () => api("/api/orders", {
       method: "POST",
       body: JSON.stringify(body)
@@ -2200,6 +2339,15 @@ document.querySelector("#checkoutForm").addEventListener("submit", async (event)
   } finally {
     restore();
   }
+});
+
+document.querySelector("#consentAnalyticsButton")?.addEventListener("click", async () => {
+  await withStatus("Saving preference...", () => setConsentPreference("analytics"));
+  await trackEvent("consent_analytics", { label: "Analytics consent accepted" });
+});
+
+document.querySelector("#consentEssentialButton")?.addEventListener("click", async () => {
+  await withStatus("Saving preference...", () => setConsentPreference("essential"));
 });
 
 document.addEventListener("input", async (event) => {

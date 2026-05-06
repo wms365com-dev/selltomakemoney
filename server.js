@@ -23,6 +23,7 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "DealerStore!2026";
 const AMAZON_AFFILIATE_TAG = process.env.AMAZON_AFFILIATE_TAG || "dealerstore-20";
 const PRODUCT_LISTING_PULL_API_KEY = process.env.PRODUCT_LISTING_PULL_API_KEY || "";
 const VISITOR_COOKIE_NAME = "stm_vid";
+const CONSENT_COOKIE_NAME = "stm_consent";
 const PRODUCT_CATEGORIES = [
   "Electronics",
   "Scooters & Mobility",
@@ -538,7 +539,8 @@ function emptyJsonStore() {
     bugReports: [],
     siteVisitors: [],
     productViews: [],
-    siteVisitEvents: []
+    siteVisitEvents: [],
+    interactionEvents: []
   };
 }
 
@@ -562,6 +564,7 @@ function readJsonStore() {
   data.siteVisitors ||= [];
   data.productViews ||= [];
   data.siteVisitEvents ||= [];
+  data.interactionEvents ||= [];
   data.products = data.products.map((product) => ({
     brand: "",
     upc: "",
@@ -779,6 +782,66 @@ function createJsonDatabase() {
           return acc;
         }, {})).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([countryName, visits]) => ({ country: countryName, visits })),
         hourly
+      };
+    },
+    async recordInteractionEvent(event) {
+      const created = {
+        id: crypto.randomUUID(),
+        type: String(event.type || "").trim(),
+        path: String(event.path || "").trim(),
+        productId: event.productId ? Number(event.productId) : null,
+        label: String(event.label || "").trim(),
+        value: String(event.value || "").trim(),
+        referrer: String(event.referrer || "").trim(),
+        visitorKey: String(event.visitorKey || "").trim(),
+        userId: event.userId ? Number(event.userId) : null,
+        ipAddress: String(event.ipAddress || "").trim(),
+        city: String(event.city || "").trim(),
+        region: String(event.region || "").trim(),
+        country: String(event.country || "").trim(),
+        deviceType: String(event.deviceType || "").trim(),
+        browserName: String(event.browserName || "").trim(),
+        osName: String(event.osName || "").trim(),
+        createdAt: new Date().toISOString()
+      };
+      store.interactionEvents.push(created);
+      if (store.interactionEvents.length > 10000) {
+        store.interactionEvents = store.interactionEvents.slice(-10000);
+      }
+      writeJsonStore(store);
+      return created;
+    },
+    async interactionAnalytics() {
+      const now = new Date();
+      const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      const todayEvents = store.interactionEvents.filter((event) => new Date(event.createdAt || 0).getTime() >= dayStart);
+      const countByType = todayEvents.reduce((acc, event) => {
+        const key = String(event.type || "unknown");
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
+      const productCounts = todayEvents.reduce((acc, event) => {
+        if (!event.productId) return acc;
+        const key = String(event.productId);
+        acc[key] ||= { productId: Number(event.productId), interactions: 0, name: String(event.label || "") };
+        acc[key].interactions += 1;
+        if (!acc[key].name && event.label) acc[key].name = String(event.label);
+        return acc;
+      }, {});
+      const recentEvents = [...todayEvents]
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+        .slice(0, 20);
+      return {
+        funnel: {
+          productDetail: Number(countByType.product_detail || 0),
+          addToCart: Number(countByType.add_to_cart || 0),
+          share: Number(countByType.share || 0),
+          checkoutStart: Number(countByType.checkout_start || 0),
+          registerStart: Number(countByType.register_start || 0),
+          registerSubmit: Number(countByType.register_submit || 0)
+        },
+        topProducts: Object.values(productCounts).sort((a, b) => b.interactions - a.interactions).slice(0, 5),
+        recentEvents
       };
     },
     async listUsers() {
@@ -1251,6 +1314,25 @@ function createPostgresDatabase() {
           user_agent TEXT NOT NULL DEFAULT '',
           referrer TEXT NOT NULL DEFAULT ''
         );
+        CREATE TABLE IF NOT EXISTS interaction_events (
+          id SERIAL PRIMARY KEY,
+          visitor_key TEXT NOT NULL,
+          type TEXT NOT NULL,
+          path TEXT NOT NULL DEFAULT '',
+          product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+          label TEXT NOT NULL DEFAULT '',
+          value TEXT NOT NULL DEFAULT '',
+          referrer TEXT NOT NULL DEFAULT '',
+          user_id INTEGER REFERENCES users(id),
+          ip_address TEXT NOT NULL DEFAULT '',
+          city TEXT NOT NULL DEFAULT '',
+          region TEXT NOT NULL DEFAULT '',
+          country TEXT NOT NULL DEFAULT '',
+          device_type TEXT NOT NULL DEFAULT '',
+          browser_name TEXT NOT NULL DEFAULT '',
+          os_name TEXT NOT NULL DEFAULT '',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
         CREATE TABLE IF NOT EXISTS product_views (
           product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
           visitor_key TEXT NOT NULL,
@@ -1280,6 +1362,8 @@ function createPostgresDatabase() {
         CREATE INDEX IF NOT EXISTS idx_site_visitors_last_seen ON site_visitors(last_seen_at DESC);
         CREATE INDEX IF NOT EXISTS idx_site_visit_events_visited ON site_visit_events(visited_at DESC);
         CREATE INDEX IF NOT EXISTS idx_site_visit_events_path ON site_visit_events(path);
+        CREATE INDEX IF NOT EXISTS idx_interaction_events_created ON interaction_events(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_interaction_events_type ON interaction_events(type);
         ALTER TABLE site_visitors ADD COLUMN IF NOT EXISTS ip_address TEXT NOT NULL DEFAULT '';
         ALTER TABLE site_visitors ADD COLUMN IF NOT EXISTS city TEXT NOT NULL DEFAULT '';
         ALTER TABLE site_visitors ADD COLUMN IF NOT EXISTS region TEXT NOT NULL DEFAULT '';
@@ -1516,6 +1600,79 @@ function createPostgresDatabase() {
         uniqueVisitorsToday: Number(summaryResult.rows[0]?.uniqueVisitorsToday || 0),
         topCountries: topCountryResult.rows.map((row) => ({ country: row.country, visits: Number(row.visits || 0) })),
         hourly: Array.from({ length: 24 }, (_, hour) => ({ hour, visits: hourlyMap.get(hour) || 0 }))
+      };
+    },
+    async recordInteractionEvent(event) {
+      const result = await query(`
+        INSERT INTO interaction_events (
+          visitor_key, type, path, product_id, label, value, referrer, user_id,
+          ip_address, city, region, country, device_type, browser_name, os_name
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+        RETURNING id, visitor_key AS "visitorKey", type, path, product_id AS "productId", label, value,
+                  referrer, user_id AS "userId", ip_address AS "ipAddress", city, region, country,
+                  device_type AS "deviceType", browser_name AS "browserName", os_name AS "osName",
+                  created_at AS "createdAt"
+      `, [
+        event.visitorKey,
+        event.type,
+        event.path || "",
+        event.productId ? Number(event.productId) : null,
+        event.label || "",
+        event.value || "",
+        event.referrer || "",
+        event.userId || null,
+        event.ipAddress || "",
+        event.city || "",
+        event.region || "",
+        event.country || "",
+        event.deviceType || "",
+        event.browserName || "",
+        event.osName || ""
+      ]);
+      return result.rows[0];
+    },
+    async interactionAnalytics() {
+      const funnelResult = await query(`
+        SELECT
+          COUNT(*) FILTER (WHERE type = 'product_detail')::int AS "productDetail",
+          COUNT(*) FILTER (WHERE type = 'add_to_cart')::int AS "addToCart",
+          COUNT(*) FILTER (WHERE type = 'share')::int AS "share",
+          COUNT(*) FILTER (WHERE type = 'checkout_start')::int AS "checkoutStart",
+          COUNT(*) FILTER (WHERE type = 'register_start')::int AS "registerStart",
+          COUNT(*) FILTER (WHERE type = 'register_submit')::int AS "registerSubmit"
+        FROM interaction_events
+        WHERE created_at >= date_trunc('day', NOW())
+      `);
+      const topProductsResult = await query(`
+        SELECT product_id AS "productId", MAX(label) AS name, COUNT(*)::int AS interactions
+        FROM interaction_events
+        WHERE created_at >= date_trunc('day', NOW()) AND product_id IS NOT NULL
+        GROUP BY product_id
+        ORDER BY interactions DESC, product_id DESC
+        LIMIT 5
+      `);
+      const recentEventsResult = await query(`
+        SELECT id, visitor_key AS "visitorKey", type, path, product_id AS "productId", label, value,
+               referrer, user_id AS "userId", ip_address AS "ipAddress", city, region, country,
+               device_type AS "deviceType", browser_name AS "browserName", os_name AS "osName",
+               created_at AS "createdAt"
+        FROM interaction_events
+        WHERE created_at >= date_trunc('day', NOW())
+        ORDER BY created_at DESC
+        LIMIT 20
+      `);
+      return {
+        funnel: {
+          productDetail: Number(funnelResult.rows[0]?.productDetail || 0),
+          addToCart: Number(funnelResult.rows[0]?.addToCart || 0),
+          share: Number(funnelResult.rows[0]?.share || 0),
+          checkoutStart: Number(funnelResult.rows[0]?.checkoutStart || 0),
+          registerStart: Number(funnelResult.rows[0]?.registerStart || 0),
+          registerSubmit: Number(funnelResult.rows[0]?.registerSubmit || 0)
+        },
+        topProducts: topProductsResult.rows.map((row) => ({ productId: Number(row.productId), name: row.name || "", interactions: Number(row.interactions || 0) })),
+        recentEvents: recentEventsResult.rows
       };
     },
     async listUsers() {
@@ -1783,6 +1940,20 @@ function ensureVisitorKey(req, res) {
   return visitorKey;
 }
 
+function readConsent(req) {
+  const value = String(readCookie(req, CONSENT_COOKIE_NAME) || "").trim().toLowerCase();
+  return value === "analytics" || value === "essential" ? value : "";
+}
+
+function setConsent(res, value) {
+  res.cookie(CONSENT_COOKIE_NAME, value, {
+    httpOnly: false,
+    sameSite: "lax",
+    secure: false,
+    maxAge: 1000 * 60 * 60 * 24 * 365
+  });
+}
+
 async function recordSiteVisit(req, res, pathName = req.path) {
   try {
     const visitorKey = ensureVisitorKey(req, res);
@@ -1804,6 +1975,36 @@ async function recordProductView(req, res, productId) {
     await db.recordProductView(Number(productId), visitorKey, user?.id || null);
   } catch (error) {
     console.error("Could not record product view", error);
+  }
+}
+
+async function recordInteractionEvent(req, res, payload = {}) {
+  try {
+    if (readConsent(req) !== "analytics") return null;
+    const visitorKey = ensureVisitorKey(req, res);
+    if (!visitorKey) return null;
+    const user = await currentUser(req);
+    const metadata = await visitorMetadata(req);
+    return await db.recordInteractionEvent({
+      visitorKey,
+      userId: user?.id || null,
+      type: String(payload.type || "").trim(),
+      path: String(payload.path || req.path || "").trim(),
+      productId: payload.productId ? Number(payload.productId) : null,
+      label: String(payload.label || "").trim(),
+      value: String(payload.value || "").trim(),
+      referrer: String(req.get("referer") || metadata.referrer || "").trim(),
+      ipAddress: metadata.ipAddress || "",
+      city: metadata.city || "",
+      region: metadata.region || "",
+      country: metadata.country || "",
+      deviceType: metadata.deviceType || "",
+      browserName: metadata.browserName || "",
+      osName: metadata.osName || ""
+    });
+  } catch (error) {
+    console.error("Could not record interaction event", error);
+    return null;
   }
 }
 
@@ -2043,10 +2244,12 @@ async function sendPrivacyPage(req, res) {
       <h2>What we track</h2>
       <ul>
         <li>Visits to the site and product pages</li>
+        <li>A first-party visitor cookie used to recognize return visits and track on-site activity</li>
         <li>IP address</li>
         <li>Approximate city, region, and country derived from IP address</li>
         <li>Device type, browser, operating system, and user agent</li>
         <li>Referrer, last page visited, and timestamps</li>
+        <li>Interaction events such as search, category filters, share clicks, product detail clicks, add to cart, and checkout start when analytics is allowed</li>
         <li>Account, cart, checkout, and inquiry activity when you choose to use those features</li>
       </ul>
       <h2>Why we track it</h2>
@@ -2057,9 +2260,9 @@ async function sendPrivacyPage(req, res) {
         <li>To support customer service, follow-up, and order handling</li>
       </ul>
       <h2>How it is used</h2>
-      <p>We use this data as first-party site analytics and operational logging. We may review aggregate traffic, per-listing popularity, and recent visitor activity in the admin tools.</p>
+      <p>We use this data as first-party site analytics and operational logging. We may review aggregate traffic, per-listing popularity, visitor journeys, and recent interaction activity in the admin tools.</p>
       <h2>Your use of the site</h2>
-      <p>By continuing to use this site, you acknowledge this tracking and the collection of the information described above. If you do not want this information collected, please do not use the site.</p>
+      <p>You can choose analytics-enabled tracking or essential-only tracking through the banner shown on the site. If you do not want this information collected, please do not use the site.</p>
       <h2>Questions</h2>
       <p>For privacy questions, contact the site operator through the contact details shared during checkout or account communication.</p>
     </section>
@@ -2162,6 +2365,14 @@ function publicUser(user) {
     role: user.role,
     accountType: user.accountType || (user.role === "admin" ? "admin" : "shopper"),
     canSeePrices: user.role === "admin" || (user.status === "approved" && (user.accountType || "shopper") === "dealer")
+  };
+}
+
+function consentPayload(req) {
+  const consent = readConsent(req) || "";
+  return {
+    consent,
+    analyticsEnabled: consent === "analytics"
   };
 }
 
@@ -2942,7 +3153,16 @@ function listingPullProductRecord(payload, existing = {}) {
 }
 
 app.get("/api/session", async (req, res) => {
-  res.json({ user: publicUser(await currentUser(req)) });
+  res.json({ user: publicUser(await currentUser(req)), consent: consentPayload(req) });
+});
+
+app.post("/api/consent", (req, res) => {
+  const consent = String(req.body.consent || "").trim().toLowerCase();
+  if (!["analytics", "essential"].includes(consent)) {
+    return res.status(400).json({ error: "Choose analytics or essential." });
+  }
+  setConsent(res, consent);
+  res.json({ ok: true, consent: { consent, analyticsEnabled: consent === "analytics" } });
 });
 
 app.post("/api/register", async (req, res) => {
@@ -2984,6 +3204,19 @@ app.post("/api/alerts", async (req, res) => {
   } catch (error) {
     res.status(400).json({ error: error.message || "Could not save alert signup." });
   }
+});
+
+app.post("/api/track", async (req, res) => {
+  const type = String(req.body.type || "").trim();
+  if (!type) return res.status(400).json({ error: "Tracking event type is required." });
+  await recordInteractionEvent(req, res, {
+    type,
+    path: req.body.path || req.path,
+    productId: req.body.productId,
+    label: req.body.label,
+    value: req.body.value
+  });
+  res.json({ ok: true, consent: consentPayload(req) });
 });
 
 app.post("/api/bug-reports", async (req, res) => {
@@ -3123,7 +3356,11 @@ app.get("/api/admin/visitors", requireAdmin, async (req, res) => {
     deviceType: String(req.query.deviceType || "").trim(),
     path: String(req.query.path || "").trim()
   };
-  res.json(await db.visitorAnalytics(filters));
+  const [visitors, interactions] = await Promise.all([
+    db.visitorAnalytics(filters),
+    db.interactionAnalytics()
+  ]);
+  res.json({ ...visitors, interactions });
 });
 
 app.get("/api/admin/users", requireAdmin, async (_req, res) => {
@@ -3150,7 +3387,7 @@ app.patch("/api/admin/users/:id", requireAdmin, async (req, res) => {
     user = await db.updateUserAccountType(userId, req.body.accountType);
   }
   if (!user) return res.status(404).json({ error: "User not found." });
-  res.json({ ok: true, user: publicUser(user) });
+  res.json({ ok: true, user: publicUser(user), consent: consentPayload(req) });
 });
 
 app.get("/api/admin/products", requireAdmin, async (_req, res) => {

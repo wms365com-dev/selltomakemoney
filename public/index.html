@@ -91,6 +91,17 @@
       <span id="appStatusText">Working...</span>
     </div>
 
+    <div id="consentBanner" class="consent-banner hidden" role="dialog" aria-live="polite" aria-label="Cookie and analytics notice">
+      <div class="consent-copy">
+        <strong>Cookies and visitor analytics</strong>
+        <span>We use a first-party visitor cookie to understand repeat visits, product interest, and site performance. Choose analytics or essential-only tracking.</span>
+      </div>
+      <div class="consent-actions">
+        <button type="button" id="consentEssentialButton">Essential only</button>
+        <button type="button" class="primary" id="consentAnalyticsButton">Allow analytics</button>
+      </div>
+    </div>
+
     <section id="storeView" class="view">
       <div class="section-head compact plain-head">
         <div class="plain-head-copy">
@@ -452,6 +463,21 @@
               <span>Latest matching visitors by location, device, and path.</span>
             </div>
             <div id="visitorActivity" class="stack"></div>
+            <div class="visitor-activity-list-head">
+              <strong>Interaction funnel</strong>
+              <span>Today’s journey from listing interest to cart and registration.</span>
+            </div>
+            <div id="interactionFunnel" class="visitor-analytics-summary"></div>
+            <div class="visitor-activity-list-head">
+              <strong>Top product interactions</strong>
+              <span>Most-clicked products from tracked analytics events today.</span>
+            </div>
+            <div id="interactionTopProducts" class="stack"></div>
+            <div class="visitor-activity-list-head">
+              <strong>Recent tracked interactions</strong>
+              <span>Newest consented actions like add to cart, share, and checkout start.</span>
+            </div>
+            <div id="interactionEvents" class="stack"></div>
           </section>
         </div>
       </div>

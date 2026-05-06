@@ -1467,6 +1467,34 @@ body:not([data-view="mobile"]) .mobile-listing-quickbar {
   font-size: 0.9rem;
 }
 
+.consent-banner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid #f0c36d;
+  border-radius: 10px;
+  background: #fff8eb;
+}
+
+.consent-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.consent-copy span {
+  color: var(--muted);
+  font-size: 0.94rem;
+}
+
+.consent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .visitor-hourly-chart {
   display: grid;
   gap: 12px;
@@ -2714,6 +2742,10 @@ body[data-view="mobile"] .admin-metrics-strip {
 
 body[data-view="mobile"] .visitor-analytics-toolbar,
 body[data-view="mobile"] .visitor-analytics-summary {
+  grid-template-columns: 1fr;
+}
+
+body[data-view="mobile"] .consent-banner {
   grid-template-columns: 1fr;
 }
 
