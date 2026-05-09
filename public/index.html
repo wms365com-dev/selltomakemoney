@@ -51,12 +51,12 @@
       ]
     }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=storefront-uniform-8">
+  <link rel="stylesheet" href="/styles.css?v=storefront-uniform-9">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="#store" data-route="store" aria-label="selltomakemoney.com home">
-            <img src="/assets/logo.svg?v=storefront-uniform-8" alt="selltomakemoney.com">
+            <img src="/assets/logo.svg?v=storefront-uniform-9" alt="selltomakemoney.com">
     </a>
     <div class="header-actions">
       <button class="cart-icon-button" type="button" data-route="cart" aria-label="Open cart">
@@ -103,17 +103,52 @@
     </div>
 
     <section id="storeView" class="view">
-      <div class="section-head compact plain-head">
-        <div class="plain-head-copy">
+      <div class="section-head compact store-hero">
+        <div class="store-hero-copy">
           <p class="eyebrow" id="storeEyebrow">Inventory catalog</p>
           <h1 id="storeHeading">Current products</h1>
           <p class="hero-copy" id="storeHeroCopy">Browse available items, compare retail links, and add items to your cart. Checkout requires an account.</p>
+          <div class="hero-badges">
+            <span>Mississauga pickup</span>
+            <span>Select items ship</span>
+            <span>Fresh inventory updates</span>
+          </div>
+          <div class="hero-inline-points">
+            <div><strong>Fast local buying</strong><span>See what is available now and move from listing to checkout quickly.</span></div>
+            <div><strong>Public pricing first</strong><span>Share products easily, compare retail links, and let buyers come back to your store.</span></div>
+          </div>
         </div>
-        <div class="plain-head-actions">
-          <p class="price-note" id="priceNote">Public pricing is visible. Create an account before checkout. No credit cards accepted.</p>
-          <button type="button" id="shareCatalogButton" data-copy-catalog>Share catalog</button>
+        <div class="store-hero-side">
+          <div class="hero-side-actions">
+            <p class="price-note" id="priceNote">Public pricing is visible. Create an account before checkout. No credit cards accepted.</p>
+            <button type="button" id="shareCatalogButton" data-copy-catalog>Share catalog</button>
+          </div>
+          <div class="hero-feature-showcase">
+            <div class="hero-feature-card hero-feature-primary" id="storeFeaturedPrimary"></div>
+            <div class="hero-feature-grid" id="storeFeaturedGrid"></div>
+          </div>
         </div>
       </div>
+      <div class="store-insights" id="storeInsights"></div>
+      <section class="category-tile-panel">
+        <div class="store-section-headline">
+          <div>
+            <p class="eyebrow">Browse categories</p>
+            <h2>Shop by product type</h2>
+          </div>
+          <p>Jump into the categories that move fastest and bring buyers back to the site.</p>
+        </div>
+        <div class="category-tiles" id="categoryTiles"></div>
+      </section>
+      <section class="panel featured-products-band">
+        <div class="store-section-headline">
+          <div>
+            <p class="eyebrow">Featured deals</p>
+            <h2>Current inventory ready to browse</h2>
+          </div>
+          <p>Live pricing, clear pickup or shipping notes, and direct product pages built for sharing.</p>
+        </div>
+      </section>
       <section class="store-tools" aria-label="Store filters">
         <label class="store-search-label"><span>Search inventory</span><input id="storeSearch" type="search" placeholder="Search by item, brand, SKU, UPC"></label>
         <button class="store-search-button" id="storeSearchButton" type="button" aria-label="Search inventory">Search</button>

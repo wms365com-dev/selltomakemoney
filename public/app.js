@@ -28,6 +28,9 @@ const storeEyebrow = document.querySelector("#storeEyebrow");
 const storeHeading = document.querySelector("#storeHeading");
 const storeHeroCopy = document.querySelector("#storeHeroCopy");
 const shareCatalogButton = document.querySelector("#shareCatalogButton");
+const storeInsights = document.querySelector("#storeInsights");
+const storeFeaturedPrimary = document.querySelector("#storeFeaturedPrimary");
+const storeFeaturedGrid = document.querySelector("#storeFeaturedGrid");
 const storeSearch = document.querySelector("#storeSearch");
 const storeCategory = document.querySelector("#storeCategory");
 const categoryTiles = document.querySelector("#categoryTiles");
@@ -1340,6 +1343,23 @@ function renderStoreCategories(products) {
   const current = storeCategory.value;
   storeCategory.innerHTML = `<option value="">All categories</option>${categories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("")}`;
   if (categories.includes(current)) storeCategory.value = current;
+  if (categoryTiles) {
+    const categoryCards = categories.map((category) => {
+      const matching = products.filter((product) => product.category === category);
+      const lead = matching.find((product) => product.imageUrl || product.imageUrls?.length) || matching[0];
+      const imageUrl = lead?.imageUrl || lead?.imageUrls?.[0] || "";
+      return `
+        <button type="button" class="category-tile" data-category-tile="${escapeHtml(category)}">
+          ${imageUrl
+            ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(category)}" loading="lazy" decoding="async">`
+            : `<span>${escapeHtml((lead?.brand || category).slice(0, 18))}</span>`}
+          <strong>${escapeHtml(category)}</strong>
+          <small>${escapeHtml(matching.length)} item${matching.length === 1 ? "" : "s"}</small>
+        </button>
+      `;
+    });
+    categoryTiles.innerHTML = categoryCards.join("");
+  }
 }
 
 function filteredProducts(products) {
@@ -1382,6 +1402,69 @@ function updateStoreStructuredData(products) {
     }))
   });
   document.head.appendChild(script);
+}
+
+function featuredStoreProducts(products) {
+  return [...products]
+    .sort((left, right) => {
+      const rightScore = Number(right.viewCount || 0) + Number(right.uniqueViewers || 0);
+      const leftScore = Number(left.viewCount || 0) + Number(left.uniqueViewers || 0);
+      if (rightScore !== leftScore) return rightScore - leftScore;
+      return Number(right.priceCents || 0) - Number(left.priceCents || 0);
+    })
+    .filter((product) => product.imageUrl || product.imageUrls?.length)
+    .slice(0, 4);
+}
+
+function renderStoreHero(products) {
+  if (!storeFeaturedPrimary || !storeFeaturedGrid) return;
+  const featured = featuredStoreProducts(products);
+  if (!featured.length) {
+    storeFeaturedPrimary.innerHTML = "";
+    storeFeaturedGrid.innerHTML = "";
+    return;
+  }
+  const primary = featured[0];
+  const secondary = featured.slice(1, 4);
+  const primaryImage = primary.imageUrl || primary.imageUrls?.[0] || "";
+  storeFeaturedPrimary.innerHTML = `
+    <a class="hero-feature-link" href="${escapeHtml(primary.url || `/products/${primary.id}`)}">
+      ${primaryImage ? `<img src="${escapeHtml(primaryImage)}" alt="${escapeHtml(primary.name)}" loading="eager" decoding="async">` : `<span>${escapeHtml(primary.brand || primary.category || "Featured")}</span>`}
+      <div class="hero-feature-copy">
+        <p class="eyebrow">Featured product</p>
+        <strong>${escapeHtml(primary.name)}</strong>
+        <span>${escapeHtml(primary.brand || primary.category || "Inventory find")}</span>
+      </div>
+    </a>
+  `;
+  storeFeaturedGrid.innerHTML = secondary.map((product) => {
+    const imageUrl = product.imageUrl || product.imageUrls?.[0] || "";
+    return `
+      <a class="hero-feature-mini" href="${escapeHtml(product.url || `/products/${product.id}`)}">
+        ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(product.name)}" loading="lazy" decoding="async">` : `<span>${escapeHtml(product.brand || product.category || "Featured")}</span>`}
+        <strong>${escapeHtml(product.name)}</strong>
+      </a>
+    `;
+  }).join("");
+}
+
+function renderStoreInsights(products) {
+  if (!storeInsights) return;
+  const shippableCount = products.filter((product) => product.fulfillmentType === "ship").length;
+  const pickupCount = products.filter((product) => product.fulfillmentType !== "ship").length;
+  const categoryCount = new Set(products.map((product) => product.category).filter(Boolean)).size;
+  const insightCards = [
+    ["Live inventory", `${products.length} items`, "Current products ready to browse, share, and add to cart."],
+    ["Browse faster", `${categoryCount} categories`, "Organized product groups built for quick scanning and cleaner navigation."],
+    ["Pickup and shipping", `${pickupCount} pickup | ${shippableCount} ship`, "Customers can see right away whether each item is local pickup or ready to ship."]
+  ];
+  storeInsights.innerHTML = insightCards.map(([label, value, copy]) => `
+    <article class="insight-card">
+      <p>${escapeHtml(label)}</p>
+      <strong>${escapeHtml(value)}</strong>
+      <span>${escapeHtml(copy)}</span>
+    </article>
+  `).join("");
 }
 
 function renderProducts(canSeePrices = false) {
@@ -1511,6 +1594,9 @@ async function loadProducts(mode = currentStoreMode) {
   if (productsRequest) return productsRequest;
   if (productCache.length) {
     applyStoreModeCopy(Boolean(sessionUser?.canSeePrices));
+    renderStoreHero(productCache);
+    renderStoreInsights(productCache);
+    renderStoreCategories(productCache);
     renderProducts(Boolean(sessionUser?.canSeePrices));
     return { products: productCache, canSeePrices: Boolean(sessionUser?.canSeePrices) };
   }
@@ -1519,6 +1605,8 @@ async function loadProducts(mode = currentStoreMode) {
     const data = await api("/api/products");
     productCache = data.products;
     renderStoreCategories(productCache);
+    renderStoreHero(productCache);
+    renderStoreInsights(productCache);
     updateStoreStructuredData(productCache);
     applyStoreModeCopy(data.canSeePrices);
     renderProducts(data.canSeePrices);
@@ -2215,6 +2303,13 @@ function closeMobileListing() {
 
 storeSearch.addEventListener("input", () => renderProducts(Boolean(sessionUser?.canSeePrices)));
 storeCategory.addEventListener("change", () => renderProducts(Boolean(sessionUser?.canSeePrices)));
+categoryTiles?.addEventListener("click", (event) => {
+  const tile = event.target.closest("[data-category-tile]");
+  if (!tile) return;
+  storeCategory.value = tile.dataset.categoryTile || "";
+  renderProducts(Boolean(sessionUser?.canSeePrices));
+  trackEvent("category_tile", { label: storeCategory.value, value: storeCategory.value });
+});
 storeSearch.addEventListener("change", () => {
   const value = String(storeSearch.value || "").trim();
   if (value) trackEvent("search", { label: value, value });
