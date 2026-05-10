@@ -571,6 +571,15 @@ function renderSellerProducts(products) {
   host.innerHTML = products.map((product) => sellerProductListItem(product)).join("");
 }
 
+function updateSellerWorkspaceVisibility() {
+  const pendingNotice = document.querySelector("#sellerPendingNotice");
+  const workspace = document.querySelector("#sellerWorkspaceContent");
+  if (!pendingNotice || !workspace) return;
+  const approvedSeller = sessionUser?.role === "admin" || (sessionUser?.accountType === "seller" && sessionUser?.status === "approved");
+  pendingNotice.classList.toggle("hidden", approvedSeller);
+  workspace.classList.toggle("hidden", !approvedSeller);
+}
+
 function facebookProductListItem(product, isSelected = false) {
   return `
     <button type="button" class="admin-product-list-item ${isSelected ? "selected" : ""}" data-select-facebook-product="${product.id}">
@@ -1765,6 +1774,8 @@ async function loadFacebookPage() {
 
 async function loadSeller() {
   if (!(sessionUser?.role === "admin" || sessionUser?.accountType === "seller")) return setRoute("store");
+  updateSellerWorkspaceVisibility();
+  if (!(sessionUser?.role === "admin" || sessionUser?.status === "approved")) return;
   const data = await withStatus("Loading seller workspace...", () => api("/api/seller/products"));
   sellerProductsCache = data.products || [];
   renderSellerProducts(sellerProductsCache);

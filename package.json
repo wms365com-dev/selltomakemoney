@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "qa:playwright": "node scripts/playwright-smoke.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -14,5 +15,8 @@
     "express-session": "^1.18.0",
     "multer": "^2.0.2",
     "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.59.1"
   }
 }
