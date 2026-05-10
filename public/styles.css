@@ -2964,6 +2964,12 @@ body[data-view="mobile"] #storeView .store-hero-copy {
   gap: 12px;
 }
 
+body[data-view="mobile"] #storeView .store-hero-side,
+body[data-view="mobile"] #storeView .store-insights,
+body[data-view="mobile"] #storeView .featured-products-band {
+  display: none;
+}
+
 body[data-view="mobile"] .hero-side-actions {
   justify-items: stretch;
   width: 100%;
@@ -2972,6 +2978,10 @@ body[data-view="mobile"] .hero-side-actions {
 body[data-view="mobile"] .hero-inline-points,
 body[data-view="mobile"] .store-insights {
   grid-template-columns: 1fr;
+}
+
+body[data-view="mobile"] #storeView .hero-inline-points {
+  display: none;
 }
 
 body[data-view="mobile"] .hero-feature-showcase,
@@ -3098,6 +3108,28 @@ body[data-view="mobile"] .category-tile strong {
 
 body[data-view="mobile"] #productGrid {
   order: 5;
+}
+
+body[data-view="mobile"] #sellwithusView .dealer-info-grid,
+body[data-view="mobile"] #sellerView .admin-simple-layout {
+  grid-template-columns: 1fr;
+}
+
+body[data-view="mobile"] #sellwithusView .section-head,
+body[data-view="mobile"] #sellerView .section-head {
+  margin: 8px 8px 12px;
+  padding: 14px;
+}
+
+body[data-view="mobile"] #sellerView .admin-add-product,
+body[data-view="mobile"] #sellerView .admin-products-panel {
+  padding: 16px;
+}
+
+body[data-view="mobile"] #sellerView .admin-panel-subhead,
+body[data-view="mobile"] #sellwithusView .hero-copy {
+  font-size: 14px;
+  line-height: 1.4;
 }
 
 body[data-view="mobile"] .mobile-store-links {

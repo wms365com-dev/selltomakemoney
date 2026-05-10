@@ -2353,9 +2353,19 @@ async function sendMobileApp(req, res) {
   res.type("html").send(appHtml("mobile", "store"));
 }
 
+async function sendMobileListWithUsApp(req, res) {
+  await recordSiteVisit(req, res, "/m/list-with-us");
+  res.type("html").send(appHtml("mobile", "sellwithus"));
+}
+
 async function sendDealerApp(req, res) {
   await recordSiteVisit(req, res, "/dealer");
   res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "dealer"));
+}
+
+async function sendMobileDealerApp(req, res) {
+  await recordSiteVisit(req, res, "/m/dealer");
+  res.type("html").send(appHtml("mobile", "dealer"));
 }
 
 async function sendShopperApp(req, res) {
@@ -2363,9 +2373,19 @@ async function sendShopperApp(req, res) {
   res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "shopper"));
 }
 
+async function sendMobileShopperApp(req, res) {
+  await recordSiteVisit(req, res, "/m/shopper");
+  res.type("html").send(appHtml("mobile", "shopper"));
+}
+
 async function sendSellerApp(req, res) {
   await recordSiteVisit(req, res, "/sell");
   res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "seller"));
+}
+
+async function sendMobileSellerApp(req, res) {
+  await recordSiteVisit(req, res, "/m/sell");
+  res.type("html").send(appHtml("mobile", "seller"));
 }
 
 async function sendListWithUsApp(req, res) {
@@ -2512,6 +2532,8 @@ app.get("/robots.txt", (req, res) => {
     "Disallow: /shopper",
     "Disallow: /shopper/",
     "Disallow: /mobile",
+    "Disallow: /m",
+    "Disallow: /m/",
     "Disallow: /api/",
     `Sitemap: ${baseUrl}/sitemap.xml`,
     ""
@@ -4031,6 +4053,11 @@ app.get("/", (req, res) => {
 app.get("/products/:id/:slug?", sendProductPage);
 app.get("/desktop", sendDesktopApp);
 app.get("/mobile", sendMobileApp);
+app.get("/m", sendMobileApp);
+app.get("/m/list-with-us", sendMobileListWithUsApp);
+app.get("/m/shopper", sendMobileShopperApp);
+app.get("/m/dealer", sendMobileDealerApp);
+app.get("/m/sell", sendMobileSellerApp);
 app.get("/shopper", sendShopperApp);
 app.get("/dealer", sendDealerApp);
 app.get("/sell", sendSellerApp);
