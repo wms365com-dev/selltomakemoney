@@ -2888,6 +2888,10 @@ body[data-view="mobile"] .nav-button {
   min-height: 48px;
 }
 
+body[data-view="mobile"] .mobile-hide-nav {
+  display: none;
+}
+
 body[data-view="mobile"] .mobile-only-nav {
   display: inline-flex;
 }
