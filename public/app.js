@@ -17,7 +17,9 @@ const views = {
   store: document.querySelector("#storeView"),
   login: document.querySelector("#loginView"),
   register: document.querySelector("#registerView"),
+  sellwithus: document.querySelector("#sellwithusView"),
   cart: document.querySelector("#cartView"),
+  seller: document.querySelector("#sellerView"),
   admin: document.querySelector("#adminView"),
   facebook: document.querySelector("#facebookView")
 };
@@ -74,6 +76,7 @@ let bulkNewRowSequence = 1;
 let activeFacebookListingProductId = null;
 let selectedFacebookProductId = null;
 let facebookProductSearch = "";
+let sellerProductsCache = [];
 let adminVisitorFilters = { country: "", deviceType: "", path: "" };
 let consentState = { consent: "", analyticsEnabled: false };
 
@@ -175,6 +178,10 @@ function setRoute(route) {
     window.location.hash = "login";
     return setRoute("login");
   }
+  if (requestedRoute === "seller" && !(sessionUser?.role === "admin" || sessionUser?.accountType === "seller")) {
+    window.location.hash = "login";
+    return setRoute("login");
+  }
   const visibleRoute = requestedRoute === "dealer" ? "store" : requestedRoute;
   currentStoreMode = requestedRoute === "dealer" ? "dealer" : requestedRoute === "shopper" ? "shopper" : "store";
   document.body.dataset.storeMode = currentStoreMode;
@@ -186,13 +193,16 @@ function setRoute(route) {
   }
   if (visibleRoute === "admin") loadAdmin();
   if (visibleRoute === "facebook") loadFacebookPage();
+  if (visibleRoute === "seller") loadSeller();
 }
 
 function routeFromHash() {
   const route = window.location.hash.replace("#", "");
-  if (route) return views[route] ? route : (route === "dealer" || route === "shopper" ? route : "store");
+  if (route) return views[route] ? route : (route === "dealer" || route === "shopper" || route === "seller" ? route : "store");
   if (window.__ENTRY_ROUTE === "dealer") return "dealer";
   if (window.__ENTRY_ROUTE === "shopper") return "shopper";
+  if (window.__ENTRY_ROUTE === "seller") return "seller";
+  if (window.__ENTRY_ROUTE === "sellwithus") return "sellwithus";
   if (window.__ENTRY_ROUTE === "admin") return "admin";
   if (window.__ENTRY_ROUTE === "facebook") return "facebook";
   return "store";
@@ -205,6 +215,7 @@ function updateNav() {
   document.querySelectorAll(".admin-only").forEach((item) => item.classList.toggle("hidden", sessionUser?.role !== "admin"));
   document.querySelectorAll(".shopper-only").forEach((item) => item.classList.toggle("hidden", sessionUser?.accountType !== "shopper"));
   document.querySelectorAll(".dealer-only").forEach((item) => item.classList.toggle("hidden", !(sessionUser?.canSeePrices || sessionUser?.role === "admin")));
+  document.querySelectorAll(".seller-only").forEach((item) => item.classList.toggle("hidden", !(sessionUser?.accountType === "seller" || sessionUser?.role === "admin")));
   updateCartCount();
 }
 
@@ -296,6 +307,16 @@ function adminProductListItem(product, isSelected = false) {
       <span>${escapeHtml(product.category || "No category")}${product.brand ? ` | ${escapeHtml(product.brand)}` : ""}</span>
       <span>${product.price || "$0.00"} | Qty ${escapeHtml(product.quantityOnHand ?? 0)} | Views ${escapeHtml(product.viewCount ?? 0)} | ${product.active ? "Live" : "Hidden"}</span>
     </button>
+  `;
+}
+
+function sellerProductListItem(product) {
+  return `
+    <article class="admin-product-list-item seller-product-item">
+      <strong>${escapeHtml(product.name)}</strong>
+      <span>${escapeHtml(product.category || "No category")}${product.brand ? ` | ${escapeHtml(product.brand)}` : ""}</span>
+      <span>${escapeHtml(product.price || "$0.00")} | Qty ${escapeHtml(product.quantityOnHand ?? 0)} | ${product.active ? "Live" : "Pending review"}</span>
+    </article>
   `;
 }
 
@@ -515,6 +536,7 @@ function adminUserItem(user) {
           <select data-user-account-type="${user.id}">
             <option value="shopper" ${accountType === "shopper" ? "selected" : ""}>Shopper</option>
             <option value="dealer" ${accountType === "dealer" ? "selected" : ""}>Dealer</option>
+            <option value="seller" ${accountType === "seller" ? "selected" : ""}>Seller</option>
           </select>
         </label>
         <label>Status
@@ -537,6 +559,16 @@ function renderAdminUsers(users) {
     return;
   }
   host.innerHTML = users.map((user) => adminUserItem(user)).join("");
+}
+
+function renderSellerProducts(products) {
+  const host = document.querySelector("#sellerProducts");
+  if (!host) return;
+  if (!products?.length) {
+    host.innerHTML = `<div class="panel empty-catalog"><h2>No seller listings yet</h2><p>Submit your first item and it will appear here while it moves through review.</p></div>`;
+    return;
+  }
+  host.innerHTML = products.map((product) => sellerProductListItem(product)).join("");
 }
 
 function facebookProductListItem(product, isSelected = false) {
@@ -1731,7 +1763,21 @@ async function loadFacebookPage() {
   renderFacebookMobilePage(adminProductsCache);
 }
 
+async function loadSeller() {
+  if (!(sessionUser?.role === "admin" || sessionUser?.accountType === "seller")) return setRoute("store");
+  const data = await withStatus("Loading seller workspace...", () => api("/api/seller/products"));
+  sellerProductsCache = data.products || [];
+  renderSellerProducts(sellerProductsCache);
+  setupImageDropzones(document.querySelector("#sellerView"));
+}
+
 document.addEventListener("click", async (event) => {
+  const registerIntentButton = event.target.closest("[data-register-intent]");
+  if (registerIntentButton) {
+    const accountTypeField = document.querySelector("#registerForm [name='accountType']");
+    if (accountTypeField) accountTypeField.value = registerIntentButton.dataset.registerIntent || "shopper";
+  }
+
   const stepButton = event.target.closest("[data-admin-step]");
   if (stepButton) {
     setAdminStep(stepButton.closest(".admin-stepper"), stepButton.dataset.adminStep);
@@ -2139,6 +2185,8 @@ document.querySelector("#loginForm").addEventListener("submit", async (event) =>
       window.location.assign("/admin");
     } else if (sessionUser.accountType === "dealer") {
       window.location.assign("/dealer");
+    } else if (sessionUser.accountType === "seller") {
+      window.location.assign("/sell");
     } else if (sessionUser.accountType === "shopper") {
       window.location.assign("/shopper");
     } else {
@@ -2173,6 +2221,33 @@ document.querySelector("#registerForm").addEventListener("submit", async (event)
     event.target.reset();
   } catch (error) {
     message.textContent = error.message;
+  } finally {
+    restore();
+  }
+});
+
+document.querySelector("#sellerProductForm")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const message = document.querySelector("#sellerProductMessage");
+  const submitButton = event.target.querySelector("button[type='submit']");
+  const restore = setButtonBusy(submitButton, "Submitting...");
+  if (message) message.textContent = "";
+  try {
+    const formData = new FormData(event.target);
+    const response = await withStatus("Submitting seller listing...", async () => {
+      const response = await fetch("/api/seller/products", {
+        method: "POST",
+        body: formData
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not submit seller listing.");
+      return data;
+    });
+    if (message) message.textContent = response.message || "Listing submitted for review.";
+    event.target.reset();
+    await loadSeller();
+  } catch (error) {
+    if (message) message.textContent = error.message;
   } finally {
     restore();
   }
@@ -2670,7 +2745,7 @@ document.querySelector("#logoutButton").addEventListener("click", async () => {
   sessionUser = null;
   updateNav();
   document.querySelector("#mainMenu")?.removeAttribute("open");
-  if (window.location.pathname.toLowerCase().includes("/dealer") || window.location.pathname.toLowerCase().includes("/admin")) {
+  if (window.location.pathname.toLowerCase().includes("/dealer") || window.location.pathname.toLowerCase().includes("/admin") || window.location.pathname.toLowerCase().includes("/sell")) {
     window.location.assign("/desktop");
     return;
   }

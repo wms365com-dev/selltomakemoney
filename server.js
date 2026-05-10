@@ -576,7 +576,7 @@ function emptyJsonStore() {
 }
 
 function normalizeAccountType(value, fallback = "shopper") {
-  return ["shopper", "dealer"].includes(String(value || "").trim().toLowerCase())
+  return ["shopper", "dealer", "seller"].includes(String(value || "").trim().toLowerCase())
     ? String(value || "").trim().toLowerCase()
     : fallback;
 }
@@ -912,8 +912,12 @@ function createJsonDatabase() {
       writeJsonStore(store);
       return user;
     },
-    async listProducts({ activeOnly = false } = {}) {
-      const products = store.products.filter((product) => !activeOnly || product.active);
+    async listProducts({ activeOnly = false, ownerUserId } = {}) {
+      const products = store.products.filter((product) => {
+        if (activeOnly && !product.active) return false;
+        if (ownerUserId != null && Number(product.ownerUserId || 0) !== Number(ownerUserId)) return false;
+        return true;
+      });
       return products.sort((a, b) => b.id - a.id);
     },
     async getProduct(id) {
@@ -927,7 +931,7 @@ function createJsonDatabase() {
         .sort((a, b) => orderedIds.indexOf(Number(a.id)) - orderedIds.indexOf(Number(b.id)));
     },
     async createProduct(product) {
-      return insert("products", product);
+      return insert("products", { ownerUserId: null, ...product });
     },
     async updateProduct(id, updates) {
       const product = store.products.find((item) => item.id === Number(id));
@@ -1106,6 +1110,7 @@ function camelProduct(row) {
     imageUrls,
     sourceUrl: row.source_url,
     quantityOnHand: row.quantity_on_hand,
+    ownerUserId: row.owner_user_id || row.ownerUserId || null,
     productSpecs,
     recommendedAddonIds,
     active: row.active,
@@ -1260,6 +1265,7 @@ function createPostgresDatabase() {
           image_urls TEXT NOT NULL DEFAULT '[]',
           source_url TEXT NOT NULL DEFAULT '',
           quantity_on_hand INTEGER NOT NULL DEFAULT 0,
+          owner_user_id INTEGER REFERENCES users(id),
           product_specs TEXT NOT NULL DEFAULT '{}',
           recommended_addon_ids TEXT NOT NULL DEFAULT '[]',
           active BOOLEAN NOT NULL DEFAULT TRUE,
@@ -1388,6 +1394,7 @@ function createPostgresDatabase() {
         ALTER TABLE products ADD COLUMN IF NOT EXISTS image_urls TEXT NOT NULL DEFAULT '[]';
         ALTER TABLE products ADD COLUMN IF NOT EXISTS source_url TEXT NOT NULL DEFAULT '';
         ALTER TABLE products ADD COLUMN IF NOT EXISTS quantity_on_hand INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE products ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id);
         ALTER TABLE products ADD COLUMN IF NOT EXISTS product_specs TEXT NOT NULL DEFAULT '{}';
         ALTER TABLE products ADD COLUMN IF NOT EXISTS dealer_price_cents INTEGER;
         ALTER TABLE products ADD COLUMN IF NOT EXISTS recommended_addon_ids TEXT NOT NULL DEFAULT '[]';
@@ -1764,8 +1771,16 @@ function createPostgresDatabase() {
       const result = await query("UPDATE users SET account_type = $1 WHERE id = $2 AND role != 'admin' RETURNING *", [normalizeAccountType(accountType), id]);
       return camelUser(result.rows[0]);
     },
-    async listProducts({ activeOnly = false } = {}) {
-      const result = await query(`SELECT * FROM products ${activeOnly ? "WHERE active = true" : ""} ORDER BY id DESC`);
+    async listProducts({ activeOnly = false, ownerUserId } = {}) {
+      const conditions = [];
+      const params = [];
+      if (activeOnly) conditions.push("active = true");
+      if (ownerUserId != null) {
+        params.push(Number(ownerUserId));
+        conditions.push(`owner_user_id = $${params.length}`);
+      }
+      const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+      const result = await query(`SELECT * FROM products ${where} ORDER BY id DESC`, params);
       return result.rows.map(camelProduct);
     },
     async getProduct(id) {
@@ -1782,8 +1797,8 @@ function createPostgresDatabase() {
     },
     async createProduct(product) {
       const result = await query(`
-        INSERT INTO products (name, sku, upc, brand, category, description, price_cents, dealer_price_cents, image_url, image_urls, source_url, quantity_on_hand, product_specs, active, recommended_addon_ids)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *
+        INSERT INTO products (name, sku, upc, brand, category, description, price_cents, dealer_price_cents, image_url, image_urls, source_url, quantity_on_hand, owner_user_id, product_specs, active, recommended_addon_ids)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *
       `, [
         product.name,
         product.sku,
@@ -1797,6 +1812,7 @@ function createPostgresDatabase() {
         JSON.stringify(product.imageUrls || (product.imageUrl ? [product.imageUrl] : [])),
         product.sourceUrl || "",
         product.quantityOnHand || 0,
+        product.ownerUserId ?? null,
         JSON.stringify(product.productSpecs || {}),
         product.active,
         JSON.stringify(product.recommendedAddonIds || [])
@@ -1805,8 +1821,8 @@ function createPostgresDatabase() {
     },
     async updateProduct(id, product) {
       const result = await query(`
-        UPDATE products SET name=$1, sku=$2, upc=$3, brand=$4, category=$5, description=$6, price_cents=$7, dealer_price_cents=$8, image_url=$9, image_urls=$10, source_url=$11, quantity_on_hand=$12, product_specs=$13, active=$14, recommended_addon_ids=$15
-        WHERE id=$16 RETURNING *
+        UPDATE products SET name=$1, sku=$2, upc=$3, brand=$4, category=$5, description=$6, price_cents=$7, dealer_price_cents=$8, image_url=$9, image_urls=$10, source_url=$11, quantity_on_hand=$12, owner_user_id=$13, product_specs=$14, active=$15, recommended_addon_ids=$16
+        WHERE id=$17 RETURNING *
       `, [
         product.name,
         product.sku,
@@ -1820,6 +1836,7 @@ function createPostgresDatabase() {
         JSON.stringify(product.imageUrls || (product.imageUrl ? [product.imageUrl] : [])),
         product.sourceUrl || "",
         product.quantityOnHand || 0,
+        product.ownerUserId ?? null,
         JSON.stringify(product.productSpecs || {}),
         product.active,
         JSON.stringify(product.recommendedAddonIds || []),
@@ -1959,6 +1976,7 @@ const upload = multer({
     cb(null, true);
   }
 });
+const productImageUpload = upload.any();
 
 function uploadedImageUrls(req) {
   const files = Object.values(req.files || {}).flat();
@@ -2345,6 +2363,16 @@ async function sendShopperApp(req, res) {
   res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "shopper"));
 }
 
+async function sendSellerApp(req, res) {
+  await recordSiteVisit(req, res, "/sell");
+  res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "seller"));
+}
+
+async function sendListWithUsApp(req, res) {
+  await recordSiteVisit(req, res, "/list-with-us");
+  res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "sellwithus"));
+}
+
 async function sendAdminApp(req, res) {
   await recordSiteVisit(req, res, "/admin");
   res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "admin"));
@@ -2479,6 +2507,8 @@ app.get("/robots.txt", (req, res) => {
     "Disallow: /admin/",
     "Disallow: /dealer",
     "Disallow: /dealer/",
+    "Disallow: /sell",
+    "Disallow: /sell/",
     "Disallow: /shopper",
     "Disallow: /shopper/",
     "Disallow: /mobile",
@@ -2494,6 +2524,7 @@ app.get("/sitemap.xml", async (req, res) => {
   const staticUrls = [
     { path: "", changefreq: "daily", priority: "1.0" },
     { path: "/catalog", changefreq: "daily", priority: "0.9" },
+    { path: "/list-with-us", changefreq: "weekly", priority: "0.8" },
     { path: "/dealers", changefreq: "monthly", priority: "0.6" },
     { path: "/privacy", changefreq: "yearly", priority: "0.3" }
   ];
@@ -2538,7 +2569,8 @@ function publicUser(user) {
     status: user.status,
     role: user.role,
     accountType: user.accountType || (user.role === "admin" ? "admin" : "shopper"),
-    canSeePrices: user.role === "admin" || (user.status === "approved" && (user.accountType || "shopper") === "dealer")
+    canSeePrices: user.role === "admin" || (user.status === "approved" && (user.accountType || "shopper") === "dealer"),
+    canListItems: user.role === "admin" || (user.status === "approved" && (user.accountType || "shopper") === "seller")
   };
 }
 
@@ -2722,7 +2754,7 @@ async function sendProductPage(req, res) {
   const metricsByProductId = await db.getProductMetrics([product.id]);
   const productMetrics = metricsByProductId[product.id] || { viewCount: 0, uniqueViewers: 0 };
   const user = await currentUser(req);
-  const showDealerPricing = Boolean(user && user.status === "approved");
+  const showDealerPricing = Boolean(user && (user.role === "admin" || (user.status === "approved" && (user.accountType || "shopper") === "dealer")));
   const baseUrl = publicBaseUrl(req).replace(/\/$/, "");
   const canonicalPath = productPath(product);
   const canonicalUrl = `${baseUrl}${canonicalPath}`;
@@ -2898,6 +2930,19 @@ async function requireAdmin(req, res, next) {
   next();
 }
 
+async function requireSeller(req, res, next) {
+  const user = await currentUser(req);
+  if (!user) return res.status(401).json({ error: "Please login first." });
+  if (user.role === "admin") {
+    req.user = user;
+    return next();
+  }
+  if (user.status !== "approved") return res.status(403).json({ error: "Your seller account is still pending approval." });
+  if ((user.accountType || "shopper") !== "seller") return res.status(403).json({ error: "Seller access required." });
+  req.user = user;
+  next();
+}
+
 async function productPayload(product, showPrice, includeAdminData = false, productMetrics = null) {
   const normalizedCategory = normalizeCategory(product.category, { fallback: "Other" });
   const metrics = productMetrics || { viewCount: 0, uniqueViewers: 0 };
@@ -2941,6 +2986,7 @@ async function productPayload(product, showPrice, includeAdminData = false, prod
   const comparisons = await db.listComparisons(product.id);
   return {
     ...payload,
+    ownerUserId: product.ownerUserId ?? null,
     sourceUrl: product.sourceUrl || "",
     quantityOnHand: product.quantityOnHand || 0,
     viewCount: Number(metrics.viewCount || 0),
@@ -3391,6 +3437,7 @@ function listingPullProductRecord(payload, existing = {}) {
     imageUrls: imageUrls.length ? imageUrls : (existing.imageUrls || (existing.imageUrl ? [existing.imageUrl] : [])),
     sourceUrl: String(payload.url || existing.sourceUrl || "").trim(),
     quantityOnHand: Math.max(0, Math.floor(Number(existing.quantityOnHand || 0))),
+    ownerUserId: existing.ownerUserId ?? null,
     productSpecs: appendStockHistory(productSpecsFromBody({ ...importedSpecs, productSpecsJson: JSON.stringify(importedSpecs) }, existing.productSpecs || {}), existing.quantityOnHand || 0, existing.quantityOnHand || 0, existing.id ? "product listing pull update" : "product listing pull import"),
     recommendedAddonIds: existing.recommendedAddonIds || [],
     active: publishLive
@@ -3417,6 +3464,7 @@ app.post("/api/register", async (req, res) => {
   }
   if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
   const cleanEmail = email.toLowerCase().trim();
+  const requestedAccountType = normalizeAccountType(req.body.accountType, "shopper");
   if (await db.getUserByEmail(cleanEmail)) return res.status(409).json({ error: "That email is already registered." });
   await db.createUser({
     email: cleanEmail,
@@ -3426,9 +3474,11 @@ app.post("/api/register", async (req, res) => {
     phone: (phone || "").trim(),
     status: "pending",
     role: "dealer",
-    accountType: "shopper"
+    accountType: requestedAccountType
   });
-  res.status(201).json({ ok: true, message: "Registration sent. Your account will be reviewed and approved in the next admin review window." });
+  res.status(201).json({ ok: true, message: requestedAccountType === "seller"
+    ? "Seller application received. Your account will be reviewed and approved in the next admin review window before you can list items."
+    : "Registration sent. Your account will be reviewed and approved in the next admin review window." });
 });
 
 app.post("/api/alerts", async (req, res) => {
@@ -3500,10 +3550,50 @@ app.post("/api/logout", (req, res) => {
 
 app.get("/api/products", async (req, res) => {
   const user = await currentUser(req);
-  const showPrice = Boolean(user && user.status === "approved");
+  const showPrice = Boolean(user && (user.role === "admin" || (user.status === "approved" && (user.accountType || "shopper") === "dealer")));
   const products = await db.listProducts({ activeOnly: true });
   const metricsByProductId = await db.getProductMetrics(products.map((product) => product.id));
   res.json({ products: await Promise.all(products.map((product) => productPayload(product, showPrice, false, metricsByProductId[product.id]))), canSeePrices: showPrice });
+});
+
+app.get("/api/seller/products", requireSeller, async (req, res) => {
+  const products = await db.listProducts({ ownerUserId: req.user.role === "admin" ? undefined : req.user.id });
+  const metricsByProductId = await db.getProductMetrics(products.map((product) => product.id));
+  res.json({ products: await Promise.all(products.map((product) => productPayload(product, false, true, metricsByProductId[product.id]))) });
+});
+
+app.post("/api/seller/products", requireSeller, productImageUpload, async (req, res) => {
+  try {
+    if (!req.body.name) return res.status(400).json({ error: "Product name is required." });
+    const productName = String(req.body.name || "").trim();
+    let imageUrls = uploadedImageUrls(req);
+    imageUrls = renameImagesForSeo(imageUrls, productName);
+    const quantityOnHand = Math.max(0, Math.floor(Number(req.body.quantityOnHand || 0)));
+    const productSpecs = appendStockHistory(productSpecsFromBody(req.body), 0, quantityOnHand, "seller submission");
+    productSpecs.listingStatus = "submitted";
+    const category = normalizeCategory(req.body.category, { required: true });
+    const product = await db.createProduct({
+      name: productName,
+      sku: String(req.body.sku || "").trim(),
+      upc: String(req.body.upc || "").trim(),
+      brand: String(req.body.brand || "").trim(),
+      category,
+      description: String(req.body.description || "").trim(),
+      priceCents: centsFromInput(req.body.price, 0),
+      dealerPriceCents: null,
+      imageUrl: imageUrls[0] || "",
+      imageUrls,
+      sourceUrl: "",
+      quantityOnHand,
+      productSpecs,
+      recommendedAddonIds: [],
+      ownerUserId: req.user.role === "admin" ? null : req.user.id,
+      active: false
+    });
+    res.status(201).json({ id: product.id, message: "Listing submitted. It is saved in the seller workspace and stays hidden until reviewed." });
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Could not submit seller listing." });
+  }
 });
 
 app.post("/api/integrations/product-listing-pull/products", requireProductListingPull, async (req, res) => {
@@ -3717,6 +3807,7 @@ app.post("/api/admin/products/import", requireAdmin, async (req, res) => {
         imageUrls,
         sourceUrl: String(importField(source, base.sourceUrl || "", "sourceUrl")).trim(),
         quantityOnHand,
+        ownerUserId: base.ownerUserId ?? null,
         productSpecs,
         recommendedAddonIds: parseRecommendedAddonIds(source.recommendedAddonIds, base.id || 0),
         active: source.active === undefined ? (base.active !== undefined ? Boolean(base.active) : false) : Boolean(source.active)
@@ -3738,8 +3829,6 @@ app.post("/api/admin/products/import", requireAdmin, async (req, res) => {
     res.status(400).json({ error: error.message || "Could not import products." });
   }
 });
-
-const productImageUpload = upload.any();
 
 app.post("/api/admin/products", requireAdmin, productImageUpload, async (req, res) => {
   try {
@@ -3767,6 +3856,7 @@ app.post("/api/admin/products", requireAdmin, productImageUpload, async (req, re
       imageUrls,
       sourceUrl: String(req.body.sourceUrl || "").trim(),
       quantityOnHand,
+      ownerUserId: null,
       productSpecs,
       recommendedAddonIds: parseRecommendedAddonIds(req.body.recommendedAddonIds),
       active: req.body.active !== "false"
@@ -3804,6 +3894,7 @@ app.patch("/api/admin/products/:id", requireAdmin, productImageUpload, async (re
     imageUrls,
     sourceUrl: String(req.body.sourceUrl || existing.sourceUrl || "").trim(),
     quantityOnHand,
+    ownerUserId: existing.ownerUserId ?? null,
     productSpecs,
     recommendedAddonIds: parseRecommendedAddonIds(req.body.recommendedAddonIds, existing.id),
     active: req.body.active !== "false"
@@ -3942,6 +4033,8 @@ app.get("/desktop", sendDesktopApp);
 app.get("/mobile", sendMobileApp);
 app.get("/shopper", sendShopperApp);
 app.get("/dealer", sendDealerApp);
+app.get("/sell", sendSellerApp);
+app.get("/list-with-us", sendListWithUsApp);
 app.get("/admin", sendAdminApp);
 app.get("/admin/facebookmobile", sendAdminFacebookApp);
 app.get("/catalog", sendCatalog);

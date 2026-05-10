@@ -69,12 +69,14 @@
           <summary class="menu-trigger">Menu</summary>
           <div class="menu-panel">
             <button class="nav-button" data-route="store">Store</button>
+            <a class="nav-button" href="/list-with-us">List with us</a>
             <button class="nav-button signed-out" data-route="login">Login</button>
             <button class="nav-button signed-out" data-route="register">Register</button>
             <a class="nav-button" href="/dealers">Dealer Info</a>
             <a class="nav-button" href="/privacy">Privacy</a>
             <a class="nav-button shopper-only hidden" href="/shopper">Shopper</a>
             <a class="nav-button dealer-only hidden" href="/dealer">Dealer</a>
+            <a class="nav-button seller-only hidden" href="/sell">Seller</a>
             <button class="nav-button" data-route="cart">Cart</button>
             <a class="nav-button admin-only hidden" href="/admin">Admin</a>
             <a class="nav-button admin-only hidden mobile-only-nav" href="/admin/facebookmobile">Facebook</a>
@@ -121,7 +123,10 @@
         <div class="store-hero-side">
           <div class="hero-side-actions">
             <p class="price-note" id="priceNote">Public pricing is visible. Create an account before checkout. No credit cards accepted.</p>
-            <button type="button" id="shareCatalogButton" data-copy-catalog>Share catalog</button>
+            <div class="row-actions">
+              <button type="button" id="shareCatalogButton" data-copy-catalog>Share catalog</button>
+              <a class="nav-button primary" href="/list-with-us">List with us</a>
+            </div>
           </div>
           <div class="hero-feature-showcase">
             <div class="hero-feature-card hero-feature-primary" id="storeFeaturedPrimary"></div>
@@ -249,10 +254,44 @@
         <label>Contact name<input name="contactName" required autocomplete="name"></label>
         <label>Email<input type="email" name="email" required autocomplete="email"></label>
         <label>Phone<input name="phone" autocomplete="tel"></label>
+        <label>I want to use this account for
+          <select name="accountType">
+            <option value="shopper">Shopping</option>
+            <option value="dealer">Dealer pricing</option>
+            <option value="seller">Listing items for sale</option>
+          </select>
+        </label>
         <label>Password<input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
         <button class="primary" type="submit">Register</button>
         <p class="form-message" id="registerMessage"></p>
       </form>
+    </section>
+
+    <section id="sellwithusView" class="view hidden">
+      <div class="section-head compact">
+        <div>
+          <p class="eyebrow">Marketplace sellers</p>
+          <h1>List with us.</h1>
+          <p class="hero-copy">Turn the site into a marketplace lane for approved sellers. Apply first, get approved, then add your own listings in a separate seller workspace.</p>
+        </div>
+        <div class="row-actions">
+          <button type="button" class="primary" data-register-intent="seller" data-route="register">Apply to sell</button>
+        </div>
+      </div>
+      <section class="dealer-info-grid">
+        <article class="panel">
+          <h2>How it works</h2>
+          <p>Create an account, choose the seller option, and wait for admin approval before listing products.</p>
+        </article>
+        <article class="panel">
+          <h2>What sellers get</h2>
+          <p>A dedicated seller page, image upload, inventory fields, and a simple submission flow without admin access.</p>
+        </article>
+        <article class="panel">
+          <h2>What happens next</h2>
+          <p>Your listings stay separate from admin tools, and submitted items can be reviewed before they go live on the public storefront.</p>
+        </article>
+      </section>
     </section>
 
     <section id="cartView" class="view hidden">
@@ -345,7 +384,7 @@
           <div>
             <p class="eyebrow">User management</p>
             <h2>Users</h2>
-            <p class="admin-panel-subhead">Approve accounts and assign each user as a shopper or dealer.</p>
+            <p class="admin-panel-subhead">Approve accounts and assign each user as a shopper, dealer, or seller.</p>
           </div>
         </div>
         <div id="adminUsers" class="stack"></div>
@@ -559,6 +598,82 @@
           </div>
         </div>
       </section>
+    </section>
+
+    <section id="sellerView" class="view hidden">
+      <div class="section-head compact">
+        <div>
+          <p class="eyebrow">Seller workspace</p>
+          <h1>List your items.</h1>
+          <p class="hero-copy">Add product details, upload photos, and submit listings into the marketplace workflow. Seller listings stay separate from admin management.</p>
+        </div>
+      </div>
+      <div class="admin-simple-layout seller-layout">
+        <section class="panel admin-add-product">
+          <div class="admin-workspace-head">
+            <div>
+              <p class="eyebrow">New seller listing</p>
+              <h2>Submit item</h2>
+              <p class="admin-panel-subhead">Keep it quick: photos, title, price, category, quantity, then submit.</p>
+            </div>
+          </div>
+          <form id="sellerProductForm" class="product-form simple-listing-form">
+            <label class="dropzone wide-field" data-image-dropzone>
+              <span>Photos</span>
+              <input id="sellerProductImages" name="images" type="file" accept="image/*" multiple>
+              <strong>Tap to add photos or drop them here</strong>
+              <small data-image-hint>Add one or more clear product photos.</small>
+            </label>
+            <div class="simple-field-grid">
+              <label>Title<input name="name" required autocomplete="off"></label>
+              <label>Price<input name="price" type="number" min="0" step="0.01" required></label>
+              <label>Category<select name="category" required>
+                <option value="">Select category</option>
+                <option>Electronics</option>
+                <option>Scooters & Mobility</option>
+                <option>Tools & Hardware</option>
+                <option>Home & Office</option>
+                <option>Furniture</option>
+                <option>Appliances</option>
+                <option>Automotive</option>
+                <option>Warehouse & Storage</option>
+                <option>Safety</option>
+                <option>Janitorial</option>
+                <option>Clothing & Accessories</option>
+                <option>Toys & Games</option>
+                <option>Other</option>
+              </select></label>
+              <label>Condition<select name="condition">
+                <option value="">Select condition</option>
+                <option value="Brand New In Box (BNIB)">Brand New In Box (BNIB)</option>
+                <option value="Open Box / Refurbished (OP/R)">Open Box / Refurbished (OP/R)</option>
+                <option value="Used (U)">Used (U)</option>
+              </select></label>
+              <label>Quantity<input name="quantityOnHand" type="number" min="0" step="1" value="1"></label>
+              <label>Fulfillment<select name="fulfillmentType">
+                <option value="pickup_only">Pickup only</option>
+                <option value="ships_or_pickup">Can be shipped or picked up</option>
+              </select></label>
+              <label>Brand<input name="brand" autocomplete="organization"></label>
+              <label>SKU<input name="sku"></label>
+              <label>UPC<input name="upc" inputmode="numeric"></label>
+            </div>
+            <label class="wide-field">Description<textarea name="description" rows="4" placeholder="Short, clear item description"></textarea></label>
+            <button class="primary wide-field" type="submit">Submit listing</button>
+            <p class="form-message" id="sellerProductMessage"></p>
+          </form>
+        </section>
+        <section class="panel admin-products-panel">
+          <div class="admin-workspace-head">
+            <div>
+              <p class="eyebrow">Your listings</p>
+              <h2>Submitted items</h2>
+              <p class="admin-panel-subhead">Track what you have already submitted into the marketplace lane.</p>
+            </div>
+          </div>
+          <div id="sellerProducts" class="stack"></div>
+        </section>
+      </div>
     </section>
   </main>
 
