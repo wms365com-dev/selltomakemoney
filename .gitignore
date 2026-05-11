@@ -4,3 +4,7 @@ uploads/*
 !uploads/.gitkeep
 .env
 .npm-cache/
+.tmp-*
+.qa-cookies.txt
+amazon-test.html
+live-desktop.html
