@@ -27,6 +27,11 @@ const CONSENT_COOKIE_NAME = "stm_consent";
 const GOOGLE_SITE_VERIFICATION = process.env.GOOGLE_SITE_VERIFICATION || "";
 const GOOGLE_SITE_VERIFICATION_FILE = process.env.GOOGLE_SITE_VERIFICATION_FILE || "";
 const GOOGLE_SITE_VERIFICATION_CONTENT = process.env.GOOGLE_SITE_VERIFICATION_CONTENT || "";
+const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || "";
+const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || "";
+const WHATSAPP_NOTIFY_TO = process.env.WHATSAPP_NOTIFY_TO || "";
+const WHATSAPP_TEMPLATE_NAME = process.env.WHATSAPP_TEMPLATE_NAME || "";
+const WHATSAPP_TEMPLATE_LANGUAGE = process.env.WHATSAPP_TEMPLATE_LANGUAGE || "en_US";
 const COUNTRY_NAMES = typeof Intl?.DisplayNames === "function"
   ? new Intl.DisplayNames(["en"], { type: "region" })
   : null;
@@ -3037,6 +3042,79 @@ function cleanOptional(value, max = 600) {
   return String(value || "").trim().slice(0, max);
 }
 
+function cleanPhone(value, label = "Phone", { required = true } = {}) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    if (!required) return "";
+    throw new Error(`${label} is required.`);
+  }
+  const normalized = raw.replace(/[^\d+]/g, "");
+  const digitCount = normalized.replace(/\D/g, "").length;
+  if (digitCount < 10) throw new Error(`${label} must include at least 10 digits.`);
+  return normalized.slice(0, 24);
+}
+
+function formatAccountTypeLabel(accountType) {
+  if (accountType === "dealer") return "Dealer";
+  if (accountType === "seller") return "Seller";
+  if (accountType === "admin") return "Admin";
+  return "Shopper";
+}
+
+function canSendWhatsappNotifications() {
+  return Boolean(WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID && WHATSAPP_NOTIFY_TO);
+}
+
+async function sendWhatsappSignupNotification(user) {
+  if (!canSendWhatsappNotifications()) return { skipped: true, reason: "missing_config" };
+  const endpoint = `https://graph.facebook.com/v23.0/${encodeURIComponent(WHATSAPP_PHONE_NUMBER_ID)}/messages`;
+  const accountTypeLabel = formatAccountTypeLabel(user.accountType);
+  const messageLines = [
+    "New signup on selltomakemoney.com",
+    `Type: ${accountTypeLabel}`,
+    `Name: ${user.contactName || "-"}`,
+    `Company: ${user.company || "-"}`,
+    `Email: ${user.email || "-"}`,
+    `Phone: ${user.phone || "-"}`,
+    `Status: ${user.status || "pending"}`
+  ];
+  const templatePayload = WHATSAPP_TEMPLATE_NAME
+    ? {
+        messaging_product: "whatsapp",
+        to: WHATSAPP_NOTIFY_TO,
+        type: "template",
+        template: {
+          name: WHATSAPP_TEMPLATE_NAME,
+          language: { code: WHATSAPP_TEMPLATE_LANGUAGE },
+          components: [
+            {
+              type: "body",
+              parameters: [{ type: "text", text: messageLines.join(" | ") }]
+            }
+          ]
+        }
+      }
+    : {
+        messaging_product: "whatsapp",
+        to: WHATSAPP_NOTIFY_TO,
+        type: "text",
+        text: { preview_url: false, body: messageLines.join("\n") }
+      };
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(templatePayload)
+  });
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => "");
+    throw new Error(`WhatsApp notify failed: ${response.status} ${errorBody}`.trim());
+  }
+  return response.json().catch(() => ({ ok: true }));
+}
+
 function cleanSpec(value, max = 80) {
   return String(value || "").trim().slice(0, max);
 }
@@ -3481,23 +3559,28 @@ app.post("/api/consent", (req, res) => {
 
 app.post("/api/register", async (req, res) => {
   const { email, password, company, contactName, phone } = req.body;
-  if (!email || !password || !company || !contactName) {
-    return res.status(400).json({ error: "Email, password, company, and contact name are required." });
+  if (!email || !password || !company || !contactName || !phone) {
+    return res.status(400).json({ error: "Email, password, company, contact name, and phone are required." });
   }
   if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
   const cleanEmail = email.toLowerCase().trim();
   const requestedAccountType = normalizeAccountType(req.body.accountType, "shopper");
   if (await db.getUserByEmail(cleanEmail)) return res.status(409).json({ error: "That email is already registered." });
-  await db.createUser({
+  const createdUser = await db.createUser({
     email: cleanEmail,
     passwordHash: await bcrypt.hash(password, 12),
     company: company.trim(),
     contactName: contactName.trim(),
-    phone: (phone || "").trim(),
+    phone: cleanPhone(phone),
     status: "pending",
     role: "dealer",
     accountType: requestedAccountType
   });
+  try {
+    await sendWhatsappSignupNotification(createdUser);
+  } catch (error) {
+    console.error(error);
+  }
   res.status(201).json({ ok: true, message: requestedAccountType === "seller"
     ? "Seller application received. Your account will be reviewed and approved in the next admin review window before you can list items."
     : "Registration sent. Your account will be reviewed and approved in the next admin review window." });

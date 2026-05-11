@@ -530,6 +530,7 @@ function adminUserItem(user) {
       <div>
         <strong>${escapeHtml(user.contactName || user.company || user.email)}</strong>
         <span>${escapeHtml(user.email)}${user.company ? ` | ${escapeHtml(user.company)}` : ""}</span>
+        <span>${escapeHtml(user.phone || "No phone saved")}</span>
       </div>
       <div class="admin-user-controls">
         <label>Type
