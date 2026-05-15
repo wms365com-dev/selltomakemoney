@@ -125,10 +125,7 @@ function searchLinks(product) {
   const query = searchQuery(product);
   const asin = extractAmazonAsin(product);
   return [
-    { site: "Google Shopping", url: `https://www.google.ca/search?tbm=shop&gl=ca&hl=en&q=${query}` },
-    { site: "Amazon", url: asin ? amazonProductUrl(asin) : amazonSearchUrl(query) },
-    { site: "Walmart", url: `https://www.walmart.ca/search?q=${query}` },
-    { site: "eBay", url: `https://www.ebay.ca/sch/i.html?_nkw=${query}` }
+    { site: "Amazon", url: asin ? amazonProductUrl(asin) : amazonSearchUrl(query) }
   ];
 }
 

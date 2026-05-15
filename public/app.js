@@ -1514,7 +1514,7 @@ function renderProducts(canSeePrices = false) {
   stopProductRotator();
   productGrid.innerHTML = products.length ? products.map((product) => `
     <article class="product-card">
-        ${productImage(product, true)}
+        ${productImage(product, false)}
         <div class="product-body">
           <div class="product-copy">
             <div>
@@ -1542,7 +1542,6 @@ function renderProducts(canSeePrices = false) {
         </div>
     </article>
   `).join("") : `<div class="panel empty-catalog"><h2>No matching items</h2><p>Try another search or category.</p></div>`;
-  if (products.length) startProductRotator();
 }
 
 function applyStoreModeCopy(canSeePrices = false) {
