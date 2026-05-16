@@ -689,23 +689,37 @@ button.button-busy {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
-  margin-bottom: 18px;
-  padding: 14px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
 }
 
 .store-tools {
   grid-template-columns: minmax(0, 1.4fr) auto minmax(200px, 240px);
   align-items: end;
-  box-shadow: 0 14px 30px rgba(19, 25, 33, 0.06);
-  padding: 16px;
+  box-shadow: 0 10px 20px rgba(19, 25, 33, 0.05);
+  padding: 10px 12px;
+}
+
+.store-search-label,
+.store-category-label {
+  display: grid;
+  gap: 4px;
+}
+
+.store-search-label span,
+.store-category-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .store-search-button {
   align-self: end;
-  min-height: 48px;
+  min-height: 42px;
   background: var(--nav);
   color: #fff;
   font-weight: 900;
+  padding-inline: 18px;
 }
 
 .catalog-card .primary {
@@ -1886,10 +1900,10 @@ body:not([data-view="mobile"]) .mobile-listing-quickbar {
 .consent-banner {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 16px;
+  gap: 12px;
   align-items: center;
-  margin-bottom: 12px;
-  padding: 10px 12px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
   border: 1px solid #f0c36d;
   border-radius: 10px;
   background: #fff8eb;
@@ -1908,13 +1922,19 @@ body[data-route="seller"] .consent-banner {
 
 .consent-copy span {
   color: var(--muted);
-  font-size: 0.94rem;
+  font-size: 0.88rem;
+  line-height: 1.35;
 }
 
 .consent-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
+}
+
+.consent-actions button {
+  min-height: 38px;
+  padding: 0 16px;
 }
 
 .visitor-hourly-chart {
