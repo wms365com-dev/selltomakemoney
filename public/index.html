@@ -105,6 +105,12 @@
     </div>
 
     <section id="storeView" class="view">
+      <section class="store-tools" aria-label="Store filters">
+        <label class="store-search-label"><span>Search inventory</span><input id="storeSearch" type="search" placeholder="Search by item, brand, SKU, UPC"></label>
+        <button class="store-search-button" id="storeSearchButton" type="button" aria-label="Search inventory">Search</button>
+        <label class="store-category-label">Category<select id="storeCategory"><option value="">All categories</option></select></label>
+      </section>
+      <div class="product-grid" id="productGrid"></div>
       <div class="section-head compact store-hero">
         <div class="store-hero-copy">
           <p class="eyebrow" id="storeEyebrow">Inventory catalog</p>
@@ -134,12 +140,6 @@
           </div>
         </div>
       </div>
-      <section class="store-tools" aria-label="Store filters">
-        <label class="store-search-label"><span>Search inventory</span><input id="storeSearch" type="search" placeholder="Search by item, brand, SKU, UPC"></label>
-        <button class="store-search-button" id="storeSearchButton" type="button" aria-label="Search inventory">Search</button>
-        <label class="store-category-label">Category<select id="storeCategory"><option value="">All categories</option></select></label>
-      </section>
-      <div class="product-grid" id="productGrid"></div>
       <div class="store-insights" id="storeInsights"></div>
       <section class="category-tile-panel">
         <div class="store-section-headline">
