@@ -2340,9 +2340,130 @@ function appHtml(forcedView = "", entryRoute = "") {
   const verificationMeta = GOOGLE_SITE_VERIFICATION
     ? `\n<meta name="google-site-verification" content="${escapeHtml(GOOGLE_SITE_VERIFICATION)}">`
     : "";
+  const routeMeta = spaRouteMeta(entryRoute || "store");
   return html
     .replace("<body>", `<body data-entry-view="${view || "auto"}">`)
+    .replace('<meta name="description" content="Browse selltomakemoney.com for public deals, scooters, electronics, tools, and inventory finds with Mississauga pickup plus select shippable items across Canada.">', `<meta name="description" content="${escapeHtml(routeMeta.description)}">`)
+    .replace('<meta name="keywords" content="selltomakemoney, Mississauga deals, local pickup, inventory finds, scooters, electronics, tools, online catalog, e-transfer, cash pickup">', `<meta name="keywords" content="${escapeHtml(routeMeta.keywords)}">`)
+    .replace('<link rel="canonical" href="https://selltomakemoney.com/">', `<link rel="canonical" href="${escapeHtml(routeMeta.canonical)}">`)
+    .replace('<meta property="og:title" content="selltomakemoney.com Store | Mississauga Deals and Inventory Finds">', `<meta property="og:title" content="${escapeHtml(routeMeta.title)}">`)
+    .replace('<meta property="og:description" content="Browse public prices, compare categories, and request checkout for Mississauga pickup or select shippable items across Canada.">', `<meta property="og:description" content="${escapeHtml(routeMeta.ogDescription)}">`)
+    .replace('<meta property="og:url" content="https://selltomakemoney.com/">', `<meta property="og:url" content="${escapeHtml(routeMeta.canonical)}">`)
+    .replace('<meta name="twitter:title" content="selltomakemoney.com Store | Mississauga Deals">', `<meta name="twitter:title" content="${escapeHtml(routeMeta.twitterTitle)}">`)
+    .replace('<meta name="twitter:description" content="Shop public deals, inventory finds, Mississauga pickup, and select shippable items across Canada.">', `<meta name="twitter:description" content="${escapeHtml(routeMeta.twitterDescription)}">`)
+    .replace('<title>selltomakemoney.com Store | Mississauga Deals and Inventory Finds</title>', `<title>${escapeHtml(routeMeta.title)}</title>`)
+    .replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>\s*<script type="application\/ld\+json">[\s\S]*?<\/script>/, routeMeta.jsonLd)
     .replace("</head>", `${verificationMeta}${forceScript}\n${routeScript}\n</head>`);
+}
+
+function spaRouteMeta(entryRoute = "store") {
+  const baseUrl = "https://selltomakemoney.com";
+  const organizationJsonLd = safeJsonScript({
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "selltomakemoney.com",
+    url: `${baseUrl}/`,
+    areaServed: "Canada",
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: "Mississauga",
+      addressRegion: "ON",
+      addressCountry: "CA"
+    },
+    sameAs: [`${baseUrl}/catalog`]
+  });
+  const sharedKeywords = "selltomakemoney, Mississauga deals, local pickup, inventory finds, online catalog, e-transfer, cash pickup";
+  const routeMap = {
+    store: {
+      canonical: `${baseUrl}/`,
+      title: "selltomakemoney.com Store | Mississauga Deals and Inventory Finds",
+      description: "Browse selltomakemoney.com for public deals, scooters, electronics, tools, and inventory finds with Mississauga pickup plus select shippable items across Canada.",
+      ogDescription: "Browse public prices, compare categories, and request checkout for Mississauga pickup or select shippable items across Canada.",
+      twitterTitle: "selltomakemoney.com Store | Mississauga Deals",
+      twitterDescription: "Shop public deals, inventory finds, Mississauga pickup, and select shippable items across Canada.",
+      keywords: `${sharedKeywords}, scooters, electronics, tools`,
+      pageJsonLd: safeJsonScript({
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        name: "selltomakemoney.com",
+        url: `${baseUrl}/`,
+        potentialAction: {
+          "@type": "SearchAction",
+          target: `${baseUrl}/catalog?search={search_term_string}`,
+          "query-input": "required name=search_term_string"
+        }
+      })
+    },
+    sellwithus: {
+      canonical: `${baseUrl}/list-with-us`,
+      title: "List With Us | selltomakemoney.com Seller Marketplace",
+      description: "Apply to list products on selltomakemoney.com and get a separate seller workspace for approved marketplace inventory.",
+      ogDescription: "Approved sellers get a dedicated workspace, product uploads, and a separate marketplace listing flow.",
+      twitterTitle: "List With Us | selltomakemoney.com",
+      twitterDescription: "Apply to become an approved seller and submit inventory through a separate seller workspace.",
+      keywords: `${sharedKeywords}, seller marketplace, list products, approved sellers`,
+      pageJsonLd: safeJsonScript({
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        name: "List With Us | selltomakemoney.com Seller Marketplace",
+        url: `${baseUrl}/list-with-us`,
+        description: "Seller application page for approved marketplace inventory on selltomakemoney.com."
+      })
+    },
+    dealer: {
+      canonical: `${baseUrl}/dealer`,
+      title: "Dealer Account Access | selltomakemoney.com",
+      description: "Dealer accounts on selltomakemoney.com support repeat buying, tracked order history, and inventory sourcing in Mississauga.",
+      ogDescription: "Dealer buyers can review inventory, track order history, and source repeat inventory.",
+      twitterTitle: "Dealer Account Access | selltomakemoney.com",
+      twitterDescription: "Dealer buyers can create accounts for repeat inventory sourcing and order tracking.",
+      keywords: `${sharedKeywords}, dealer account, repeat buyers, inventory sourcing`,
+      pageJsonLd: safeJsonScript({
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        name: "Dealer Account Access | selltomakemoney.com",
+        url: `${baseUrl}/dealer`,
+        description: "Dealer account access and sourcing workflow on selltomakemoney.com."
+      })
+    },
+    shopper: {
+      canonical: `${baseUrl}/shopper`,
+      title: "Shopper Account Access | selltomakemoney.com",
+      description: "Create or manage a shopper account on selltomakemoney.com to save checkout details and submit order requests faster.",
+      ogDescription: "Shopper accounts make it easier to request checkout and manage order details.",
+      twitterTitle: "Shopper Account Access | selltomakemoney.com",
+      twitterDescription: "Create a shopper account to speed up checkout requests and saved order details.",
+      keywords: `${sharedKeywords}, shopper account, order requests, checkout details`,
+      pageJsonLd: safeJsonScript({
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        name: "Shopper Account Access | selltomakemoney.com",
+        url: `${baseUrl}/shopper`,
+        description: "Shopper account workflow for selltomakemoney.com order requests."
+      })
+    },
+    seller: {
+      canonical: `${baseUrl}/sell`,
+      title: "Seller Workspace | selltomakemoney.com",
+      description: "Approved sellers on selltomakemoney.com can upload photos, submit listings, and track marketplace items in a separate workspace.",
+      ogDescription: "Seller workspace for approved accounts to submit and manage marketplace inventory.",
+      twitterTitle: "Seller Workspace | selltomakemoney.com",
+      twitterDescription: "Approved sellers can submit and manage inventory in a separate seller workspace.",
+      keywords: `${sharedKeywords}, seller workspace, marketplace submissions, listing workflow`,
+      pageJsonLd: safeJsonScript({
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        name: "Seller Workspace | selltomakemoney.com",
+        url: `${baseUrl}/sell`,
+        description: "Separate seller workspace for approved marketplace inventory submissions."
+      })
+    }
+  };
+  const meta = routeMap[entryRoute] || routeMap.store;
+  return {
+    ...meta,
+    jsonLd: `<script type="application/ld+json">${meta.pageJsonLd}</script>\n  <script type="application/ld+json">${organizationJsonLd}</script>`
+  };
 }
 
 async function sendDesktopApp(req, res) {
@@ -2768,7 +2889,8 @@ function productJsonLd(product, canonicalUrl, imageUrl) {
 }
 
 function safeJsonScript(json) {
-  return json.replaceAll("<", "\\u003c");
+  const serialized = typeof json === "string" ? json : JSON.stringify(json);
+  return serialized.replaceAll("<", "\\u003c");
 }
 
 async function sendProductPage(req, res) {

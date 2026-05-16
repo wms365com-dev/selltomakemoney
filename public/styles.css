@@ -28,7 +28,7 @@ body {
     radial-gradient(circle at top right, rgba(254, 189, 105, 0.16), transparent 22%),
     linear-gradient(180deg, #f7f8fa 0%, #eef2f6 100%);
   color: var(--ink);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Segoe UI", "Trebuchet MS", Arial, sans-serif;
 }
 
 button,
@@ -3039,7 +3039,6 @@ body[data-view="mobile"] #storeView {
 }
 
 body[data-view="mobile"] #storeView .store-insights,
-body[data-view="mobile"] #storeView .category-tile-panel,
 body[data-view="mobile"] #storeView .featured-products-band,
 body[data-view="mobile"] #storeView .mobile-store-links {
   display: none;
@@ -3106,7 +3105,6 @@ body[data-view="mobile"] #storeView .store-hero {
 }
 
 body[data-view="mobile"] #storeView .store-hero-side,
-body[data-view="mobile"] #storeView .store-insights,
 body[data-view="mobile"] #storeView .featured-products-band {
   display: none;
 }
@@ -3122,7 +3120,8 @@ body[data-view="mobile"] .store-insights {
 }
 
 body[data-view="mobile"] #storeView .hero-inline-points {
-  display: none;
+  display: grid;
+  gap: 8px;
 }
 
 body[data-view="mobile"] .hero-feature-showcase,
@@ -3154,7 +3153,7 @@ body[data-view="mobile"] #storeView .hero-copy {
 
 body[data-view="mobile"] #storeView .hero-badges,
 body[data-view="mobile"] #storeView .hero-side-actions {
-  display: none;
+  display: grid;
 }
 
 body[data-view="mobile"] #storeView .store-section-headline {
@@ -3207,6 +3206,39 @@ body[data-view="mobile"] .store-search-button::before {
 body[data-view="mobile"] #productGrid {
   order: 3;
   padding-top: 8px;
+}
+
+body[data-view="mobile"] #storeView .store-insights {
+  display: grid;
+  order: 3;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 8px 12px;
+}
+
+body[data-view="mobile"] #storeView .store-insights .insight-card {
+  border-radius: 12px;
+  padding: 12px;
+}
+
+body[data-view="mobile"] #storeView .store-insights .insight-card strong {
+  font-size: 20px;
+}
+
+body[data-view="mobile"] #storeView .category-tile-panel {
+  display: block;
+  order: 4;
+  margin: 0 8px 12px;
+  padding: 16px;
+}
+
+body[data-view="mobile"] #storeView .category-tiles {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+body[data-view="mobile"] #productGrid {
+  order: 5;
 }
 
 body[data-view="mobile"] #sellwithusView .dealer-info-grid,
