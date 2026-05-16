@@ -13,7 +13,7 @@
   <meta property="og:site_name" content="selltomakemoney.com">
   <meta property="og:type" content="website">
   <meta property="og:title" content="selltomakemoney.com Store | Deals and Inventory Finds">
-  <meta property="og:description" content="Browse public prices, compare retail links, share item pages, and request checkout for Mississauga pickup or select shippable items.">
+  <meta property="og:description" content="Browse public prices, share item pages, and request checkout for Mississauga pickup or select shippable items.">
   <meta property="og:url" content="https://selltomakemoney.com/">
   <meta property="og:image" content="https://selltomakemoney.com/assets/logo.svg">
   <meta name="twitter:card" content="summary">
@@ -109,7 +109,7 @@
         <div class="store-hero-copy">
           <p class="eyebrow" id="storeEyebrow">Inventory catalog</p>
           <h1 id="storeHeading">Current products</h1>
-          <p class="hero-copy" id="storeHeroCopy">Browse available items, compare retail links, and add items to your cart. Checkout requires an account.</p>
+          <p class="hero-copy" id="storeHeroCopy">Browse available items and add them to your cart. Checkout requires an account.</p>
           <div class="hero-badges">
             <span>Mississauga pickup</span>
             <span>Select items ship</span>
@@ -117,7 +117,7 @@
           </div>
           <div class="hero-inline-points">
             <div><strong>Fast local buying</strong><span>See what is available now and move from listing to checkout quickly.</span></div>
-            <div><strong>Public pricing first</strong><span>Share products easily, compare retail links, and let buyers come back to your store.</span></div>
+            <div><strong>Public pricing first</strong><span>Share products easily and bring buyers back to your store.</span></div>
           </div>
         </div>
         <div class="store-hero-side">
@@ -134,6 +134,12 @@
           </div>
         </div>
       </div>
+      <section class="store-tools" aria-label="Store filters">
+        <label class="store-search-label"><span>Search inventory</span><input id="storeSearch" type="search" placeholder="Search by item, brand, SKU, UPC"></label>
+        <button class="store-search-button" id="storeSearchButton" type="button" aria-label="Search inventory">Search</button>
+        <label class="store-category-label">Category<select id="storeCategory"><option value="">All categories</option></select></label>
+      </section>
+      <div class="product-grid" id="productGrid"></div>
       <div class="store-insights" id="storeInsights"></div>
       <section class="category-tile-panel">
         <div class="store-section-headline">
@@ -154,12 +160,6 @@
           <p>Live pricing, clear pickup or shipping notes, and direct product pages built for sharing.</p>
         </div>
       </section>
-      <section class="store-tools" aria-label="Store filters">
-        <label class="store-search-label"><span>Search inventory</span><input id="storeSearch" type="search" placeholder="Search by item, brand, SKU, UPC"></label>
-        <button class="store-search-button" id="storeSearchButton" type="button" aria-label="Search inventory">Search</button>
-        <label class="store-category-label">Category<select id="storeCategory"><option value="">All categories</option></select></label>
-      </section>
-      <div class="product-grid" id="productGrid"></div>
       <section class="panel alert-signup-panel store-bottom-alert">
         <div>
           <p class="eyebrow">Deal alerts</p>
@@ -378,17 +378,6 @@
           <a class="nav-button primary" href="/admin/facebookmobile">Facebook posting</a>
         </div>
       </div>
-      <div id="adminMetrics" class="admin-metrics-strip"></div>
-      <section class="panel admin-users-panel">
-        <div class="admin-workspace-head">
-          <div>
-            <p class="eyebrow">User management</p>
-            <h2>Users</h2>
-            <p class="admin-panel-subhead">Approve accounts and assign each user as a shopper, dealer, or seller.</p>
-          </div>
-        </div>
-        <div id="adminUsers" class="stack"></div>
-      </section>
       <div class="admin-simple-layout">
         <section class="panel admin-add-product">
           <div class="admin-workspace-head">
@@ -469,6 +458,19 @@
             <p class="form-message" id="productImportMessage"></p>
           </form>
         </section>
+      </div>
+      <div id="adminMetrics" class="admin-metrics-strip"></div>
+      <section class="panel admin-users-panel">
+        <div class="admin-workspace-head">
+          <div>
+            <p class="eyebrow">User management</p>
+            <h2>Users</h2>
+            <p class="admin-panel-subhead">Approve accounts and assign each user as a shopper, dealer, or seller.</p>
+          </div>
+        </div>
+        <div id="adminUsers" class="stack"></div>
+      </section>
+      <div class="admin-simple-layout">
         <div class="admin-secondary-column wide">
           <section class="panel admin-products-panel">
             <div class="admin-workspace-head">

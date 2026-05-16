@@ -185,6 +185,7 @@ function setRoute(route) {
   const visibleRoute = requestedRoute === "dealer" ? "store" : requestedRoute;
   currentStoreMode = requestedRoute === "dealer" ? "dealer" : requestedRoute === "shopper" ? "shopper" : "store";
   document.body.dataset.storeMode = currentStoreMode;
+  document.body.dataset.route = visibleRoute;
   Object.entries(views).forEach(([name, element]) => element.classList.toggle("hidden", name !== visibleRoute));
   if (visibleRoute === "store") loadProducts(currentStoreMode);
   if (route === "cart") {
@@ -1551,10 +1552,10 @@ function applyStoreModeCopy(canSeePrices = false) {
   if (storeHeading) storeHeading.textContent = dealerMode ? "Dealer products" : shopperMode ? "Shopper products" : "Current products";
   if (storeHeroCopy) {
     storeHeroCopy.textContent = dealerMode
-      ? "Dealer account view. Compare dealer pricing against retail, review listing interest, and add items to your cart."
+      ? "Dealer account view. Review inventory, check dealer pricing, and add items to your cart."
       : shopperMode
-        ? "Shopper account view. Save your cart, check out faster, and keep your buying separate from the public storefront."
-        : "Browse available items, compare retail links, and add items to your cart. Checkout requires an account.";
+        ? "Shopper account view. Save your cart and check out faster when you are ready."
+        : "Browse available items and add them to your cart. Checkout requires an account.";
   }
   if (priceNote) {
     priceNote.textContent = dealerMode
