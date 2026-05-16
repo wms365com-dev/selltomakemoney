@@ -1520,8 +1520,7 @@ function renderProducts(canSeePrices = false) {
           <div class="product-copy">
             <div>
               <h2><a class="product-title-link" href="${escapeHtml(product.url || `/products/${product.id}`)}">${escapeHtml(product.name)}</a></h2>
-              <p class="sku">${product.brand ? `${escapeHtml(product.brand)} | ` : ""}${escapeHtml(product.sku)} ${product.category ? `| ${escapeHtml(product.category)}` : ""}</p>
-              <p class="product-view-count">Viewed ${escapeHtml(product.viewCount ?? 0)} times</p>
+              <p class="sku">${[product.brand, product.category].filter(Boolean).map(escapeHtml).join(" | ")}</p>
             </div>
             ${productSalesBadges(product)}
             ${productSpecsSummary(product)}
@@ -1548,14 +1547,14 @@ function renderProducts(canSeePrices = false) {
 function applyStoreModeCopy(canSeePrices = false) {
   const dealerMode = currentStoreMode === "dealer";
   const shopperMode = currentStoreMode === "shopper";
-  if (storeEyebrow) storeEyebrow.textContent = dealerMode ? "Dealer pricing" : shopperMode ? "Shopper account" : "Inventory catalog";
-  if (storeHeading) storeHeading.textContent = dealerMode ? "Dealer products" : shopperMode ? "Shopper products" : "Current products";
+  if (storeEyebrow) storeEyebrow.textContent = dealerMode ? "Dealer pricing" : shopperMode ? "Shopper account" : "";
+  if (storeHeading) storeHeading.textContent = dealerMode ? "Dealer products" : shopperMode ? "Shopper products" : "";
   if (storeHeroCopy) {
     storeHeroCopy.textContent = dealerMode
       ? "Dealer account view. Review inventory, check dealer pricing, and add items to your cart."
       : shopperMode
         ? "Shopper account view. Save your cart and check out faster when you are ready."
-        : "Browse available items and add them to your cart. Checkout requires an account.";
+        : "";
   }
   if (priceNote) {
     priceNote.textContent = dealerMode
