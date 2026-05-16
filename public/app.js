@@ -1455,7 +1455,6 @@ function featuredStoreProducts(products) {
       if (rightScore !== leftScore) return rightScore - leftScore;
       return Number(right.priceCents || 0) - Number(left.priceCents || 0);
     })
-    .filter((product) => product.imageUrl || product.imageUrls?.length)
     .slice(0, 4);
 }
 
@@ -1493,8 +1492,8 @@ function renderStoreHero(products) {
 
 function renderStoreInsights(products) {
   if (!storeInsights) return;
-  const shippableCount = products.filter((product) => product.fulfillmentType === "ship").length;
-  const pickupCount = products.filter((product) => product.fulfillmentType !== "ship").length;
+  const shippableCount = products.filter((product) => product.productSpecs?.fulfillmentType === "ships_or_pickup").length;
+  const pickupCount = Math.max(0, products.length - shippableCount);
   const categoryCount = new Set(products.map((product) => product.category).filter(Boolean)).size;
   const insightCards = [
     ["Live inventory", `${products.length} items`, "Current products ready to browse, share, and add to cart."],
@@ -1547,14 +1546,14 @@ function renderProducts(canSeePrices = false) {
 function applyStoreModeCopy(canSeePrices = false) {
   const dealerMode = currentStoreMode === "dealer";
   const shopperMode = currentStoreMode === "shopper";
-  if (storeEyebrow) storeEyebrow.textContent = dealerMode ? "Dealer pricing" : shopperMode ? "Shopper account" : "";
-  if (storeHeading) storeHeading.textContent = dealerMode ? "Dealer products" : shopperMode ? "Shopper products" : "";
+  if (storeEyebrow) storeEyebrow.textContent = dealerMode ? "Dealer pricing" : shopperMode ? "Shopper account" : "Public deals";
+  if (storeHeading) storeHeading.textContent = dealerMode ? "Dealer products" : shopperMode ? "Shopper products" : "Shop local pickup deals and select shippable inventory.";
   if (storeHeroCopy) {
     storeHeroCopy.textContent = dealerMode
       ? "Dealer account view. Review inventory, check dealer pricing, and add items to your cart."
       : shopperMode
         ? "Shopper account view. Save your cart and check out faster when you are ready."
-        : "";
+        : "Browse public prices, compare categories, and request checkout without digging through cluttered marketplace listings. Pickup is based in Mississauga, with shipping available on select items.";
   }
   if (priceNote) {
     priceNote.textContent = dealerMode

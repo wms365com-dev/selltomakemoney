@@ -3038,7 +3038,6 @@ body[data-view="mobile"] #storeView {
   flex-direction: column;
 }
 
-body[data-view="mobile"] #storeView .store-hero,
 body[data-view="mobile"] #storeView .store-insights,
 body[data-view="mobile"] #storeView .category-tile-panel,
 body[data-view="mobile"] #storeView .featured-products-band,
@@ -3093,6 +3092,19 @@ body[data-view="mobile"] #storeView .section-head {
   background: transparent;
 }
 
+body[data-view="mobile"] #storeView .store-hero {
+  order: 0;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin: 8px 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at top right, rgba(254, 189, 105, 0.18), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 249, 252, 0.98));
+  padding: 16px;
+}
+
 body[data-view="mobile"] #storeView .store-hero-side,
 body[data-view="mobile"] #storeView .store-insights,
 body[data-view="mobile"] #storeView .featured-products-band {
@@ -3145,8 +3157,12 @@ body[data-view="mobile"] #storeView .hero-side-actions {
   display: none;
 }
 
-body[data-view="mobile"] .store-tools {
+body[data-view="mobile"] #storeView .store-section-headline {
   order: 1;
+}
+
+body[data-view="mobile"] .store-tools {
+  order: 2;
   position: sticky;
   top: 62px;
   z-index: 9;
@@ -3189,7 +3205,7 @@ body[data-view="mobile"] .store-search-button::before {
 }
 
 body[data-view="mobile"] #productGrid {
-  order: 2;
+  order: 3;
   padding-top: 8px;
 }
 
