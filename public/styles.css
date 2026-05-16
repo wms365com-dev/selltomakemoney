@@ -414,22 +414,34 @@ button.button-busy {
 }
 
 .store-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
-  gap: 18px;
-  align-items: stretch;
+  display: block;
   overflow: hidden;
   background:
     radial-gradient(circle at top right, rgba(254, 189, 105, 0.22), transparent 26%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 249, 252, 0.98));
-  padding: 18px 20px;
+  padding: 20px 24px;
 }
 
 .store-hero-copy,
 .store-hero-side {
   display: grid;
-  gap: 16px;
+  gap: 12px;
   align-content: start;
+}
+
+#storeView .store-hero h1 {
+  font-size: clamp(28px, 4.2vw, 52px);
+  max-width: 900px;
+}
+
+.store-hero-side,
+.hero-badges,
+.hero-inline-points,
+.hero-side-actions,
+.store-insights,
+.category-tile-panel,
+#storeView .store-section-headline {
+  display: none !important;
 }
 
 .hero-badges {
@@ -694,7 +706,7 @@ button.button-busy {
 }
 
 .store-tools {
-  grid-template-columns: minmax(0, 1.4fr) auto minmax(200px, 240px);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   box-shadow: 0 10px 20px rgba(19, 25, 33, 0.05);
   padding: 10px 12px;
@@ -723,7 +735,7 @@ button.button-busy {
 }
 
 body[data-view="desktop"] .store-tools {
-  grid-template-columns: minmax(0, 1fr) auto 170px;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   padding: 8px 10px;
 }
@@ -731,6 +743,10 @@ body[data-view="desktop"] .store-tools {
 body[data-view="desktop"] .store-search-label,
 body[data-view="desktop"] .store-category-label {
   gap: 2px;
+}
+
+.store-category-label {
+  display: none !important;
 }
 
 body[data-view="desktop"] .store-search-label span {
@@ -1027,8 +1043,8 @@ h2 {
 
 .product-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
 }
 
 .category-tile-panel {
@@ -1108,8 +1124,8 @@ h2 {
   display: grid;
   grid-template-rows: auto 1fr;
   height: 100%;
-  min-height: 620px;
-  box-shadow: 0 18px 36px rgba(19, 25, 33, 0.08);
+  min-height: 0;
+  box-shadow: 0 12px 28px rgba(19, 25, 33, 0.08);
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
@@ -1122,12 +1138,12 @@ h2 {
 .product-image {
   display: grid;
   place-items: center;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 1 / 0.9;
   background: linear-gradient(180deg, #ecf1f6, #dde5ee);
   color: var(--nav);
   font-weight: 800;
   text-align: center;
-  padding: 18px;
+  padding: 12px;
 }
 
 .product-image-rotator {
@@ -1158,7 +1174,7 @@ h2 {
   grid-template-rows: 1fr auto;
   align-content: start;
   gap: 10px;
-  padding: 16px 16px 18px;
+  padding: 14px;
 }
 
 .product-copy,
@@ -1215,13 +1231,13 @@ h2 {
 
 .sku {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
-  min-height: 18px;
+  min-height: 0;
 }
 
 .product-copy > div:first-child {
-  min-height: 78px;
+  min-height: 0;
 }
 
 .price {
@@ -1352,10 +1368,10 @@ h2 {
 
 .product-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(78px, 0.55fr);
+  grid-template-columns: 1fr;
   gap: 8px;
   margin-top: auto;
-  min-height: 92px;
+  min-height: 0;
 }
 
 .product-actions .primary,
@@ -1367,13 +1383,15 @@ h2 {
 }
 
 .product-actions > :last-child {
-  grid-column: 1 / -1;
+  grid-column: auto;
 }
 
-.product-cta-links {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+.product-cta-links,
+.shopping-links,
+.comparison-box,
+.source-link,
+.comparison-links {
+  display: none !important;
 }
 
 .linkish-button {
@@ -1388,13 +1406,6 @@ h2 {
 
 .linkish-button:hover {
   background: var(--bg-strong);
-}
-
-.shopping-links {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  min-height: 86px;
 }
 
 .shopping-links a {
@@ -3093,15 +3104,13 @@ body[data-view="mobile"] #storeView .section-head {
 
 body[data-view="mobile"] #storeView .store-hero {
   order: 0;
-  grid-template-columns: 1fr;
-  gap: 12px;
   margin: 8px 8px 12px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background:
     radial-gradient(circle at top right, rgba(254, 189, 105, 0.18), transparent 30%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 249, 252, 0.98));
-  padding: 16px;
+  padding: 14px;
 }
 
 body[data-view="mobile"] #storeView .store-hero-side,
@@ -3120,8 +3129,7 @@ body[data-view="mobile"] .store-insights {
 }
 
 body[data-view="mobile"] #storeView .hero-inline-points {
-  display: grid;
-  gap: 8px;
+  display: none !important;
 }
 
 body[data-view="mobile"] .hero-feature-showcase,
@@ -3153,11 +3161,11 @@ body[data-view="mobile"] #storeView .hero-copy {
 
 body[data-view="mobile"] #storeView .hero-badges,
 body[data-view="mobile"] #storeView .hero-side-actions {
-  display: grid;
+  display: none !important;
 }
 
 body[data-view="mobile"] #storeView .store-section-headline {
-  order: 1;
+  display: none !important;
 }
 
 body[data-view="mobile"] .store-tools {
@@ -3208,37 +3216,39 @@ body[data-view="mobile"] #productGrid {
   padding-top: 8px;
 }
 
-body[data-view="mobile"] #storeView .store-insights {
-  display: grid;
+body[data-view="mobile"] #productGrid {
   order: 3;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0 8px 12px;
 }
 
-body[data-view="mobile"] #storeView .store-insights .insight-card {
-  border-radius: 12px;
+body[data-view="mobile"] .product-card {
+  grid-template-columns: 104px minmax(0, 1fr);
+  grid-template-rows: 1fr;
+  align-items: stretch;
+}
+
+body[data-view="mobile"] .product-image {
+  aspect-ratio: auto;
+  height: 100%;
+  min-height: 104px;
+}
+
+body[data-view="mobile"] .product-body {
+  gap: 10px;
   padding: 12px;
 }
 
-body[data-view="mobile"] #storeView .store-insights .insight-card strong {
-  font-size: 20px;
+body[data-view="mobile"] .product-body h2 {
+  font-size: 18px;
 }
 
-body[data-view="mobile"] #storeView .category-tile-panel {
-  display: block;
-  order: 4;
-  margin: 0 8px 12px;
-  padding: 16px;
+body[data-view="mobile"] .product-actions {
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
-body[data-view="mobile"] #storeView .category-tiles {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-body[data-view="mobile"] #productGrid {
-  order: 5;
+body[data-view="mobile"] .product-actions .nav-button,
+body[data-view="mobile"] .product-actions .primary {
+  width: auto;
+  min-height: 42px;
 }
 
 body[data-view="mobile"] #sellwithusView .dealer-info-grid,

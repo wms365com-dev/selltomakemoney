@@ -1492,21 +1492,7 @@ function renderStoreHero(products) {
 
 function renderStoreInsights(products) {
   if (!storeInsights) return;
-  const shippableCount = products.filter((product) => product.productSpecs?.fulfillmentType === "ships_or_pickup").length;
-  const pickupCount = Math.max(0, products.length - shippableCount);
-  const categoryCount = new Set(products.map((product) => product.category).filter(Boolean)).size;
-  const insightCards = [
-    ["Live inventory", `${products.length} items`, "Current products ready to browse, share, and add to cart."],
-    ["Browse faster", `${categoryCount} categories`, "Organized product groups built for quick scanning and cleaner navigation."],
-    ["Pickup and shipping", `${pickupCount} pickup | ${shippableCount} ship`, "Customers can see right away whether each item is local pickup or ready to ship."]
-  ];
-  storeInsights.innerHTML = insightCards.map(([label, value, copy]) => `
-    <article class="insight-card">
-      <p>${escapeHtml(label)}</p>
-      <strong>${escapeHtml(value)}</strong>
-      <span>${escapeHtml(copy)}</span>
-    </article>
-  `).join("");
+  storeInsights.innerHTML = "";
 }
 
 function renderProducts(canSeePrices = false) {
@@ -1521,21 +1507,13 @@ function renderProducts(canSeePrices = false) {
               <h2><a class="product-title-link" href="${escapeHtml(product.url || `/products/${product.id}`)}">${escapeHtml(product.name)}</a></h2>
               <p class="sku">${[product.brand, product.category].filter(Boolean).map(escapeHtml).join(" | ")}</p>
             </div>
-            ${productSalesBadges(product)}
-            ${productSpecsSummary(product)}
             ${fulfillmentBadge(product)}
             ${pricingBlock(product, canSeePrices)}
           </div>
           <div class="product-card-footer">
-            ${shoppingLinksBlock(product)}
             <div class="product-actions">
               <button class="primary" data-add-cart="${product.id}">Add to cart</button>
-              <button type="button" data-copy-share="${product.id}" data-copy-url="${escapeHtml(absoluteUrl(product.shortUrl || product.url || `/products/${product.id}`))}">Share</button>
-              <a class="nav-button" href="${escapeHtml(product.url || `/products/${product.id}`)}">Details</a>
-            </div>
-            <div class="product-cta-links">
-              <button type="button" class="linkish-button" data-quick-inquiry="${product.id}" data-inquiry-note="Asked about this item from the store listing.">Ask about this item</button>
-              <button type="button" class="linkish-button" data-hold-request="${product.id}" data-inquiry-note="Please hold this item for pickup in Mississauga.">Hold for pickup</button>
+              <a class="nav-button" href="${escapeHtml(product.url || `/products/${product.id}`)}">View item</a>
             </div>
           </div>
         </div>
@@ -1547,13 +1525,13 @@ function applyStoreModeCopy(canSeePrices = false) {
   const dealerMode = currentStoreMode === "dealer";
   const shopperMode = currentStoreMode === "shopper";
   if (storeEyebrow) storeEyebrow.textContent = dealerMode ? "Dealer pricing" : shopperMode ? "Shopper account" : "Public deals";
-  if (storeHeading) storeHeading.textContent = dealerMode ? "Dealer products" : shopperMode ? "Shopper products" : "Shop local pickup deals and select shippable inventory.";
+  if (storeHeading) storeHeading.textContent = dealerMode ? "Dealer products" : shopperMode ? "Shopper products" : "Shop available inventory.";
   if (storeHeroCopy) {
     storeHeroCopy.textContent = dealerMode
-      ? "Dealer account view. Review inventory, check dealer pricing, and add items to your cart."
+      ? "Search inventory and open the products you want."
       : shopperMode
-        ? "Shopper account view. Save your cart and check out faster when you are ready."
-        : "Browse public prices, compare categories, and request checkout without digging through cluttered marketplace listings. Pickup is based in Mississauga, with shipping available on select items.";
+        ? "Search inventory and add the products you want."
+        : "Search inventory and open the products you want to buy.";
   }
   if (priceNote) {
     priceNote.textContent = dealerMode
@@ -1562,7 +1540,7 @@ function applyStoreModeCopy(canSeePrices = false) {
         ? "Shopper account is active. Public pricing is shown here for checkout and saved activity."
         : (canSeePrices
         ? "Account pricing is visible on your approved account."
-        : "Public pricing is visible. Create an account before checkout. Pickup is currently in Mississauga only.");
+        : "Add items to cart and continue when you are ready.");
   }
   if (shareCatalogButton) {
     shareCatalogButton.textContent = dealerMode ? "Share dealer page" : shopperMode ? "Share shopper page" : "Share catalog";
