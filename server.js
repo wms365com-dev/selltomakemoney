@@ -2784,7 +2784,8 @@ async function sendProductPage(req, res) {
   const canonicalUrl = `${baseUrl}${canonicalPath}`;
   const shortUrl = `${baseUrl}${shortProductPath(product)}`;
   const currentYear = new Date().getFullYear();
-  const mainImage = (product.imageUrls?.[0] || product.imageUrl || "");
+  const imageUrls = [...new Set([...(product.imageUrls || []), product.imageUrl].filter(Boolean))];
+  const mainImage = (imageUrls[0] || "");
   const absoluteImage = mainImage ? new URL(mainImage, baseUrl).toString() : "";
   const price = dollars(product.priceCents);
   const dealerPrice = showDealerPricing ? dollars(product.dealerPriceCents) : null;
@@ -2824,17 +2825,24 @@ async function sendProductPage(req, res) {
   ${absoluteImage ? `<meta name="twitter:image" content="${escapeHtml(absoluteImage)}">` : ""}
   <title>${escapeHtml(title)}</title>
   <script type="application/ld+json">${safeJsonScript(productJsonLd(product, canonicalUrl, absoluteImage))}</script>
-  <link rel="stylesheet" href="/styles.css?v=storefront-uniform-6">
+  <link rel="stylesheet" href="/styles.css?v=storefront-uniform-10">
 </head>
 <body>
   <header class="topbar catalog-topbar">
-    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=storefront-uniform-6" alt="selltomakemoney.com"></a>
+    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=storefront-uniform-10" alt="selltomakemoney.com"></a>
     <nav><a class="nav-button" href="/desktop">Store</a><a class="nav-button" href="/catalog">Catalog</a><a class="nav-button" href="/privacy">Privacy</a><a class="nav-button primary" href="/desktop#cart">Checkout</a></nav>
   </header>
   <main>
     <article class="product-detail">
-      <div class="product-detail-media">
-        ${mainImage ? `<img src="${escapeHtml(mainImage)}" alt="${escapeHtml(product.name)}" loading="eager" decoding="async">` : `<div class="product-image">${escapeHtml(product.brand || product.category || "Product")}</div>`}
+      <div class="product-detail-gallery">
+        ${imageUrls.length > 1 ? `<div class="product-detail-thumbs" aria-label="Product images">
+          ${imageUrls.map((imageUrl, index) => `<button class="product-detail-thumb ${index === 0 ? "active" : ""}" type="button" data-product-thumb="${index}" data-image-src="${escapeHtml(imageUrl)}" aria-label="Show image ${index + 1}">
+            <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(`${product.name} image ${index + 1}`)}" loading="lazy" decoding="async">
+          </button>`).join("")}
+        </div>` : ""}
+        <div class="product-detail-media">
+          ${mainImage ? `<img id="productDetailMainImage" src="${escapeHtml(mainImage)}" alt="${escapeHtml(product.name)}" loading="eager" decoding="async">` : `<div class="product-image">${escapeHtml(product.brand || product.category || "Product")}</div>`}
+        </div>
       </div>
       <section class="product-detail-body">
         <p class="eyebrow">${escapeHtml(product.category || "Available inventory")}</p>
@@ -2899,6 +2907,18 @@ async function sendProductPage(req, res) {
   </footer>
   <script>
     const detailMessage = document.getElementById('productDetailMessage');
+    const galleryThumbs = Array.from(document.querySelectorAll('[data-product-thumb]'));
+    const galleryMainImage = document.getElementById('productDetailMainImage');
+    if (galleryMainImage && galleryThumbs.length) {
+      galleryThumbs.forEach((thumb) => {
+        thumb.addEventListener('click', function () {
+          const src = this.dataset.imageSrc || '';
+          if (!src) return;
+          galleryMainImage.src = src;
+          galleryThumbs.forEach((item) => item.classList.toggle('active', item === this));
+        });
+      });
+    }
     async function sendProductInquiry(note, button) {
       detailMessage.textContent = '';
       button.disabled = true;

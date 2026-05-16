@@ -1419,8 +1419,9 @@ h2 {
 
 .product-detail {
   display: grid;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr);
+  grid-template-columns: minmax(320px, 560px) minmax(0, 1fr);
   gap: 28px;
+  align-items: start;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
@@ -1428,20 +1429,59 @@ h2 {
   padding: clamp(18px, 3vw, 30px);
 }
 
+.product-detail-gallery {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.product-detail-thumbs {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.product-detail-thumb {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.product-detail-thumb.active,
+.product-detail-thumb:hover {
+  border-color: rgba(255, 153, 0, 0.7);
+  box-shadow: 0 0 0 2px rgba(255, 153, 0, 0.14);
+}
+
+.product-detail-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .product-detail-media {
   display: grid;
   place-items: center;
+  align-self: start;
+  aspect-ratio: 1 / 1;
   min-height: 320px;
+  max-height: 620px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--bg-strong);
+  background: #fff;
   overflow: hidden;
 }
 
 .product-detail-media img {
   width: 100%;
   height: 100%;
-  max-height: 620px;
   object-fit: contain;
   background: #fff;
 }
@@ -3616,6 +3656,17 @@ body[data-view="mobile"] #productForm.mobile-open .admin-step-panel[data-step-pa
 
   .product-detail {
     grid-template-columns: 1fr;
+  }
+
+  .product-detail-gallery {
+    grid-template-columns: 1fr;
+  }
+
+  .product-detail-thumbs {
+    grid-auto-flow: column;
+    grid-auto-columns: 64px;
+    overflow-x: auto;
+    padding-bottom: 4px;
   }
 
   .dealer-info-grid {
