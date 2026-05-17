@@ -51,7 +51,7 @@
       ]
     }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=storefront-uniform-9">
+  <link rel="stylesheet" href="/styles.css?v=simple-sale-2">
 </head>
 <body>
   <header class="topbar">
@@ -69,14 +69,6 @@
           <summary class="menu-trigger">Menu</summary>
           <div class="menu-panel">
             <button class="nav-button" data-route="store">Store</button>
-            <a class="nav-button" href="/list-with-us">List with us</a>
-            <button class="nav-button signed-out" data-route="login">Login</button>
-            <button class="nav-button signed-out" data-route="register">Register</button>
-            <a class="nav-button mobile-hide-nav" href="/dealers">Dealer Info</a>
-            <a class="nav-button mobile-hide-nav" href="/privacy">Privacy</a>
-            <a class="nav-button shopper-only hidden" href="/shopper">Shopper</a>
-            <a class="nav-button dealer-only hidden" href="/dealer">Dealer</a>
-            <a class="nav-button seller-only hidden" href="/sell">Seller</a>
             <button class="nav-button" data-route="cart">Cart</button>
             <a class="nav-button admin-only hidden" href="/admin">Admin</a>
             <a class="nav-button admin-only hidden mobile-only-nav mobile-hide-nav" href="/admin/facebookmobile">Facebook</a>
@@ -93,149 +85,26 @@
       <span id="appStatusText">Working...</span>
     </div>
 
-    <div id="consentBanner" class="consent-banner hidden" role="dialog" aria-live="polite" aria-label="Cookie and analytics notice">
-      <div class="consent-copy">
-        <strong>Analytics cookie</strong>
-        <span>We use a first-party cookie to measure visits and product interest.</span>
-      </div>
-      <div class="consent-actions">
-        <button type="button" id="consentEssentialButton">Essential only</button>
-        <button type="button" class="primary" id="consentAnalyticsButton">Allow analytics</button>
-      </div>
-    </div>
-
     <section id="storeView" class="view">
-      <section class="section-head store-hero" aria-labelledby="storeHeading">
-        <div class="store-hero-copy">
-          <div>
-            <p class="eyebrow" id="storeEyebrow">Public deals</p>
-            <h1 id="storeHeading">Shop available inventory.</h1>
-            <p class="hero-copy" id="storeHeroCopy">Search inventory and open the products you want to buy.</p>
-          </div>
-          <div class="hero-badges" aria-label="Store benefits">
-            <span>Public prices</span>
-            <span>Mississauga pickup</span>
-            <span>Select items ship across Canada</span>
-          </div>
-          <div class="hero-inline-points" aria-label="Why shoppers use this store">
-            <div>
-              <strong>Clear availability</strong>
-              <span>Each listing shows stock, condition, and whether it is pickup only or eligible to ship.</span>
-            </div>
-            <div>
-              <strong>Simple checkout requests</strong>
-              <span>Add items to cart first, then submit your order details when you are ready.</span>
-            </div>
-            <div>
-              <strong>Built for fast browsing</strong>
-              <span>Search by title, brand, SKU, UPC, or jump straight into a category.</span>
-            </div>
-            <div>
-              <strong>Real local fulfillment</strong>
-              <span>Pickup orders stay simple with e-transfer or cash, while eligible shipped items can use card checkout.</span>
-            </div>
-          </div>
-          <div class="hero-side-actions">
-            <div class="row-actions">
-              <button type="button" class="primary" id="shareCatalogButton" data-copy-catalog>Share catalog</button>
-              <a class="nav-button" href="/list-with-us">List with us</a>
-            </div>
-            <p class="hero-copy" id="priceNote">Public pricing is visible. Create an account before checkout. Pickup is currently in Mississauga only.</p>
-          </div>
+      <section class="panel store-intro-strip">
+        <div>
+          <p class="eyebrow">Local deals</p>
+          <h1>Reserve inventory fast and pick up in Mississauga.</h1>
+          <p class="store-intro-copy">Real products, visible pricing, and direct follow-up. Most items are local pickup, with select shippable inventory across Canada.</p>
         </div>
-        <div class="store-hero-side">
-          <div class="hero-feature-showcase">
-            <article class="hero-feature-card" id="storeFeaturedPrimary" aria-label="Featured product"></article>
-            <div class="hero-feature-grid" id="storeFeaturedGrid" aria-label="More featured products"></div>
-          </div>
-        </div>
-      </section>
-      <section class="store-insights" id="storeInsights" aria-label="Store highlights"></section>
-      <section class="category-tile-panel" aria-labelledby="storeBrowseHeading">
-        <div class="store-section-headline">
-          <div class="plain-head-copy">
-            <p class="eyebrow">Browse faster</p>
-            <h2 id="storeBrowseHeading">Start with a category, then narrow your search.</h2>
-            <p>Scan the main inventory groups first, then use search to find a brand, SKU, UPC, or exact item.</p>
-          </div>
-        </div>
-        <div class="category-tiles" id="categoryTiles"></div>
-      </section>
-      <section class="store-section-headline" aria-label="Inventory tools">
-        <div class="plain-head-copy">
-          <p class="eyebrow">Inventory</p>
-          <h2>Search live products and compare listing details.</h2>
-          <p>Use the filters below to move from broad browsing into specific products, conditions, or fulfillment options.</p>
+        <div class="store-intro-points" aria-label="Why shoppers use this store">
+          <span>Local pickup</span>
+          <span>Pay on pickup</span>
+          <span>Real inventory</span>
         </div>
       </section>
       <section class="store-tools" aria-label="Store filters">
-        <label class="store-search-label"><span>Search inventory</span><input id="storeSearch" type="search" placeholder="Search by item, brand, SKU, UPC"></label>
-        <button class="store-search-button" id="storeSearchButton" type="button" aria-label="Search inventory">Search</button>
+        <label class="store-search-label"><span>Search inventory</span><input id="storeSearch" type="search" placeholder="What do you want?"></label>
+        <button class="store-search-button" id="storeSearchButton" type="button" aria-label="Search inventory">Find</button>
         <label class="store-category-label">Category<select id="storeCategory"><option value="">All categories</option></select></label>
       </section>
       <div class="product-grid" id="productGrid"></div>
-      <section class="panel alert-signup-panel store-bottom-alert">
-        <div>
-          <p class="eyebrow">Deal alerts</p>
-          <h2>Get deal alerts</h2>
-        </div>
-        <form id="alertSignupForm" class="alert-signup-form">
-          <label>First name<input name="firstName" autocomplete="given-name" placeholder="First name" required></label>
-          <label>Last name<input name="lastName" autocomplete="family-name" placeholder="Last name" required></label>
-          <label>Email<input name="email" type="email" autocomplete="email" required placeholder="you@example.com"></label>
-          <label>Phone<input name="phone" autocomplete="tel" placeholder="Optional"></label>
-          <label class="wide-field">What are you looking for?<input name="interests" placeholder="Scooters, tools, electronics, deals under $500..."></label>
-          <input name="source" type="hidden" value="store-bottom">
-          <button class="primary" type="submit">Send me alerts</button>
-          <p class="form-message" id="alertSignupMessage"></p>
-        </form>
-      </section>
     </section>
-
-    <div class="exit-alert-modal hidden" id="exitAlertModal" role="dialog" aria-modal="true" aria-labelledby="exitAlertTitle">
-      <div class="exit-alert-card">
-        <button class="modal-close" type="button" data-close-exit-alert aria-label="Close alerts popup">&#215;</button>
-        <p class="eyebrow">Before you go</p>
-        <h2 id="exitAlertTitle">Want first notice on new deals?</h2>
-        <p>Drop your email and what you are looking for. No account needed.</p>
-        <form id="exitAlertForm" class="alert-signup-form compact-alert-form">
-          <label>First name<input name="firstName" autocomplete="given-name" placeholder="First name" required></label>
-          <label>Last name<input name="lastName" autocomplete="family-name" placeholder="Last name" required></label>
-          <label>Email<input name="email" type="email" autocomplete="email" required placeholder="you@example.com"></label>
-          <label class="wide-field">What are you looking for?<input name="interests" placeholder="Scooters, tools, electronics..."></label>
-          <input name="source" type="hidden" value="exit-popup">
-          <button class="primary" type="submit">Send me alerts</button>
-          <p class="form-message" id="exitAlertMessage"></p>
-        </form>
-      </div>
-    </div>
-
-    <div class="exit-alert-modal hidden" id="bugReportModal" role="dialog" aria-modal="true" aria-labelledby="bugReportTitle">
-      <div class="exit-alert-card">
-        <button class="modal-close" type="button" data-close-bug-report aria-label="Close bug report form">&#215;</button>
-        <p class="eyebrow">Help improve the site</p>
-        <h2 id="bugReportTitle">Report Bug / Request Feature</h2>
-        <p>Tell us what happened or what would make the store easier to use.</p>
-        <form id="bugReportForm" class="alert-signup-form compact-alert-form">
-          <label>Type<select name="type" required>
-            <option value="bug">Bug</option>
-            <option value="feature">Feature request</option>
-            <option value="usability">Usability issue</option>
-          </select></label>
-          <label>Priority<select name="priority" required>
-            <option value="normal">Normal</option>
-            <option value="high">High</option>
-            <option value="low">Low</option>
-          </select></label>
-          <label class="wide-field">Title<input name="title" required maxlength="160" placeholder="Short summary"></label>
-          <label class="wide-field">Details<textarea name="details" rows="5" required placeholder="What did you expect, what happened, and what page were you on?"></textarea></label>
-          <label class="wide-field">Contact email<input name="email" type="email" autocomplete="email" placeholder="Optional"></label>
-          <input name="pageUrl" type="hidden" id="bugReportPageUrl">
-          <button class="primary" type="submit">Send report</button>
-          <p class="form-message" id="bugReportMessage"></p>
-        </form>
-      </div>
-    </div>
 
     <div class="exit-alert-modal hidden" id="facebookListingModal" role="dialog" aria-modal="true" aria-labelledby="facebookListingTitle">
       <div class="exit-alert-card facebook-helper-card">
@@ -284,7 +153,7 @@
       <div class="section-head compact">
         <div>
           <p class="eyebrow">Marketplace sellers</p>
-          <h1>List with us.</h1>
+          <h2>List with us.</h2>
           <p class="hero-copy">Turn the site into a marketplace lane for approved sellers. Apply first, get approved, then add your own listings in a separate seller workspace.</p>
         </div>
         <div class="row-actions">
@@ -310,72 +179,43 @@
     <section id="cartView" class="view hidden">
       <div class="section-head compact">
         <div>
-          <p class="eyebrow">Checkout</p>
-          <h1>Cart and fulfillment details.</h1>
+          <p class="eyebrow">Pickup checkout</p>
+          <h2>Reserve your item.</h2>
         </div>
       </div>
       <div class="checkout-layout">
         <section class="panel">
-          <h2>Cart</h2>
+          <h2>Your items</h2>
           <div id="cartItems" class="stack"></div>
           <div class="cart-total"><span>Subtotal</span><strong id="cartSubtotal">$0.00</strong></div>
         </section>
         <form class="panel checkout-form" id="checkoutForm">
-          <h2>Ship-to / pickup information</h2>
-          <div class="checkout-notice wide-field signed-out">
-            <strong>Account required for checkout.</strong>
-            <span>Add items freely, then login or create an account before submitting your order request.</span>
-            <div class="row-actions">
-              <button type="button" data-route="login">Login</button>
-              <button type="button" class="primary" data-route="register">Create account</button>
-            </div>
-          </div>
+          <h2>Pickup request</h2>
           <div class="checkout-notice wide-field">
-            <strong>Payment methods</strong>
-            <span>Pickup orders use e-transfer or cash to keep processing costs down. Credit card is available only for items marked as shippable and shipped to an address.</span>
+            <strong>Mississauga pickup</strong>
+            <span>Send contact info. Pay by e-transfer or cash.</span>
           </div>
-          <div class="secure-checkout-strip wide-field" aria-label="Secure checkout details">
-            <div>
-              <strong>Secure checkout</strong>
-              <div class="payment-badges" aria-label="Accepted payment options">
-                <span>Visa</span>
-                <span>Mastercard</span>
-                <span>Amex</span>
-                <span>SSL</span>
-              </div>
-            </div>
-            <p>We do not request or store card information for pickup, e-transfer, or cash orders. Card payment is only available for eligible shipped items through a secure payment process.</p>
-          </div>
-          <label>Fulfillment method<select name="fulfillmentMethod" required>
-            <option value="ship">Ship to address</option>
-            <option value="pickup">Customer pickup in Mississauga</option>
-          </select></label>
-          <label>Payment method<select name="paymentMethod" required>
-            <option value="etransfer">E-transfer</option>
-            <option value="cash_pickup">Cash on pickup in Mississauga</option>
-            <option value="credit_card">Credit card for eligible shipped items</option>
-          </select></label>
-          <label class="wide-field">Quick address lookup / paste<input id="quickAddress" autocomplete="street-address" placeholder="Paste full address or use your browser's saved address"></label>
-          <button class="wide-field" type="button" id="fillAddressBtn">Fill address fields</button>
-          <label>Recipient name<input name="recipientName" required autocomplete="name"></label>
-          <label>Company<input name="company" required autocomplete="organization"></label>
+          <input name="fulfillmentMethod" type="hidden" value="pickup">
+          <input name="paymentMethod" type="hidden" value="etransfer">
+          <input name="company" type="hidden" value="Individual">
+          <input name="address1" type="hidden" value="Pickup in Mississauga">
+          <input name="address2" type="hidden" value="">
+          <input name="city" type="hidden" value="Mississauga">
+          <input name="region" type="hidden" value="ON">
+          <input name="postalCode" type="hidden" value="Pickup">
+          <input name="country" type="hidden" value="Canada">
+          <input name="deliveryWindow" type="hidden" value="Contact customer to arrange pickup">
+          <input name="receivingInstructions" type="hidden" value="Contact before pickup">
+          <input name="contactBeforeDelivery" type="hidden" value="on">
+          <label>Full name<input name="recipientName" required autocomplete="name"></label>
           <label>Phone<input name="phone" required autocomplete="tel"></label>
           <label>Email<input name="email" type="email" required autocomplete="email"></label>
-          <label>Address line 1<input name="address1" required autocomplete="address-line1"></label>
-          <label>Address line 2<input name="address2" autocomplete="address-line2"></label>
-          <label>City<input name="city" required autocomplete="address-level2"></label>
-          <label>Province / state<input name="region" required autocomplete="address-level1"></label>
-          <label>Postal / ZIP code<input name="postalCode" required autocomplete="postal-code"></label>
-          <label>Country<input name="country" required autocomplete="country-name" value="Canada"></label>
-          <label>Preferred delivery or Mississauga pickup window<input name="deliveryWindow" required placeholder="Example: weekday mornings, call first"></label>
-          <label class="wide-field">Receiving or Mississauga pickup instructions<textarea name="receivingInstructions" rows="4" required placeholder="Shipping notes, pickup contact, ID requirements, access details"></textarea></label>
-          <div class="checkout-flags wide-field">
-            <label><input type="checkbox" name="residentialAddress"> Residential address</label>
-            <label><input type="checkbox" name="liftgateRequired"> Liftgate required</label>
-            <label><input type="checkbox" name="contactBeforeDelivery" checked> Contact before delivery or Mississauga pickup</label>
+          <label class="wide-field">Pickup note<textarea name="note" rows="2" placeholder="Best pickup time"></textarea></label>
+          <div class="checkout-policy-note wide-field">
+            <strong>Questions before pickup?</strong>
+            <span>Use the contact and policy links below for pickup details, shipping notes, and return guidance.</span>
           </div>
-          <label class="wide-field">Order notes<textarea name="note" rows="3" placeholder="Optional internal notes for this order"></textarea></label>
-          <button class="primary wide-field" type="submit">Submit checkout request</button>
+          <button class="primary wide-field" type="submit">Reserve now</button>
           <p class="form-message wide-field" id="checkoutMessage"></p>
         </form>
       </div>
@@ -385,7 +225,7 @@
       <div class="section-head compact">
         <div>
           <p class="eyebrow">Admin</p>
-          <h1>List and update items.</h1>
+          <h2>List and update items.</h2>
         </div>
         <div class="row-actions">
           <a class="nav-button primary" href="/admin/facebookmobile">Facebook posting</a>
@@ -579,7 +419,7 @@
       <div class="section-head compact">
         <div>
           <p class="eyebrow">Facebook Marketplace</p>
-          <h1>Facebook posting workspace.</h1>
+          <h2>Facebook posting workspace.</h2>
           <p class="hero-copy">Stay logged in as admin, tap any product, then tap each field to copy and paste into Facebook Marketplace fast.</p>
         </div>
         <div class="row-actions">
@@ -619,7 +459,7 @@
       <div class="section-head compact">
         <div>
           <p class="eyebrow">Seller workspace</p>
-          <h1>List your items.</h1>
+          <h2>List your items.</h2>
           <p class="hero-copy">Add product details, upload photos, and submit listings into the marketplace workflow. Seller listings stay separate from admin management.</p>
         </div>
       </div>
@@ -699,16 +539,20 @@
 
   <footer class="site-footer">
     <div class="footer-trust">
-      <strong>Secure checkout</strong>
-      <span>No stored card details for pickup, e-transfer, or cash orders.</span>
+      <strong>Local pickup in Mississauga</strong>
+      <span>Reserve online, pay on pickup, and get direct follow-up from a real person.</span>
     </div>
-    <div>
-      <strong>selltomakemoney.com</strong>
-      <span>Public deals, Mississauga pickup, and select shippable inventory. Visitor analytics are active. <a href="/privacy">Privacy</a></span>
-    </div>
-    <div>Copyright &copy; <span data-year>2026</span> selltomakemoney.com. All rights reserved.</div>
+    <nav class="footer-links" aria-label="Support links">
+      <a href="/about">About</a>
+      <a href="/contact">Contact</a>
+      <a href="/shipping">Shipping</a>
+      <a href="/returns">Returns</a>
+      <a href="/faq">FAQ</a>
+      <a href="/terms">Terms</a>
+      <a href="/privacy">Privacy</a>
+    </nav>
   </footer>
 
-  <script src="/app.js?v=storefront-uniform-9"></script>
+  <script src="/app.js?v=simple-sale-2"></script>
 </body>
 </html>

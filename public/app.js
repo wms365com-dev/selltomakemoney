@@ -76,6 +76,8 @@ let bulkNewRowSequence = 1;
 let activeFacebookListingProductId = null;
 let selectedFacebookProductId = null;
 let facebookProductSearch = "";
+let facebookBridgeAccounts = [];
+let facebookBridgeConfigured = false;
 let sellerProductsCache = [];
 let adminVisitorFilters = { country: "", deviceType: "", path: "" };
 let consentState = { consent: "", analyticsEnabled: false };
@@ -211,6 +213,7 @@ function routeFromHash() {
 
 function updateNav() {
   const signedIn = Boolean(sessionUser);
+  document.body.classList.toggle("user-signed-in", signedIn);
   document.querySelectorAll(".signed-in").forEach((item) => item.classList.toggle("hidden", !signedIn));
   document.querySelectorAll(".signed-out").forEach((item) => item.classList.toggle("hidden", signedIn));
   document.querySelectorAll(".admin-only").forEach((item) => item.classList.toggle("hidden", sessionUser?.role !== "admin"));
@@ -608,6 +611,26 @@ function renderFacebookSelectedSummary(product, index, total) {
       <strong>${escapeHtml(index + 1)}</strong>
       <span>Selected of ${escapeHtml(total)}</span>
     </div>
+    <div class="panel visitor-summary-card">
+      <strong>Facebook draft</strong>
+      ${facebookBridgeControlsMarkup(product)}
+    </div>
+  `;
+}
+
+function facebookBridgeControlsMarkup(product) {
+  const accounts = facebookBridgeAccounts.length
+    ? facebookBridgeAccounts
+    : [{ id: "prathab-personal", label: "Prathab Personal", facebookProfileId: "" }];
+  const selected = product?.productSpecs?.facebookAccountId || accounts[0]?.id || "prathab-personal";
+  return `
+    <label class="mini-note">Account
+      <select data-facebook-account-select="${escapeHtml(product?.id || "")}">
+        ${accounts.map((account) => `<option value="${escapeHtml(account.id)}" ${selected === account.id ? "selected" : ""}>${escapeHtml(account.label || account.id)}${account.facebookProfileId ? ` (${escapeHtml(account.facebookProfileId)})` : ""}</option>`).join("")}
+      </select>
+    </label>
+    <button type="button" data-push-facebook-draft="${escapeHtml(product?.id || "")}" ${facebookBridgeConfigured ? "" : "disabled"}>Push to Facebook Drafts</button>
+    <span class="mini-note">${facebookBridgeConfigured ? "Sends to the local Facebook bridge queue." : "Bridge env vars are not configured."}</span>
   `;
 }
 
@@ -830,6 +853,7 @@ function adminProductDetailMarkup(product, _products) {
         <div class="row-actions wide-field simple-product-actions">
           <button class="primary" type="submit">Save changes</button>
           <button type="button" data-open-facebook-helper="${product.id}">Facebook List</button>
+          ${facebookBridgeControlsMarkup(product)}
           ${product.active || product.productSpecs?.listingStatus !== "archived"
             ? `<button type="button" data-archive-product="${product.id}">Archive</button>`
             : `<button type="button" data-restore-product="${product.id}">Restore</button>`}
@@ -1153,7 +1177,7 @@ function renderCart() {
   const checkoutMessage = document.querySelector("#checkoutMessage");
   if (checkoutMessage) checkoutMessage.textContent = "";
   if (!items.length) {
-    cartItems.innerHTML = `<p>Your cart is empty.</p>`;
+    cartItems.innerHTML = `<p>Your cart is empty. Pick an item to reserve.</p>`;
     cartSubtotal.textContent = "$0.00";
     updateCheckoutPaymentOptions(items);
     return;
@@ -1162,7 +1186,7 @@ function renderCart() {
     <div class="cart-line">
       <div>
         <strong>${escapeHtml(product.name)}</strong>
-        <p>${escapeHtml(product.sku)} ${product.brand ? `| ${escapeHtml(product.brand)}` : ""}</p>
+        ${product.brand ? `<p>${escapeHtml(product.brand)}</p>` : ""}
         <span>${escapeHtml(product.price)} each</span>
       </div>
       <div class="cart-controls">
@@ -1500,20 +1524,22 @@ function renderProducts(canSeePrices = false) {
   stopProductRotator();
   productGrid.innerHTML = products.length ? products.map((product) => `
     <article class="product-card">
-        ${productImage(product, false)}
+        <a class="product-card-link" href="${escapeHtml(product.url || `/products/${product.id}`)}" aria-label="View details for ${escapeHtml(product.name)}">
+          ${productImage(product, false)}
+        </a>
         <div class="product-body">
           <div class="product-copy">
             <div>
               <h2><a class="product-title-link" href="${escapeHtml(product.url || `/products/${product.id}`)}">${escapeHtml(product.name)}</a></h2>
-              <p class="sku">${[product.brand, product.category].filter(Boolean).map(escapeHtml).join(" | ")}</p>
+              <p class="product-card-meta">${escapeHtml([product.brand, product.category].filter(Boolean).join(" | ") || "Available inventory")}</p>
             </div>
-            ${fulfillmentBadge(product)}
             ${pricingBlock(product, canSeePrices)}
+            ${fulfillmentBadge(product)}
           </div>
           <div class="product-card-footer">
             <div class="product-actions">
-              <button class="primary" data-add-cart="${product.id}">Add to cart</button>
-              <a class="nav-button" href="${escapeHtml(product.url || `/products/${product.id}`)}">View item</a>
+              <a class="nav-button" href="${escapeHtml(product.url || `/products/${product.id}`)}">View details</a>
+              <button class="primary" data-buy-now="${product.id}">Reserve</button>
             </div>
           </div>
         </div>
@@ -1531,7 +1557,7 @@ function applyStoreModeCopy(canSeePrices = false) {
       ? "Search inventory and open the products you want."
       : shopperMode
         ? "Search inventory and add the products you want."
-        : "Search inventory and open the products you want to buy.";
+        : "Search inventory, check the details, and reserve the products you want.";
   }
   if (priceNote) {
     priceNote.textContent = dealerMode
@@ -1540,7 +1566,7 @@ function applyStoreModeCopy(canSeePrices = false) {
         ? "Shopper account is active. Public pricing is shown here for checkout and saved activity."
         : (canSeePrices
         ? "Account pricing is visible on your approved account."
-        : "Add items to cart and continue when you are ready.");
+        : "Reserve products online and finish pickup details in the cart.");
   }
   if (shareCatalogButton) {
     shareCatalogButton.textContent = dealerMode ? "Share dealer page" : shopperMode ? "Share shopper page" : "Share catalog";
@@ -1708,15 +1734,16 @@ async function loadAdmin() {
     if (adminVisitorFilters.country) visitorQuery.set("country", adminVisitorFilters.country);
     if (adminVisitorFilters.deviceType) visitorQuery.set("deviceType", adminVisitorFilters.deviceType);
     if (adminVisitorFilters.path) visitorQuery.set("path", adminVisitorFilters.path);
-    const [products, summary, visitors, users] = await Promise.all([
+    const [products, summary, visitors, users, facebookBridge] = await Promise.all([
       api("/api/admin/products"),
       api("/api/admin/summary"),
       api(`/api/admin/visitors${visitorQuery.toString() ? `?${visitorQuery}` : ""}`),
-      api("/api/admin/users")
+      api("/api/admin/users"),
+      api("/api/admin/facebook-bridge/accounts").catch(() => ({ configured: false, accounts: [] }))
     ]);
-    return { products, summary, visitors, users };
+    return { products, summary, visitors, users, facebookBridge };
   });
-  const { products, summary, visitors, users } = await adminRequest;
+  const { products, summary, visitors, users, facebookBridge } = await adminRequest;
   adminRequest = null;
 
   adminSummary = summary;
@@ -1724,6 +1751,8 @@ async function loadAdmin() {
   recentVisitors = visitors.recentVisitors || [];
   adminUsersCache = users.users || [];
   adminProductsCache = products.products;
+  facebookBridgeAccounts = facebookBridge.accounts || [];
+  facebookBridgeConfigured = Boolean(facebookBridge.configured);
   if (!selectedAdminProductId && adminProductsCache.length) {
     selectedAdminProductId = adminProductsCache[0].id;
   }
@@ -1840,6 +1869,29 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
+  const pushFacebookDraftId = event.target.closest("[data-push-facebook-draft]")?.dataset.pushFacebookDraft;
+  if (pushFacebookDraftId) {
+    const button = event.target.closest("[data-push-facebook-draft]");
+    const accountSelect = document.querySelector(`[data-facebook-account-select="${CSS.escape(pushFacebookDraftId)}"]`);
+    const restore = setButtonBusy(button, "Pushing...");
+    try {
+      const data = await withStatus("Pushing to Facebook drafts...", () => api(`/api/admin/products/${pushFacebookDraftId}/facebook-draft`, {
+        method: "POST",
+        body: JSON.stringify({ facebookAccountId: accountSelect?.value || "" })
+      }));
+      const index = adminProductsCache.findIndex((product) => Number(product.id) === Number(pushFacebookDraftId));
+      if (index >= 0 && data.product) adminProductsCache[index] = data.product;
+      renderAdminProducts(adminProductsCache);
+      renderFacebookMobilePage(adminProductsCache);
+      alert(`Facebook draft created: ${data.draft?.id || "ready"}`);
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      restore();
+    }
+    return;
+  }
+
   const copyFacebookField = event.target.closest("[data-copy-facebook-field]");
   if (copyFacebookField) {
     await copyTextValue(copyFacebookField.dataset.copyText || "");
@@ -1909,6 +1961,17 @@ document.addEventListener("click", async (event) => {
     setTimeout(() => {
       event.target.textContent = "Add to cart";
     }, 1100);
+  }
+
+  const buyNowId = event.target.closest("[data-buy-now]")?.dataset.buyNow;
+  if (buyNowId) {
+    const product = productCache.find((entry) => entry.id === Number(buyNowId));
+    addToCart(buyNowId);
+    trackEvent("add_to_cart", { productId: buyNowId, label: product?.name || `Product ${buyNowId}`, value: product?.price || "" });
+    window.location.hash = "cart";
+    setRoute("cart");
+    document.querySelector("#mainMenu")?.removeAttribute("open");
+    return;
   }
 
   const shareProductId = event.target.closest("[data-copy-share]")?.dataset.copyShare;
@@ -2241,18 +2304,18 @@ document.querySelector("#sellerProductForm")?.addEventListener("submit", async (
   }
 });
 
-document.querySelector("#alertSignupForm").addEventListener("submit", async (event) => {
+document.querySelector("#alertSignupForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
   await submitAlertForm(event.target, document.querySelector("#alertSignupMessage"));
 });
 
-document.querySelector("#exitAlertForm").addEventListener("submit", async (event) => {
+document.querySelector("#exitAlertForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const ok = await submitAlertForm(event.target, document.querySelector("#exitAlertMessage"));
   if (ok) setTimeout(() => closeExitAlert(true), 900);
 });
 
-document.querySelector("#bugReportForm").addEventListener("submit", async (event) => {
+document.querySelector("#bugReportForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const message = document.querySelector("#bugReportMessage");
   const submitButton = event.target.querySelector("button[type='submit']");
@@ -2580,14 +2643,10 @@ document.querySelector("#checkoutForm").addEventListener("submit", async (event)
     renderCart();
     event.target.reset();
     event.target.elements.country.value = "Canada";
-    event.target.elements.contactBeforeDelivery.checked = true;
-    message.textContent = `Checkout request #${data.orderId} submitted.`;
+    if (event.target.elements.contactBeforeDelivery) event.target.elements.contactBeforeDelivery.value = "on";
+    message.textContent = `Request #${data.orderId} sent. We will contact you to finish pickup.`;
   } catch (error) {
-    if (error.message === "Please login first.") {
-      message.innerHTML = `Please login or create an account before checkout. Payment is e-transfer or cash on pickup in Mississauga only.`;
-    } else {
-      message.textContent = error.message;
-    }
+    message.textContent = error.message;
   } finally {
     restore();
   }

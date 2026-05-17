@@ -112,20 +112,19 @@ function renderCatalog() {
 
   catalogGrid.innerHTML = filtered.length ? filtered.map((product) => `
     <article class="product-card catalog-card">
-      ${productImage(product)}
+      <a class="product-card-link" href="${escapeHtml(product.url || `/products/${product.id}`)}" aria-label="View details for ${escapeHtml(product.name)}">
+        ${productImage(product)}
+      </a>
       <div class="product-body">
         <div>
           <h2><a class="product-title-link" href="${escapeHtml(product.url || `/products/${product.id}`)}">${escapeHtml(product.name)}</a></h2>
-          <p class="sku">${[product.brand, product.category].filter(Boolean).map(escapeHtml).join(" | ")}</p>
+          <p class="product-card-meta">${escapeHtml([product.brand, product.category].filter(Boolean).join(" | ") || "Available inventory")}</p>
         </div>
-        ${productSpecsSummary(product)}
-        ${fulfillmentBadge(product)}
         <div class="price">${escapeHtml(product.price || "$0.00")}</div>
-        ${shoppingLinksBlock(product)}
+        ${fulfillmentBadge(product)}
         <div class="product-actions">
-          <a class="nav-button primary" href="/mobile#cart">Checkout</a>
-          <button type="button" data-copy-share="${product.id}" data-copy-url="${escapeHtml(absoluteUrl(product.shortUrl || product.url || `/products/${product.id}`))}">Share</button>
-          <a class="nav-button" href="${escapeHtml(product.url || `/products/${product.id}`)}">Details</a>
+          <a class="nav-button" href="${escapeHtml(product.url || `/products/${product.id}`)}">View details</a>
+          <button type="button" class="primary" data-catalog-buy="${product.id}">Reserve</button>
         </div>
       </div>
     </article>
@@ -151,6 +150,17 @@ async function loadCatalog() {
 catalogSearch.addEventListener("input", renderCatalog);
 catalogCategory.addEventListener("change", renderCatalog);
 document.addEventListener("click", async (event) => {
+  const buyProductId = event.target.closest("[data-catalog-buy]")?.dataset.catalogBuy;
+  if (buyProductId) {
+    const cart = JSON.parse(localStorage.getItem("dealerCart") || "[]");
+    const existing = cart.find((item) => Number(item.productId) === Number(buyProductId));
+    if (existing) existing.quantity = Number(existing.quantity || 0) + 1;
+    else cart.push({ productId: Number(buyProductId), quantity: 1 });
+    localStorage.setItem("dealerCart", JSON.stringify(cart));
+    window.location.href = "/mobile#cart";
+    return;
+  }
+
   const productId = event.target.closest("[data-copy-share]")?.dataset.copyShare;
   const catalogButton = event.target.closest("#copyCatalogLink");
   if (!productId && !catalogButton) return;

@@ -29,36 +29,21 @@
       "description": "Public catalog of available selltomakemoney.com inventory."
     }
   </script>
-  <link rel="stylesheet" href="/styles.css?v=theme-match-1">
+  <link rel="stylesheet" href="/styles.css?v=simple-sale-2">
 </head>
 <body class="catalog-page">
   <header class="topbar catalog-topbar">
-    <a class="brand" href="/mobile" aria-label="selltomakemoney.com home">
+    <a class="brand" href="/" aria-label="selltomakemoney.com home">
       <img src="/assets/logo.svg?v=theme-match-1" alt="selltomakemoney.com">
     </a>
     <nav>
-      <a class="nav-button" href="/mobile">Store</a>
-      <a class="nav-button" href="/dealers">Dealer Info</a>
-      <a class="nav-button" href="/privacy">Privacy</a>
-      <a class="nav-button primary" href="/mobile#register">Create Account</a>
+      <a class="nav-button primary" href="/desktop#cart">Cart</a>
     </nav>
   </header>
 
   <main>
-    <section class="catalog-hero">
-      <p class="eyebrow">Shareable catalog</p>
-      <h1>Public inventory catalog.</h1>
-      <p>Browse available items, public prices, and retail comparison links. Add items from the main store; checkout requires an account, payment is e-transfer or cash on pickup only, and pickup is currently in Mississauga.</p>
-      <div class="catalog-actions">
-        <a class="nav-button primary" href="/mobile#register">Create account</a>
-        <a class="nav-button" href="/dealers">Dealer info</a>
-        <a class="nav-button" href="/mobile">Open store</a>
-        <button type="button" id="copyCatalogLink">Copy catalog link</button>
-      </div>
-    </section>
-
     <section class="catalog-tools" aria-label="Catalog filters">
-      <label>Search catalog<input id="catalogSearch" type="search" placeholder="Search by name, brand, SKU, UPC"></label>
+      <label>Search catalog<input id="catalogSearch" type="search" placeholder="What do you want?"></label>
       <label>Category<select id="catalogCategory"><option value="">All categories</option></select></label>
     </section>
 
@@ -72,13 +57,22 @@
   </main>
 
   <footer class="site-footer">
-    <div>
-      <strong>selltomakemoney.com</strong>
-      <span>Shareable public catalog for current inventory finds. Visitor analytics are active. <a href="/privacy">Privacy</a></span>
+    <div class="footer-trust">
+      <strong>Mississauga pickup and direct follow-up</strong>
+      <span>Reserve online, confirm details with a real person, and pay by e-transfer or cash on pickup.</span>
     </div>
+    <nav class="footer-links" aria-label="Support links">
+      <a href="/about">About</a>
+      <a href="/contact">Contact</a>
+      <a href="/shipping">Shipping</a>
+      <a href="/returns">Returns</a>
+      <a href="/faq">FAQ</a>
+      <a href="/terms">Terms</a>
+      <a href="/privacy">Privacy</a>
+    </nav>
     <div>Copyright &copy; <span data-year>2026</span> selltomakemoney.com. All rights reserved.</div>
   </footer>
 
-  <script src="/catalog.js?v=sell-share-tools-1"></script>
+  <script src="/catalog.js?v=simple-sale-2"></script>
 </body>
 </html>

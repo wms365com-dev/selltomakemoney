@@ -23,6 +23,12 @@ const ADMIN_EMAIL = "k.prathab@gmail.com";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "DealerStore!2026";
 const AMAZON_AFFILIATE_TAG = process.env.AMAZON_AFFILIATE_TAG || "dealerstore-20";
 const PRODUCT_LISTING_PULL_API_KEY = process.env.PRODUCT_LISTING_PULL_API_KEY || "";
+const FACEBOOK_BRIDGE_URL = (process.env.FACEBOOK_BRIDGE_URL || "https://search-bridge-production.up.railway.app").replace(/\/$/, "");
+const FACEBOOK_BRIDGE_ADMIN_KEY = process.env.FACEBOOK_BRIDGE_ADMIN_KEY || "";
+const FACEBOOK_BRIDGE_DEFAULT_ACCOUNT_ID = process.env.FACEBOOK_BRIDGE_DEFAULT_ACCOUNT_ID || "prathab-personal";
+const FACEBOOK_BRIDGE_ACCOUNTS_JSON = process.env.FACEBOOK_BRIDGE_ACCOUNTS_JSON || JSON.stringify([
+  { id: "prathab-personal", label: "Prathab Personal", facebookProfileId: process.env.DEFAULT_FACEBOOK_PROFILE_ID || "" }
+]);
 const VISITOR_COOKIE_NAME = "stm_vid";
 const CONSENT_COOKIE_NAME = "stm_consent";
 const GOOGLE_SITE_VERIFICATION = process.env.GOOGLE_SITE_VERIFICATION || "";
@@ -999,15 +1005,18 @@ function createJsonDatabase() {
     async listOrders() {
       return store.orders.map((order) => {
         const user = store.users.find((item) => item.id === order.userId) || {};
-        const customerOrders = store.orders
-          .filter((item) => Number(item.userId) === Number(order.userId))
-          .sort((a, b) => Number(a.id) - Number(b.id));
+        const shipTo = order.shipTo || {};
+        const customerOrders = order.userId
+          ? store.orders
+            .filter((item) => Number(item.userId) === Number(order.userId))
+            .sort((a, b) => Number(a.id) - Number(b.id))
+          : [];
         const orderIndex = customerOrders.findIndex((item) => Number(item.id) === Number(order.id));
         return {
           ...order,
-          email: user.email || "",
-          company: user.company || "",
-          contactName: user.contactName || "",
+          email: user.email || shipTo.email || "",
+          company: user.company || shipTo.company || "",
+          contactName: user.contactName || shipTo.recipientName || "",
           customerOrderCount: customerOrders.length,
           previousOrderCount: Math.max(0, orderIndex),
           returningCustomer: orderIndex > 0,
@@ -1922,17 +1931,17 @@ function createPostgresDatabase() {
           (ROW_NUMBER() OVER (PARTITION BY orders.user_id ORDER BY orders.id ASC) - 1)::int AS "previousOrderCount",
           SUM(orders.subtotal_cents) OVER (PARTITION BY orders.user_id)::int AS "customerTotalSpentCents"
         FROM orders
-        JOIN users ON users.id = orders.user_id
+        LEFT JOIN users ON users.id = orders.user_id
         ORDER BY orders.id DESC
       `)).rows.map((row) => ({
         ...camelOrder(row),
-        email: row.email,
-        company: row.company,
-        contactName: row.contactName,
-        customerOrderCount: row.customerOrderCount,
-        previousOrderCount: row.previousOrderCount,
-        returningCustomer: Number(row.previousOrderCount || 0) > 0,
-        customerTotalSpentCents: row.customerTotalSpentCents
+        email: row.email || row.ship_to?.email || row.shipTo?.email || "",
+        company: row.company || row.ship_to?.company || row.shipTo?.company || "",
+        contactName: row.contactName || row.ship_to?.recipientName || row.shipTo?.recipientName || "",
+        customerOrderCount: row.user_id ? row.customerOrderCount : 0,
+        previousOrderCount: row.user_id ? row.previousOrderCount : 0,
+        returningCustomer: Boolean(row.user_id) && Number(row.previousOrderCount || 0) > 0,
+        customerTotalSpentCents: row.user_id ? row.customerTotalSpentCents : 0
       }));
     },
     async summary() {
@@ -2544,59 +2553,322 @@ async function sendDealers(req, res) {
 
 async function sendPrivacyPage(req, res) {
   await recordSiteVisit(req, res, "/privacy");
+  res.type("html").send(renderInfoPage({
+    title: "Privacy",
+    description: "Privacy notice for selltomakemoney.com visitor analytics, account data, checkout requests, and inventory activity tracking.",
+    eyebrow: "Privacy",
+    heading: "Visitor tracking notice",
+    intro: "When you use selltomakemoney.com, we collect operational and analytics data to run the site, protect it, understand traffic, and see which listings are drawing interest.",
+    sections: [
+      {
+        heading: "What we track",
+        bullets: [
+          "Visits to the site and product pages",
+          "A first-party visitor cookie used to recognize return visits and track on-site activity",
+          "IP address",
+          "Approximate city, region, and country derived from IP address",
+          "Device type, browser, operating system, and user agent",
+          "Referrer, last page visited, and timestamps",
+          "Interaction events such as search, category filters, share clicks, product detail clicks, add to cart, and checkout start when analytics is allowed",
+          "Account, cart, checkout, and inquiry activity when you choose to use those features"
+        ]
+      },
+      {
+        heading: "Why we track it",
+        bullets: [
+          "To keep the site running and defend against abuse",
+          "To understand return visitors and listing interest",
+          "To improve catalog layout, checkout flow, and product merchandising",
+          "To support customer service, follow-up, and order handling"
+        ]
+      },
+      {
+        heading: "How it is used",
+        paragraphs: [
+          "We use this data as first-party site analytics and operational logging. We may review aggregate traffic, per-listing popularity, visitor journeys, and recent interaction activity in the admin tools."
+        ]
+      },
+      {
+        heading: "Your use of the site",
+        paragraphs: [
+          "You can choose analytics-enabled tracking or essential-only tracking through the banner shown on the site. If you do not want this information collected, please do not use the site."
+        ]
+      },
+      {
+        heading: "Questions",
+        paragraphs: [
+          "For privacy questions, contact the site operator through the contact details shared during checkout or account communication."
+        ]
+      }
+    ]
+  }));
+}
+
+async function sendAboutPage(req, res) {
+  await recordSiteVisit(req, res, "/about");
+  res.type("html").send(renderInfoPage({
+    title: "About",
+    description: "About selltomakemoney.com, a Mississauga-based inventory and local pickup storefront focused on scooters, electronics, tools, home items, and hard-to-find deals.",
+    eyebrow: "About",
+    heading: "Real inventory, local pickup, and direct follow-up.",
+    intro: "selltomakemoney.com is built to help shoppers reserve real inventory fast instead of fighting marketplace noise. We focus on deals, overstock, inventory finds, and products that can be picked up in Mississauga or shipped when available.",
+    sections: [
+      {
+        heading: "What we sell",
+        paragraphs: [
+          "Inventory changes often, but the catalog regularly includes scooters, electronics, tools, safes, home items, and other local deals."
+        ]
+      },
+      {
+        heading: "How buying works",
+        bullets: [
+          "Browse available inventory online",
+          "Reserve the item you want",
+          "We follow up with pickup or shipping details",
+          "Most items are paid by e-transfer or cash on pickup"
+        ]
+      },
+      {
+        heading: "Why shoppers use us",
+        bullets: [
+          "Visible pricing",
+          "Local pickup in Mississauga",
+          "Direct follow-up from a real person",
+          "Inventory that is priced to move"
+        ]
+      }
+    ]
+  }));
+}
+
+async function sendContactPage(req, res) {
+  await recordSiteVisit(req, res, "/contact");
+  res.type("html").send(renderInfoPage({
+    title: "Contact",
+    description: "Contact selltomakemoney.com for product questions, pickup timing, shipping availability, and reservation support.",
+    eyebrow: "Contact",
+    heading: "Questions before you reserve?",
+    intro: "If you want to confirm availability, pickup timing, or item condition before reserving, use the details below and we will point you in the right direction.",
+    sections: [
+      {
+        heading: "Fastest way to reach us",
+        paragraphs: [
+          "Use the reservation form on the cart page for the item you want. That gives us the product, your contact details, and your pickup note in one place."
+        ]
+      },
+      {
+        heading: "Support details",
+        bullets: [
+          "Email: support@selltomakemoney.com",
+          "Pickup area: Mississauga, Ontario",
+          "Response type: direct follow-up after reservation or inquiry"
+        ]
+      },
+      {
+        heading: "Good reasons to contact us first",
+        bullets: [
+          "You want to confirm pickup timing",
+          "You need to know whether an item can be shipped",
+          "You have a condition or compatibility question",
+          "You want to reserve more than one item"
+        ]
+      }
+    ]
+  }));
+}
+
+async function sendFaqPage(req, res) {
+  await recordSiteVisit(req, res, "/faq");
+  res.type("html").send(renderInfoPage({
+    title: "FAQ",
+    description: "Frequently asked questions about reserving items, Mississauga pickup, shipping availability, and payment on selltomakemoney.com.",
+    eyebrow: "FAQ",
+    heading: "Frequently asked questions",
+    intro: "Here are the answers shoppers usually need before reserving an item.",
+    sections: [
+      {
+        heading: "Do I pay online?",
+        paragraphs: [
+          "Most items are reserved online and paid by e-transfer or cash on pickup. If an item is available for shipping, we will confirm that separately."
+        ]
+      },
+      {
+        heading: "Where do pickups happen?",
+        paragraphs: [
+          "Pickups are arranged in Mississauga, Ontario after we confirm your request."
+        ]
+      },
+      {
+        heading: "Can items be shipped?",
+        paragraphs: [
+          "Some items can be shipped across Canada depending on size, handling, and the product itself. The product page or follow-up message will confirm that."
+        ]
+      },
+      {
+        heading: "How do I know if something is still available?",
+        paragraphs: [
+          "Send a reservation request through the cart. We will follow up to confirm availability and next steps."
+        ]
+      }
+    ]
+  }));
+}
+
+async function sendReturnsPage(req, res) {
+  await recordSiteVisit(req, res, "/returns");
+  res.type("html").send(renderInfoPage({
+    title: "Returns",
+    description: "Returns and reservation guidance for selltomakemoney.com pickup and select shippable inventory.",
+    eyebrow: "Returns",
+    heading: "Pickup reservations should feel clear and fair.",
+    intro: "Because many items are local pickup inventory finds, the most important step is confirming the item details before pickup. If something is not as described, contact us before pickup so we can review it with you.",
+    sections: [
+      {
+        heading: "Before pickup",
+        bullets: [
+          "Review the product page carefully",
+          "Ask questions if you need to confirm condition or fit",
+          "Wait for pickup confirmation before making plans"
+        ]
+      },
+      {
+        heading: "If there is a problem",
+        paragraphs: [
+          "If an item is materially different from the listing, contact us before pickup or immediately after a shipped order arrives so we can review the issue."
+        ]
+      },
+      {
+        heading: "Best next step",
+        paragraphs: [
+          "Use the contact details on the Contact page or reply through the same reservation conversation so we can match your question to the item quickly."
+        ]
+      }
+    ]
+  }));
+}
+
+async function sendShippingPage(req, res) {
+  await recordSiteVisit(req, res, "/shipping");
+  res.type("html").send(renderInfoPage({
+    title: "Shipping",
+    description: "Shipping and local pickup information for selltomakemoney.com inventory in Mississauga and select shippable items across Canada.",
+    eyebrow: "Shipping",
+    heading: "Pickup first, shipping when available.",
+    intro: "Most items on selltomakemoney.com are reserved online and picked up in Mississauga. Some items can also be shipped across Canada depending on the product.",
+    sections: [
+      {
+        heading: "Local pickup",
+        bullets: [
+          "Pickup details are confirmed after your reservation request",
+          "Payment is usually by e-transfer or cash on pickup",
+          "Use the pickup note field to share your preferred timing"
+        ]
+      },
+      {
+        heading: "Shipping availability",
+        paragraphs: [
+          "Shipping depends on the item size, handling requirements, and listing details. If shipping is available, we will confirm the next steps before the order moves forward."
+        ]
+      },
+      {
+        heading: "What to expect",
+        paragraphs: [
+          "Reserve first, then wait for a follow-up with pickup or shipping confirmation. That helps us avoid over-promising on inventory that moves quickly."
+        ]
+      }
+    ]
+  }));
+}
+
+async function sendTermsPage(req, res) {
+  await recordSiteVisit(req, res, "/terms");
+  res.type("html").send(renderInfoPage({
+    title: "Terms",
+    description: "Terms for using selltomakemoney.com, reserving products, and arranging pickup or shipping.",
+    eyebrow: "Terms",
+    heading: "Basic terms for browsing and reserving inventory",
+    intro: "By using selltomakemoney.com, you agree to use the site for legitimate browsing, reservation requests, and communication about available inventory.",
+    sections: [
+      {
+        heading: "Inventory and pricing",
+        bullets: [
+          "Listings may change as inventory changes",
+          "Availability is not final until your request is confirmed",
+          "Prices and item details may be updated if a listing needs correction"
+        ]
+      },
+      {
+        heading: "Reservations",
+        bullets: [
+          "Submitting a reservation request does not guarantee the item until it is confirmed",
+          "Pickup and shipping details are handled after follow-up",
+          "Incomplete or abusive requests may be declined"
+        ]
+      },
+      {
+        heading: "Site use",
+        paragraphs: [
+          "Do not misuse the site, interfere with access, or submit false information through account, inquiry, or reservation forms."
+        ]
+      }
+    ]
+  }));
+}
+
+function renderInfoPage({ title, description, eyebrow, heading, intro, sections = [] }) {
   const currentYear = new Date().getFullYear();
-  res.type("html").send(`<!doctype html>
+  return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Privacy notice for selltomakemoney.com visitor analytics, account data, checkout requests, and inventory activity tracking.">
+  <meta name="description" content="${escapeHtml(description)}">
   <meta name="robots" content="index,follow">
-  <title>Privacy | selltomakemoney.com</title>
-  <link rel="stylesheet" href="/styles.css?v=storefront-uniform-6">
+  <title>${escapeHtml(title)} | selltomakemoney.com</title>
+  <link rel="stylesheet" href="/styles.css?v=simple-sale-2">
 </head>
 <body>
   <header class="topbar catalog-topbar">
-    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=storefront-uniform-6" alt="selltomakemoney.com"></a>
-    <nav><a class="nav-button" href="/desktop">Store</a><a class="nav-button" href="/catalog">Catalog</a><a class="nav-button" href="/dealers">Dealer Info</a></nav>
+    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=simple-sale-2" alt="selltomakemoney.com"></a>
+    <nav>
+      <a class="nav-button" href="/desktop">Store</a>
+      <a class="nav-button" href="/catalog">Catalog</a>
+      <a class="nav-button" href="/dealers">Dealer Info</a>
+      <a class="nav-button primary" href="/desktop#cart">Cart</a>
+    </nav>
   </header>
   <main>
-    <section class="panel privacy-page">
-      <p class="eyebrow">Privacy</p>
-      <h1>Visitor tracking notice</h1>
-      <p>When you use selltomakemoney.com, we collect operational and analytics data to run the site, protect it, understand traffic, and see which listings are drawing interest.</p>
-      <h2>What we track</h2>
-      <ul>
-        <li>Visits to the site and product pages</li>
-        <li>A first-party visitor cookie used to recognize return visits and track on-site activity</li>
-        <li>IP address</li>
-        <li>Approximate city, region, and country derived from IP address</li>
-        <li>Device type, browser, operating system, and user agent</li>
-        <li>Referrer, last page visited, and timestamps</li>
-        <li>Interaction events such as search, category filters, share clicks, product detail clicks, add to cart, and checkout start when analytics is allowed</li>
-        <li>Account, cart, checkout, and inquiry activity when you choose to use those features</li>
-      </ul>
-      <h2>Why we track it</h2>
-      <ul>
-        <li>To keep the site running and defend against abuse</li>
-        <li>To understand return visitors and listing interest</li>
-        <li>To improve catalog layout, checkout flow, and product merchandising</li>
-        <li>To support customer service, follow-up, and order handling</li>
-      </ul>
-      <h2>How it is used</h2>
-      <p>We use this data as first-party site analytics and operational logging. We may review aggregate traffic, per-listing popularity, visitor journeys, and recent interaction activity in the admin tools.</p>
-      <h2>Your use of the site</h2>
-      <p>You can choose analytics-enabled tracking or essential-only tracking through the banner shown on the site. If you do not want this information collected, please do not use the site.</p>
-      <h2>Questions</h2>
-      <p>For privacy questions, contact the site operator through the contact details shared during checkout or account communication.</p>
+    <section class="panel privacy-page info-page">
+      <p class="eyebrow">${escapeHtml(eyebrow)}</p>
+      <h1>${escapeHtml(heading)}</h1>
+      <p>${escapeHtml(intro)}</p>
+      ${sections.map((section) => `
+        <section class="info-section">
+          <h2>${escapeHtml(section.heading)}</h2>
+          ${Array.isArray(section.paragraphs) ? section.paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("") : ""}
+          ${Array.isArray(section.bullets) && section.bullets.length ? `<ul>${section.bullets.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join("")}</ul>` : ""}
+        </section>
+      `).join("")}
     </section>
   </main>
   <footer class="site-footer">
-    <div><strong>selltomakemoney.com</strong><span>Visitor analytics and operational tracking are active on this site.</span></div>
+    <div class="footer-trust">
+      <strong>Local pickup in Mississauga</strong>
+      <span>Reserve online, pay on pickup, and get direct follow-up from a real person.</span>
+    </div>
+    <nav class="footer-links" aria-label="Support links">
+      <a href="/about">About</a>
+      <a href="/contact">Contact</a>
+      <a href="/shipping">Shipping</a>
+      <a href="/returns">Returns</a>
+      <a href="/faq">FAQ</a>
+      <a href="/terms">Terms</a>
+      <a href="/privacy">Privacy</a>
+    </nav>
     <div>Copyright &copy; ${currentYear} selltomakemoney.com. All rights reserved.</div>
   </footer>
 </body>
-</html>`);
+</html>`;
 }
 
 function escapeHtml(value) {
@@ -2677,6 +2949,12 @@ app.get("/sitemap.xml", async (req, res) => {
     { path: "/catalog", changefreq: "daily", priority: "0.9" },
     { path: "/list-with-us", changefreq: "weekly", priority: "0.8" },
     { path: "/dealers", changefreq: "monthly", priority: "0.6" },
+    { path: "/about", changefreq: "monthly", priority: "0.5" },
+    { path: "/contact", changefreq: "monthly", priority: "0.5" },
+    { path: "/faq", changefreq: "monthly", priority: "0.4" },
+    { path: "/shipping", changefreq: "monthly", priority: "0.4" },
+    { path: "/returns", changefreq: "monthly", priority: "0.4" },
+    { path: "/terms", changefreq: "yearly", priority: "0.3" },
     { path: "/privacy", changefreq: "yearly", priority: "0.3" }
   ];
   const productUrls = products.map((product) => ({
@@ -2930,6 +3208,9 @@ async function sendProductPage(req, res) {
     uniqueViewers: productMetrics.uniqueViewers,
     createdAt: product.createdAt
   });
+  const mobileRequest = isMobileRequest(req);
+  const homePath = mobileRequest ? "/mobile" : "/desktop";
+  const cartPath = `${homePath}#cart`;
   res.type("html").send(`<!doctype html>
 <html lang="en">
 <head>
@@ -2953,12 +3234,12 @@ async function sendProductPage(req, res) {
   ${absoluteImage ? `<meta name="twitter:image" content="${escapeHtml(absoluteImage)}">` : ""}
   <title>${escapeHtml(title)}</title>
   <script type="application/ld+json">${safeJsonScript(productJsonLd(product, canonicalUrl, absoluteImage))}</script>
-  <link rel="stylesheet" href="/styles.css?v=storefront-uniform-10">
+  <link rel="stylesheet" href="/styles.css?v=simple-sale-2">
 </head>
 <body>
   <header class="topbar catalog-topbar">
-    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=storefront-uniform-10" alt="selltomakemoney.com"></a>
-    <nav><a class="nav-button" href="/desktop">Store</a><a class="nav-button" href="/catalog">Catalog</a><a class="nav-button" href="/privacy">Privacy</a><a class="nav-button primary" href="/desktop#cart">Checkout</a></nav>
+    <a class="brand" href="${homePath}" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=simple-sale-2" alt="selltomakemoney.com"></a>
+    <nav><a class="nav-button primary" href="${cartPath}">Cart</a></nav>
   </header>
   <main>
     <article class="product-detail">
@@ -2976,7 +3257,6 @@ async function sendProductPage(req, res) {
         <p class="eyebrow">${escapeHtml(product.category || "Available inventory")}</p>
         <h1>${escapeHtml(product.name)}</h1>
         <p class="sku">${escapeHtml([product.brand, product.sku, product.upc ? `UPC ${product.upc}` : ""].filter(Boolean).join(" | "))}</p>
-        <p class="product-view-count">Viewed ${escapeHtml(productMetrics.viewCount)} times</p>
         ${productBadges}
         ${showDealerPricing && dealerPrice
           ? `<div class="product-pricing dealer-pricing">
@@ -2999,44 +3279,47 @@ async function sendProductPage(req, res) {
               </div>`
             : `<div class="price">${escapeHtml(price)}</div>`}
         <div class="fulfillment-alert ${fulfillmentType === "ships_or_pickup" ? "ships" : "pickup"}">${escapeHtml(fulfillmentText)}</div>
-        <div class="product-detail-trust">
+        <div class="product-detail-trust compact-sale-trust">
           ${conditionText ? `<div><strong>Condition</strong><span>${escapeHtml(conditionText)}</span></div>` : ""}
-          <div><strong>Qty on hand</strong><span>${escapeHtml(product.quantityOnHand || 0)} available</span></div>
-          <div><strong>Pickup</strong><span>Mississauga only right now</span></div>
-          <div><strong>Payments</strong><span>${fulfillmentType === "ships_or_pickup" ? "E-transfer, cash on pickup, or eligible shipped-card checkout" : "E-transfer or cash on pickup"}</span></div>
-          ${includedComponents ? `<div><strong>Includes</strong><span>${escapeHtml(includedComponents)}</span></div>` : ""}
-          <div><strong>Support</strong><span>Use ask or hold below and we can follow up</span></div>
+          <div><strong>Available</strong><span>${escapeHtml(product.quantityOnHand || 0)} in stock</span></div>
+          <div><strong>Payment</strong><span>E-transfer or cash on pickup</span></div>
         </div>
         ${formatProductDescriptionHtml(product.description)}
-        ${specs.length ? `<dl class="product-spec-list">${specs.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>` : ""}
-        <div class="checkout-notice">
-          <strong>Checkout requires an account.</strong>
-          <span>Pickup orders use e-transfer or cash to keep fees down. Credit card is available only for eligible shipped items.</span>
-        </div>
         <div class="product-detail-cta">
-          <button class="nav-button" type="button" data-ask-product="${product.id}" data-inquiry-note="Asked about this item from the product page.">Ask about this item</button>
-          <button class="nav-button primary" type="button" data-hold-product="${product.id}" data-inquiry-note="Please hold this item for pickup in Mississauga.">Hold for pickup</button>
+          <button class="nav-button primary" type="button" id="productBuyNow">Reserve item</button>
           <p id="productDetailMessage" class="form-message"></p>
-        </div>
-        <div class="catalog-actions">
-          <a class="nav-button primary" href="/desktop">Open store to add to cart</a>
-          <button class="nav-button" type="button" onclick="navigator.clipboard?.writeText('${escapeHtml(shortUrl)}');this.textContent='Copied link';">Copy short link</button>
-          <a class="nav-button" href="/catalog">Browse catalog</a>
         </div>
       </section>
     </article>
   </main>
   <footer class="site-footer">
-    <div>
-      <strong>selltomakemoney.com</strong>
-      <span>Public deals, Mississauga pickup, and select shippable inventory. Visitor analytics are active. <a href="/privacy">Privacy</a></span>
+    <div class="footer-trust">
+      <strong>Reserve online, confirm with a real person</strong>
+      <span>Mississauga pickup on most items, plus support pages for shipping, returns, and contact details.</span>
     </div>
+    <nav class="footer-links" aria-label="Support links">
+      <a href="/about">About</a>
+      <a href="/contact">Contact</a>
+      <a href="/shipping">Shipping</a>
+      <a href="/returns">Returns</a>
+      <a href="/faq">FAQ</a>
+      <a href="/terms">Terms</a>
+      <a href="/privacy">Privacy</a>
+    </nav>
     <div>Copyright &copy; ${currentYear} selltomakemoney.com. All rights reserved.</div>
   </footer>
   <script>
     const detailMessage = document.getElementById('productDetailMessage');
     const galleryThumbs = Array.from(document.querySelectorAll('[data-product-thumb]'));
     const galleryMainImage = document.getElementById('productDetailMainImage');
+    document.getElementById('productBuyNow')?.addEventListener('click', () => {
+      const cart = JSON.parse(localStorage.getItem('dealerCart') || '[]');
+      const item = cart.find((entry) => Number(entry.productId) === ${Number(product.id)});
+      if (item) item.quantity = Number(item.quantity || 0) + 1;
+      else cart.push({ productId: ${Number(product.id)}, quantity: 1 });
+      localStorage.setItem('dealerCart', JSON.stringify(cart));
+      window.location.href = '${cartPath}';
+    });
     if (galleryMainImage && galleryThumbs.length) {
       galleryThumbs.forEach((thumb) => {
         thumb.addEventListener('click', function () {
@@ -3174,6 +3457,104 @@ async function productPayload(product, showPrice, includeAdminData = false, prod
       matchType: comparison.matchType,
       checkedAt: comparison.checkedAt
     }))
+  };
+}
+
+function facebookBridgeAccounts() {
+  try {
+    const accounts = JSON.parse(FACEBOOK_BRIDGE_ACCOUNTS_JSON);
+    if (Array.isArray(accounts) && accounts.length) {
+      return accounts
+        .map((account) => ({
+          id: String(account.id || "").trim(),
+          label: String(account.label || account.id || "").trim(),
+          facebookProfileId: String(account.facebookProfileId || "").trim()
+        }))
+        .filter((account) => account.id);
+    }
+  } catch (_error) {
+    // Use default below.
+  }
+  return [{ id: FACEBOOK_BRIDGE_DEFAULT_ACCOUNT_ID, label: "Prathab Personal", facebookProfileId: process.env.DEFAULT_FACEBOOK_PROFILE_ID || "" }];
+}
+
+function facebookBridgeAccountFor(id) {
+  const accounts = facebookBridgeAccounts();
+  return accounts.find((account) => account.id === id) || accounts[0];
+}
+
+function facebookMarketplaceCategory(product) {
+  const category = String(product.category || "").toLowerCase();
+  if (category.includes("electronics")) return "Electronics & computers";
+  if (category.includes("scooter")) return "Electronics & computers";
+  if (category.includes("tool")) return "Tools";
+  if (category.includes("furniture")) return "Furniture";
+  if (category.includes("appliance")) return "Appliances";
+  if (category.includes("automotive")) return "Auto parts";
+  if (category.includes("clothing")) return "Clothing & Accessories";
+  if (category.includes("toy")) return "Toys & Games";
+  if (category.includes("home") || category.includes("warehouse") || category.includes("janitorial") || category.includes("safety")) return "Household";
+  return "Miscellaneous";
+}
+
+function facebookMarketplaceCondition(product) {
+  const condition = String(product.productSpecs?.condition || "").toLowerCase();
+  if (condition.includes("brand new") || condition.includes("bnib") || condition === "new") return "New";
+  if (condition.includes("open box") || condition.includes("refurb")) return "Used - Like New";
+  if (condition.includes("fair")) return "Used - Fair";
+  return "Used - Good";
+}
+
+function facebookBridgeDraftPayload(product, req, accountId) {
+  const baseUrl = publicBaseUrl(req).replace(/\/$/, "");
+  const account = facebookBridgeAccountFor(accountId);
+  const productUrl = `${baseUrl}${shortProductPath(product)}`;
+  const description = [
+    product.description || "",
+    "",
+    product.brand ? `Brand: ${product.brand}` : "",
+    product.sku ? `SKU: ${product.sku}` : "",
+    product.upc ? `UPC: ${product.upc}` : "",
+    product.productSpecs?.condition ? `Condition: ${product.productSpecs.condition}` : "",
+    `Qty available: ${product.quantityOnHand ?? 0}`,
+    product.productSpecs?.fulfillmentType === "ships_or_pickup"
+      ? "Pickup in Mississauga or shipping available depending on the item."
+      : "Pickup in Mississauga only.",
+    "Payment by e-transfer or cash on pickup.",
+    "",
+    `View item: ${productUrl}`
+  ].filter((line, index, lines) => line || lines[index - 1] !== "").join("\n").trim();
+  const imageUrls = (product.imageUrls || (product.imageUrl ? [product.imageUrl] : []))
+    .map((url) => {
+      try {
+        return new URL(url, baseUrl).toString();
+      } catch (_error) {
+        return "";
+      }
+    })
+    .filter(Boolean);
+
+  return {
+    source: "selltomakemoney",
+    sourceProductId: String(product.id),
+    sourceUrl: productUrl,
+    facebookAccountId: account.id,
+    facebookProfileId: account.facebookProfileId,
+    title: String(product.name || "").trim().slice(0, 120),
+    price: Number(product.priceCents || 0) / 100,
+    category: facebookMarketplaceCategory(product),
+    condition: facebookMarketplaceCondition(product),
+    availability: "List as Single Item",
+    description,
+    brand: product.brand || "",
+    sku: product.sku || "",
+    location: "Mississauga, Ontario, Canada",
+    tags: [product.brand, product.category, product.sku, product.upc].filter(Boolean).slice(0, 20),
+    images: imageUrls.slice(0, 10).map((url) => ({ url })),
+    meetupPreferences: ["public_meetup"],
+    hideFromFriends: true,
+    promoteAfterPublish: false,
+    notes: `Imported from selltomakemoney.com product ${product.id}. Review before local Facebook fill.`
   };
 }
 
@@ -3655,7 +4036,7 @@ async function buildOrder(req) {
     contactBeforeDelivery: Boolean(ship.contactBeforeDelivery)
   };
   return {
-    userId: req.user.id,
+    userId: req.user?.id || null,
     items,
     shipTo,
     subtotalCents: items.reduce((sum, item) => sum + item.lineTotalCents, 0),
@@ -4016,12 +4397,13 @@ app.post("/api/inquiries", requireLogin, async (req, res) => {
   res.status(201).json({ ok: true });
 });
 
-app.post("/api/orders", requireLogin, async (req, res) => {
+app.post("/api/orders", async (req, res) => {
   try {
-    if (req.user.status !== "approved") return res.status(403).json({ error: "Your account is still pending approval." });
+    req.user = await currentUser(req);
+    if (req.user && req.user.status !== "approved") return res.status(403).json({ error: "Your account is still pending approval." });
     const order = await db.createOrder(await buildOrder(req));
     try {
-      await sendTelegramOrderNotification(order, req.user);
+      await sendTelegramOrderNotification(order, req.user || {});
     } catch (error) {
       console.error(error);
     }
@@ -4107,6 +4489,56 @@ app.get("/api/admin/products", requireAdmin, async (_req, res) => {
   const products = await db.listProducts();
   const metricsByProductId = await db.getProductMetrics(products.map((product) => product.id));
   res.json({ products: await Promise.all(products.map((product) => productPayload(product, true, true, metricsByProductId[product.id]))) });
+});
+
+app.get("/api/admin/facebook-bridge/accounts", requireAdmin, async (_req, res) => {
+  res.json({
+    ok: true,
+    configured: Boolean(FACEBOOK_BRIDGE_URL && FACEBOOK_BRIDGE_ADMIN_KEY),
+    bridgeUrl: FACEBOOK_BRIDGE_URL,
+    accounts: facebookBridgeAccounts()
+  });
+});
+
+app.post("/api/admin/products/:id/facebook-draft", requireAdmin, async (req, res) => {
+  try {
+    if (!FACEBOOK_BRIDGE_URL || !FACEBOOK_BRIDGE_ADMIN_KEY) {
+      return res.status(503).json({ error: "Facebook bridge is not configured. Set FACEBOOK_BRIDGE_URL and FACEBOOK_BRIDGE_ADMIN_KEY on Railway." });
+    }
+
+    const product = await db.getProduct(Number(req.params.id));
+    if (!product) return res.status(404).json({ error: "Product not found." });
+
+    const payload = facebookBridgeDraftPayload(product, req, req.body.facebookAccountId || FACEBOOK_BRIDGE_DEFAULT_ACCOUNT_ID);
+    const response = await fetch(`${FACEBOOK_BRIDGE_URL}/api/listing-drafts`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-admin-key": FACEBOOK_BRIDGE_ADMIN_KEY
+      },
+      body: JSON.stringify(payload)
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Facebook bridge returned ${response.status}`);
+
+    const productSpecs = {
+      ...(product.productSpecs || {}),
+      marketplaceStatus: "ready_for_facebook",
+      facebookDraftId: body.draft?.id || "",
+      facebookAccountId: payload.facebookAccountId,
+      facebookProfileId: payload.facebookProfileId,
+      facebookDraftedAt: new Date().toISOString()
+    };
+    const saved = await db.updateProduct(product.id, { ...product, productSpecs });
+    const metricsByProductId = await db.getProductMetrics([saved.id]);
+    res.json({
+      ok: true,
+      draft: body.draft,
+      product: await productPayload(saved, true, true, metricsByProductId[saved.id])
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Could not push product to Facebook bridge." });
+  }
 });
 
 app.get("/api/admin/products/export", requireAdmin, async (_req, res) => {
@@ -4398,6 +4830,12 @@ app.get("/admin", sendAdminApp);
 app.get("/admin/facebookmobile", sendAdminFacebookApp);
 app.get("/catalog", sendCatalog);
 app.get("/dealers", sendDealers);
+app.get("/about", sendAboutPage);
+app.get("/contact", sendContactPage);
+app.get("/faq", sendFaqPage);
+app.get("/returns", sendReturnsPage);
+app.get("/shipping", sendShippingPage);
+app.get("/terms", sendTermsPage);
 app.get("/privacy", sendPrivacyPage);
 
 app.get("*", sendDesktopApp);
