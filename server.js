@@ -9,6 +9,7 @@ const multer = require("multer");
 const bcrypt = require("bcryptjs");
 const cheerio = require("cheerio");
 const { Pool } = require("pg");
+const { createTelegramProjectBot } = require("./lib/telegram-control");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -36,6 +37,7 @@ const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const TELEGRAM_NOTIFY_CHAT_ID = process.env.TELEGRAM_NOTIFY_CHAT_ID || "";
 const TELEGRAM_MESSAGE_THREAD_ID = process.env.TELEGRAM_MESSAGE_THREAD_ID || "";
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || "";
+const TELEGRAM_PROJECT_NAME = process.env.TELEGRAM_PROJECT_NAME || "selltomakemoney.com";
 const COUNTRY_NAMES = typeof Intl?.DisplayNames === "function"
   ? new Intl.DisplayNames(["en"], { type: "region" })
   : null;
@@ -3212,35 +3214,6 @@ function canSendTelegramNotifications() {
   return Boolean(TELEGRAM_BOT_TOKEN && TELEGRAM_NOTIFY_CHAT_ID);
 }
 
-function parseIntegerValue(value) {
-  if (value === null || value === undefined || value === "") return null;
-  const parsed = Number(value);
-  return Number.isInteger(parsed) ? parsed : null;
-}
-
-async function sendTelegramMessage(text, options = {}) {
-  const chatId = String(options.chatId || TELEGRAM_NOTIFY_CHAT_ID || "").trim();
-  if (!TELEGRAM_BOT_TOKEN || !chatId) return { skipped: true, reason: "missing_config" };
-  const endpoint = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-  const messageThreadId = parseIntegerValue(options.messageThreadId ?? TELEGRAM_MESSAGE_THREAD_ID);
-  const payload = {
-    chat_id: chatId,
-    text: String(text || "").trim(),
-    disable_web_page_preview: true
-  };
-  if (messageThreadId) payload.message_thread_id = messageThreadId;
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-  if (!response.ok) {
-    const errorBody = await response.text().catch(() => "");
-    throw new Error(`Telegram notify failed: ${response.status} ${errorBody}`.trim());
-  }
-  return response.json().catch(() => ({ ok: true }));
-}
-
 function formatCurrency(cents) {
   const value = Number(cents || 0) / 100;
   return new Intl.NumberFormat("en-CA", {
@@ -3253,7 +3226,7 @@ async function sendTelegramSignupNotification(user) {
   if (!canSendTelegramNotifications()) return { skipped: true, reason: "missing_config" };
   const accountTypeLabel = formatAccountTypeLabel(user.accountType);
   const messageLines = [
-    "New signup on selltomakemoney.com",
+    `New signup on ${TELEGRAM_PROJECT_NAME}`,
     `Type: ${accountTypeLabel}`,
     `Name: ${user.contactName || "-"}`,
     `Company: ${user.company || "-"}`,
@@ -3261,20 +3234,20 @@ async function sendTelegramSignupNotification(user) {
     `Phone: ${user.phone || "-"}`,
     `Status: ${user.status || "pending"}`
   ];
-  return sendTelegramMessage(messageLines.join("\n"));
+  return telegramProjectBot.notify(messageLines.join("\n"));
 }
 
 async function sendTelegramAlertLeadNotification(lead) {
   if (!canSendTelegramNotifications()) return { skipped: true, reason: "missing_config" };
   const messageLines = [
-    "New alert signup on selltomakemoney.com",
+    `New alert signup on ${TELEGRAM_PROJECT_NAME}`,
     `Name: ${lead.contactName || [lead.firstName, lead.lastName].filter(Boolean).join(" ") || "-"}`,
     `Email: ${lead.email || "-"}`,
     `Phone: ${lead.phone || "-"}`,
     `Interests: ${lead.interests || "-"}`,
     `Source: ${lead.source || "store"}`
   ];
-  return sendTelegramMessage(messageLines.join("\n"));
+  return telegramProjectBot.notify(messageLines.join("\n"));
 }
 
 async function sendTelegramOrderNotification(order, user = {}) {
@@ -3294,13 +3267,13 @@ async function sendTelegramOrderNotification(order, user = {}) {
     `Subtotal: ${formatCurrency(order.subtotalCents)}`,
     `Items: ${itemsSummary || "-"}`
   ];
-  return sendTelegramMessage(messageLines.join("\n"));
+  return telegramProjectBot.notify(messageLines.join("\n"));
 }
 
 async function telegramStatusMessage() {
   const summary = await db.summary();
   return [
-    "selltomakemoney.com status",
+    `${TELEGRAM_PROJECT_NAME} status`,
     `Pending users: ${summary.pendingUsers || 0}`,
     `New orders: ${summary.orders || 0}`,
     `New inquiries: ${summary.inquiries || 0}`,
@@ -3312,6 +3285,15 @@ async function telegramStatusMessage() {
     `Listing views: ${summary.listingViews || 0}`
   ].join("\n");
 }
+
+const telegramProjectBot = createTelegramProjectBot({
+  botToken: TELEGRAM_BOT_TOKEN,
+  defaultChatId: TELEGRAM_NOTIFY_CHAT_ID,
+  defaultMessageThreadId: TELEGRAM_MESSAGE_THREAD_ID,
+  webhookSecret: TELEGRAM_WEBHOOK_SECRET,
+  projectName: TELEGRAM_PROJECT_NAME,
+  getStatusMessage: telegramStatusMessage
+});
 
 async function sendWhatsappSignupNotification(user) {
   if (!canSendWhatsappNotifications()) return { skipped: true, reason: "missing_config" };
@@ -4050,31 +4032,7 @@ app.post("/api/orders", requireLogin, async (req, res) => {
 });
 
 app.post("/api/telegram/webhook/:secret", async (req, res) => {
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_WEBHOOK_SECRET || req.params.secret !== TELEGRAM_WEBHOOK_SECRET) {
-    return res.status(404).json({ ok: false });
-  }
-  const message = req.body?.message || req.body?.edited_message;
-  const text = String(message?.text || "").trim();
-  const chatId = String(message?.chat?.id || "").trim();
-  const messageThreadId = parseIntegerValue(message?.message_thread_id);
-  if (!text || !chatId) return res.json({ ok: true });
-  if (TELEGRAM_NOTIFY_CHAT_ID && chatId !== String(TELEGRAM_NOTIFY_CHAT_ID)) {
-    return res.json({ ok: true, ignored: true });
-  }
-  try {
-    if (/^\/(start|help)\b/i.test(text)) {
-      await sendTelegramMessage([
-        "Telegram bot is connected.",
-        "Available commands:",
-        "/status - project summary"
-      ].join("\n"), { chatId, messageThreadId });
-    } else if (/^\/status\b/i.test(text)) {
-      await sendTelegramMessage(await telegramStatusMessage(), { chatId, messageThreadId });
-    }
-  } catch (error) {
-    console.error(error);
-  }
-  res.json({ ok: true });
+  return telegramProjectBot.handleWebhook(req, res);
 });
 
 app.get("/api/admin/summary", requireAdmin, async (_req, res) => {

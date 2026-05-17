@@ -53,6 +53,7 @@ TELEGRAM_NOTIFY_CHAT_ID=-1001234567890
 # Optional: set when using Telegram forum topics / message threads
 TELEGRAM_MESSAGE_THREAD_ID=1234
 TELEGRAM_WEBHOOK_SECRET=long-random-secret
+TELEGRAM_PROJECT_NAME=selltomakemoney.com
 ```
 
 Production data should live in Railway Postgres. The app still supports `DB_PATH=/data/store.json` as a local/simple fallback, but Postgres is preferred for the live site.
@@ -71,7 +72,7 @@ If `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, and `WHATSAPP_NOTIFY_TO`
 
 ## Telegram bot setup
 
-The app supports Telegram notifications and a small webhook-based bot command flow.
+The app supports Telegram notifications and a reusable webhook-based bot command flow.
 
 What it sends:
 
@@ -110,3 +111,31 @@ Notes:
 
 - `TELEGRAM_MESSAGE_THREAD_ID` is optional and is useful if you want one Telegram topic per project.
 - If you only want notifications and do not need commands, the webhook is optional.
+
+## Reuse in other projects
+
+This repo now includes a reusable Telegram module in [lib/telegram-control.js](C:/Users/T470/Documents/New%20project%204/lib/telegram-control.js).
+
+To reuse it in another project:
+
+1. Copy `lib/telegram-control.js`.
+2. Set these env vars in the new project:
+
+```text
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_NOTIFY_CHAT_ID=...
+TELEGRAM_MESSAGE_THREAD_ID=...
+TELEGRAM_WEBHOOK_SECRET=...
+TELEGRAM_PROJECT_NAME=your-project-name
+```
+
+3. Create a project-specific status builder.
+4. Initialize the bot with `createTelegramProjectBot(...)`.
+5. Use `bot.notify(...)` for alerts and `bot.handleWebhook(req, res)` for Telegram commands.
+
+The reusable layer is designed so each project only needs to provide:
+
+- project name
+- status text builder
+- optional extra command handlers
+- event-specific message formatting
