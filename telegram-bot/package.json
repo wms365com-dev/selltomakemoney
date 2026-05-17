@@ -1,0 +1,16 @@
+{
+  "name": "selltomakemoney-telegram-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Telegram webhook controller for selltomakemoney.com",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "execa": "^9.6.0",
+    "express": "^5.1.0"
+  }
+}

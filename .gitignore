@@ -8,3 +8,4 @@ uploads/*
 .qa-cookies.txt
 amazon-test.html
 live-desktop.html
+telegram-bot/logs/last-codex-result.json
