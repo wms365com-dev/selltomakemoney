@@ -977,6 +977,10 @@ function shoppingLinksBlock(product) {
   `;
 }
 
+function amazonLinkForProduct(product) {
+  return product?.searchLinks?.find((link) => String(link.site || "").toLowerCase() === "amazon") || null;
+}
+
 function pricingBlock(product, canSeePrices = false) {
   if (canSeePrices && product.dealerPrice) {
     return `
@@ -1539,7 +1543,15 @@ function renderProducts(canSeePrices = false) {
           <div class="product-card-footer">
             <div class="product-actions">
               <a class="nav-button" href="${escapeHtml(product.url || `/products/${product.id}`)}">View details</a>
-              <button class="primary" data-buy-now="${product.id}">Reserve</button>
+              <div class="split-actions">
+                <button type="button" data-add-cart="${product.id}">Add to cart</button>
+                ${(() => {
+                  const amazonLink = amazonLinkForProduct(product);
+                  return amazonLink
+                    ? `<a class="primary amazon-buy-link" href="${escapeHtml(amazonLink.url)}" target="_blank" rel="noopener noreferrer" data-amazon-buy="${product.id}">Buy on Amazon</a>`
+                    : `<button class="primary" type="button" data-buy-now="${product.id}">Reserve</button>`;
+                })()}
+              </div>
             </div>
           </div>
         </div>
@@ -1993,6 +2005,17 @@ document.addEventListener("click", async (event) => {
     const original = shareButton.textContent;
     shareButton.textContent = "Copied";
     setTimeout(() => { shareButton.textContent = original; }, 900);
+  }
+
+  const amazonBuyId = event.target.closest("[data-amazon-buy]")?.dataset.amazonBuy;
+  if (amazonBuyId) {
+    const product = productCache.find((entry) => entry.id === Number(amazonBuyId));
+    const amazonLink = amazonLinkForProduct(product);
+    trackEvent("amazon_affiliate_click", {
+      productId: amazonBuyId,
+      label: product?.name || `Product ${amazonBuyId}`,
+      value: amazonLink?.url || ""
+    });
   }
 
   const catalogButton = event.target.closest("[data-copy-catalog]");

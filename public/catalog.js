@@ -64,6 +64,10 @@ function fulfillmentBadge(product) {
   return `<div class="fulfillment-alert ${canShip ? "ships" : "pickup"}">${canShip ? "Ships or Mississauga pickup" : "Mississauga pickup only"}</div>`;
 }
 
+function amazonLinkForProduct(product) {
+  return product?.searchLinks?.find((link) => String(link.site || "").toLowerCase() === "amazon") || null;
+}
+
 function updateCatalogStructuredData(products) {
   document.querySelector("#catalogStructuredData")?.remove();
   const script = document.createElement("script");
@@ -124,7 +128,15 @@ function renderCatalog() {
         ${fulfillmentBadge(product)}
         <div class="product-actions">
           <a class="nav-button" href="${escapeHtml(product.url || `/products/${product.id}`)}">View details</a>
-          <button type="button" class="primary" data-catalog-buy="${product.id}">Reserve</button>
+          <div class="split-actions">
+            <button type="button" data-catalog-buy="${product.id}">Add to cart</button>
+            ${(() => {
+              const amazonLink = amazonLinkForProduct(product);
+              return amazonLink
+                ? `<a class="primary amazon-buy-link" href="${escapeHtml(amazonLink.url)}" target="_blank" rel="noopener noreferrer" data-catalog-amazon-buy="${product.id}">Buy on Amazon</a>`
+                : `<button type="button" class="primary" data-catalog-buy="${product.id}">Reserve</button>`;
+            })()}
+          </div>
         </div>
       </div>
     </article>
@@ -158,6 +170,11 @@ document.addEventListener("click", async (event) => {
     else cart.push({ productId: Number(buyProductId), quantity: 1 });
     localStorage.setItem("dealerCart", JSON.stringify(cart));
     window.location.href = "/mobile#cart";
+    return;
+  }
+
+  const amazonBuyId = event.target.closest("[data-catalog-amazon-buy]")?.dataset.catalogAmazonBuy;
+  if (amazonBuyId) {
     return;
   }
 
