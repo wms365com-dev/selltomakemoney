@@ -48,6 +48,11 @@ WHATSAPP_NOTIFY_TO=15551234567
 # Optional: use an approved template for production proactive alerts
 WHATSAPP_TEMPLATE_NAME=new_signup_alert
 WHATSAPP_TEMPLATE_LANGUAGE=en_US
+TELEGRAM_BOT_TOKEN=telegram-bot-token-from-botfather
+TELEGRAM_NOTIFY_CHAT_ID=-1001234567890
+# Optional: set when using Telegram forum topics / message threads
+TELEGRAM_MESSAGE_THREAD_ID=1234
+TELEGRAM_WEBHOOK_SECRET=long-random-secret
 ```
 
 Production data should live in Railway Postgres. The app still supports `DB_PATH=/data/store.json` as a local/simple fallback, but Postgres is preferred for the live site.
@@ -63,3 +68,45 @@ Amazon search links include the affiliate tracking tag from `AMAZON_AFFILIATE_TA
 ## WhatsApp signup alerts
 
 If `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, and `WHATSAPP_NOTIFY_TO` are set, new registrations trigger a WhatsApp notification to the configured destination number. For production proactive alerts, use an approved WhatsApp template by also setting `WHATSAPP_TEMPLATE_NAME`.
+
+## Telegram bot setup
+
+The app supports Telegram notifications and a small webhook-based bot command flow.
+
+What it sends:
+
+- New account registrations
+- New alert signups
+- New orders
+
+What the bot can do:
+
+- `/help`
+- `/status`
+
+Recommended setup:
+
+1. Create a bot with BotFather and copy the bot token.
+2. Add the bot to your Telegram group.
+3. Send a message in the group, or in the specific forum topic if you use topics.
+4. Run `npm run telegram:get-updates` with `TELEGRAM_BOT_TOKEN` set to find the correct `chatId` and optional `messageThreadId`.
+5. Set these Railway variables:
+
+```text
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_NOTIFY_CHAT_ID=-1001234567890
+TELEGRAM_MESSAGE_THREAD_ID=1234
+TELEGRAM_WEBHOOK_SECRET=long-random-secret
+TELEGRAM_WEBHOOK_BASE_URL=https://selltomakemoney.com
+```
+
+6. Run `npm run telegram:set-webhook` to point Telegram at:
+
+```text
+https://selltomakemoney.com/api/telegram/webhook/<TELEGRAM_WEBHOOK_SECRET>
+```
+
+Notes:
+
+- `TELEGRAM_MESSAGE_THREAD_ID` is optional and is useful if you want one Telegram topic per project.
+- If you only want notifications and do not need commands, the webhook is optional.

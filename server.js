@@ -32,6 +32,10 @@ const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || "";
 const WHATSAPP_NOTIFY_TO = process.env.WHATSAPP_NOTIFY_TO || "";
 const WHATSAPP_TEMPLATE_NAME = process.env.WHATSAPP_TEMPLATE_NAME || "";
 const WHATSAPP_TEMPLATE_LANGUAGE = process.env.WHATSAPP_TEMPLATE_LANGUAGE || "en_US";
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
+const TELEGRAM_NOTIFY_CHAT_ID = process.env.TELEGRAM_NOTIFY_CHAT_ID || "";
+const TELEGRAM_MESSAGE_THREAD_ID = process.env.TELEGRAM_MESSAGE_THREAD_ID || "";
+const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || "";
 const COUNTRY_NAMES = typeof Intl?.DisplayNames === "function"
   ? new Intl.DisplayNames(["en"], { type: "region" })
   : null;
@@ -3204,6 +3208,111 @@ function canSendWhatsappNotifications() {
   return Boolean(WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID && WHATSAPP_NOTIFY_TO);
 }
 
+function canSendTelegramNotifications() {
+  return Boolean(TELEGRAM_BOT_TOKEN && TELEGRAM_NOTIFY_CHAT_ID);
+}
+
+function parseIntegerValue(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
+async function sendTelegramMessage(text, options = {}) {
+  const chatId = String(options.chatId || TELEGRAM_NOTIFY_CHAT_ID || "").trim();
+  if (!TELEGRAM_BOT_TOKEN || !chatId) return { skipped: true, reason: "missing_config" };
+  const endpoint = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+  const messageThreadId = parseIntegerValue(options.messageThreadId ?? TELEGRAM_MESSAGE_THREAD_ID);
+  const payload = {
+    chat_id: chatId,
+    text: String(text || "").trim(),
+    disable_web_page_preview: true
+  };
+  if (messageThreadId) payload.message_thread_id = messageThreadId;
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => "");
+    throw new Error(`Telegram notify failed: ${response.status} ${errorBody}`.trim());
+  }
+  return response.json().catch(() => ({ ok: true }));
+}
+
+function formatCurrency(cents) {
+  const value = Number(cents || 0) / 100;
+  return new Intl.NumberFormat("en-CA", {
+    style: "currency",
+    currency: "CAD"
+  }).format(value);
+}
+
+async function sendTelegramSignupNotification(user) {
+  if (!canSendTelegramNotifications()) return { skipped: true, reason: "missing_config" };
+  const accountTypeLabel = formatAccountTypeLabel(user.accountType);
+  const messageLines = [
+    "New signup on selltomakemoney.com",
+    `Type: ${accountTypeLabel}`,
+    `Name: ${user.contactName || "-"}`,
+    `Company: ${user.company || "-"}`,
+    `Email: ${user.email || "-"}`,
+    `Phone: ${user.phone || "-"}`,
+    `Status: ${user.status || "pending"}`
+  ];
+  return sendTelegramMessage(messageLines.join("\n"));
+}
+
+async function sendTelegramAlertLeadNotification(lead) {
+  if (!canSendTelegramNotifications()) return { skipped: true, reason: "missing_config" };
+  const messageLines = [
+    "New alert signup on selltomakemoney.com",
+    `Name: ${lead.contactName || [lead.firstName, lead.lastName].filter(Boolean).join(" ") || "-"}`,
+    `Email: ${lead.email || "-"}`,
+    `Phone: ${lead.phone || "-"}`,
+    `Interests: ${lead.interests || "-"}`,
+    `Source: ${lead.source || "store"}`
+  ];
+  return sendTelegramMessage(messageLines.join("\n"));
+}
+
+async function sendTelegramOrderNotification(order, user = {}) {
+  if (!canSendTelegramNotifications()) return { skipped: true, reason: "missing_config" };
+  const itemsSummary = Array.isArray(order.items)
+    ? order.items.slice(0, 4).map((item) => `${item.quantity}x ${item.name}`).join(", ")
+    : "";
+  const shipTo = order.shipTo || {};
+  const messageLines = [
+    `New order #${order.id || "-"}`,
+    `Customer: ${user.contactName || shipTo.recipientName || "-"}`,
+    `Company: ${user.company || shipTo.company || "-"}`,
+    `Email: ${user.email || shipTo.email || "-"}`,
+    `Phone: ${shipTo.phone || user.phone || "-"}`,
+    `Fulfillment: ${shipTo.fulfillmentMethod || "-"}`,
+    `Payment: ${shipTo.paymentMethod || "-"}`,
+    `Subtotal: ${formatCurrency(order.subtotalCents)}`,
+    `Items: ${itemsSummary || "-"}`
+  ];
+  return sendTelegramMessage(messageLines.join("\n"));
+}
+
+async function telegramStatusMessage() {
+  const summary = await db.summary();
+  return [
+    "selltomakemoney.com status",
+    `Pending users: ${summary.pendingUsers || 0}`,
+    `New orders: ${summary.orders || 0}`,
+    `New inquiries: ${summary.inquiries || 0}`,
+    `Alert leads: ${summary.alertLeads || 0}`,
+    `Bug reports: ${summary.bugReports || 0}`,
+    `Products: ${summary.products || 0}`,
+    `Site visits: ${summary.siteVisits || 0}`,
+    `Unique visitors: ${summary.uniqueVisitors || 0}`,
+    `Listing views: ${summary.listingViews || 0}`
+  ].join("\n");
+}
+
 async function sendWhatsappSignupNotification(user) {
   if (!canSendWhatsappNotifications()) return { skipped: true, reason: "missing_config" };
   const endpoint = `https://graph.facebook.com/v23.0/${encodeURIComponent(WHATSAPP_PHONE_NUMBER_ID)}/messages`;
@@ -3720,6 +3829,11 @@ app.post("/api/register", async (req, res) => {
   } catch (error) {
     console.error(error);
   }
+  try {
+    await sendTelegramSignupNotification(createdUser);
+  } catch (error) {
+    console.error(error);
+  }
   res.status(201).json({ ok: true, message: requestedAccountType === "seller"
     ? "Seller application received. Your account will be reviewed and approved in the next admin review window before you can list items."
     : "Registration sent. Your account will be reviewed and approved in the next admin review window." });
@@ -3738,7 +3852,12 @@ app.post("/api/alerts", async (req, res) => {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: "Enter a valid email for alerts." });
     }
-    await db.createAlertLead({ email, firstName, lastName, contactName, phone, interests, source });
+    const createdLead = await db.createAlertLead({ email, firstName, lastName, contactName, phone, interests, source });
+    try {
+      await sendTelegramAlertLeadNotification(createdLead);
+    } catch (error) {
+      console.error(error);
+    }
     res.status(201).json({ ok: true, message: "You are on the alert list. We will send updates when new items are available." });
   } catch (error) {
     res.status(400).json({ error: error.message || "Could not save alert signup." });
@@ -3919,10 +4038,43 @@ app.post("/api/orders", requireLogin, async (req, res) => {
   try {
     if (req.user.status !== "approved") return res.status(403).json({ error: "Your account is still pending approval." });
     const order = await db.createOrder(await buildOrder(req));
+    try {
+      await sendTelegramOrderNotification(order, req.user);
+    } catch (error) {
+      console.error(error);
+    }
     res.status(201).json({ orderId: order.id });
   } catch (error) {
     res.status(400).json({ error: error.message || "Could not submit checkout." });
   }
+});
+
+app.post("/api/telegram/webhook/:secret", async (req, res) => {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_WEBHOOK_SECRET || req.params.secret !== TELEGRAM_WEBHOOK_SECRET) {
+    return res.status(404).json({ ok: false });
+  }
+  const message = req.body?.message || req.body?.edited_message;
+  const text = String(message?.text || "").trim();
+  const chatId = String(message?.chat?.id || "").trim();
+  const messageThreadId = parseIntegerValue(message?.message_thread_id);
+  if (!text || !chatId) return res.json({ ok: true });
+  if (TELEGRAM_NOTIFY_CHAT_ID && chatId !== String(TELEGRAM_NOTIFY_CHAT_ID)) {
+    return res.json({ ok: true, ignored: true });
+  }
+  try {
+    if (/^\/(start|help)\b/i.test(text)) {
+      await sendTelegramMessage([
+        "Telegram bot is connected.",
+        "Available commands:",
+        "/status - project summary"
+      ].join("\n"), { chatId, messageThreadId });
+    } else if (/^\/status\b/i.test(text)) {
+      await sendTelegramMessage(await telegramStatusMessage(), { chatId, messageThreadId });
+    }
+  } catch (error) {
+    console.error(error);
+  }
+  res.json({ ok: true });
 });
 
 app.get("/api/admin/summary", requireAdmin, async (_req, res) => {

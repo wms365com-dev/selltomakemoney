@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "qa:playwright": "node scripts/playwright-smoke.js"
+    "qa:playwright": "node scripts/playwright-smoke.js",
+    "telegram:get-updates": "node scripts/telegram-get-updates.js",
+    "telegram:set-webhook": "node scripts/telegram-set-webhook.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
