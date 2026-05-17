@@ -133,7 +133,7 @@ function renderCatalog() {
             ${(() => {
               const amazonLink = amazonLinkForProduct(product);
               return amazonLink
-                ? `<a class="primary amazon-buy-link" href="${escapeHtml(amazonLink.url)}" target="_blank" rel="noopener noreferrer" data-catalog-amazon-buy="${product.id}">Buy on Amazon</a>`
+                ? `<a class="primary amazon-buy-link" href="${escapeHtml(amazonLink.url)}" target="_blank" rel="noopener noreferrer" data-catalog-amazon-buy="${product.id}">Buy</a>`
                 : `<button type="button" class="primary" data-catalog-buy="${product.id}">Reserve</button>`;
             })()}
           </div>

@@ -1548,7 +1548,7 @@ function renderProducts(canSeePrices = false) {
                 ${(() => {
                   const amazonLink = amazonLinkForProduct(product);
                   return amazonLink
-                    ? `<a class="primary amazon-buy-link" href="${escapeHtml(amazonLink.url)}" target="_blank" rel="noopener noreferrer" data-amazon-buy="${product.id}">Buy on Amazon</a>`
+                    ? `<a class="primary amazon-buy-link" href="${escapeHtml(amazonLink.url)}" target="_blank" rel="noopener noreferrer" data-amazon-buy="${product.id}">Buy</a>`
                     : `<button class="primary" type="button" data-buy-now="${product.id}">Reserve</button>`;
                 })()}
               </div>
