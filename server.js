@@ -2825,11 +2825,11 @@ function renderInfoPage({ title, description, eyebrow, heading, intro, sections 
   <meta name="description" content="${escapeHtml(description)}">
   <meta name="robots" content="index,follow">
   <title>${escapeHtml(title)} | selltomakemoney.com</title>
-  <link rel="stylesheet" href="/styles.css?v=simple-sale-3">
+  <link rel="stylesheet" href="/styles.css?v=simple-sale-4">
 </head>
 <body>
   <header class="topbar catalog-topbar">
-    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=simple-sale-3" alt="selltomakemoney.com"></a>
+    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=simple-sale-4" alt="selltomakemoney.com"></a>
     <nav>
       <a class="nav-button" href="/desktop">Store</a>
       <a class="nav-button" href="/catalog">Catalog</a>
@@ -3234,11 +3234,11 @@ async function sendProductPage(req, res) {
   ${absoluteImage ? `<meta name="twitter:image" content="${escapeHtml(absoluteImage)}">` : ""}
   <title>${escapeHtml(title)}</title>
   <script type="application/ld+json">${safeJsonScript(productJsonLd(product, canonicalUrl, absoluteImage))}</script>
-  <link rel="stylesheet" href="/styles.css?v=simple-sale-3">
+  <link rel="stylesheet" href="/styles.css?v=simple-sale-4">
 </head>
 <body>
   <header class="topbar catalog-topbar">
-    <a class="brand" href="${homePath}" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=simple-sale-3" alt="selltomakemoney.com"></a>
+    <a class="brand" href="${homePath}" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=simple-sale-4" alt="selltomakemoney.com"></a>
     <nav><a class="nav-button primary" href="${cartPath}">Cart</a></nav>
   </header>
   <main>
@@ -3509,20 +3509,25 @@ function facebookBridgeDraftPayload(product, req, accountId) {
   const baseUrl = publicBaseUrl(req).replace(/\/$/, "");
   const account = facebookBridgeAccountFor(accountId);
   const productUrl = `${baseUrl}${shortProductPath(product)}`;
+  const affiliateUrl = searchLinks(product).find((link) => String(link.site || "").toLowerCase() === "amazon")?.url || "";
   const description = [
-    product.description || "",
+    "Available for Mississauga pickup.",
     "",
-    product.brand ? `Brand: ${product.brand}` : "",
-    product.sku ? `SKU: ${product.sku}` : "",
-    product.upc ? `UPC: ${product.upc}` : "",
+    String(product.name || "").trim().slice(0, 95),
+    [product.brand, product.productSpecs?.condition || facebookMarketplaceCondition(product)].filter(Boolean).join(" | "),
+    "",
+    "Want more specs and photos?",
+    `More info: ${productUrl}`,
+    "",
+    affiliateUrl ? "Amazon affiliate link to copy:" : "",
+    affiliateUrl,
+    "",
     product.productSpecs?.condition ? `Condition: ${product.productSpecs.condition}` : "",
     `Qty available: ${product.quantityOnHand ?? 0}`,
     product.productSpecs?.fulfillmentType === "ships_or_pickup"
       ? "Pickup in Mississauga or shipping available depending on the item."
       : "Pickup in Mississauga only.",
-    "Payment by e-transfer or cash on pickup.",
-    "",
-    `View item: ${productUrl}`
+    "Payment by e-transfer or cash on pickup."
   ].filter((line, index, lines) => line || lines[index - 1] !== "").join("\n").trim();
   const imageUrls = (product.imageUrls || (product.imageUrl ? [product.imageUrl] : []))
     .map((url) => {
@@ -3554,6 +3559,7 @@ function facebookBridgeDraftPayload(product, req, accountId) {
     meetupPreferences: ["public_meetup"],
     hideFromFriends: true,
     promoteAfterPublish: false,
+    affiliateUrl,
     notes: `Imported from selltomakemoney.com product ${product.id}. Review before local Facebook fill.`
   };
 }
