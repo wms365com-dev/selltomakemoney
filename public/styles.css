@@ -3879,10 +3879,6 @@ body {
   width: clamp(128px, 16vw, 168px);
 }
 
-body:not(.user-signed-in) .nav-menu {
-  display: none;
-}
-
 main {
   width: min(1320px, calc(100% - 12px));
   padding-top: 8px;
