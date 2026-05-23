@@ -2,7 +2,7 @@ let sessionUser = null;
 function resolveViewMode() {
   if (window.__FORCED_VIEW === "mobile" || window.__FORCED_VIEW === "desktop") return window.__FORCED_VIEW;
   const path = window.location.pathname.toLowerCase();
-  if (path.includes("/mobile")) return "mobile";
+  if (path.includes("/mobile") || path.startsWith("/m/") || path === "/m") return "mobile";
   if (path.includes("/desktop")) return "desktop";
   return window.matchMedia("(max-width: 759px)").matches ? "mobile" : "desktop";
 }
@@ -43,6 +43,7 @@ let productsRequest = null;
 let adminRequest = null;
 let viewModeRaf = 0;
 let currentStoreMode = "store";
+let currentMarket = window.__ENTRY_MARKET === "US" || window.location.pathname.toLowerCase().startsWith("/us") || window.location.pathname.toLowerCase().startsWith("/m/us") ? "US" : "CA";
 const productCategories = [
   "Electronics",
   "Scooters & Mobility",
@@ -58,9 +59,29 @@ const productCategories = [
   "Toys & Games",
   "Other"
 ];
+const amazonResearchCategories = [
+  "Furniture",
+  "Home Improvement",
+  "Patio, Lawn & Garden",
+  "Outdoor Recreation",
+  "Major Appliances",
+  "Luggage",
+  "Luxury Beauty",
+  "Kitchen & Dining",
+  "Computers, Tablets & Components",
+  "Grocery & Gourmet Food"
+];
 let statusDepth = 0;
 let productCache = [];
-let cart = JSON.parse(localStorage.getItem("dealerCart") || "[]");
+function cartStorageKey() {
+  return `dealerCart_${currentMarket}`;
+}
+
+function loadCartFromStorage() {
+  return JSON.parse(localStorage.getItem(cartStorageKey()) || "[]");
+}
+
+let cart = loadCartFromStorage();
 let productRotatorTimer = null;
 let exitAlertShown = localStorage.getItem("exitAlertDismissed") === "true";
 let selectedAdminProductId = null;
@@ -71,6 +92,7 @@ let adminSummary = null;
 let recentVisitors = [];
 let visitorAnalytics = null;
 let adminUsersCache = [];
+let amazonResearchData = null;
 let bulkProductSearch = "";
 let bulkNewRowSequence = 1;
 let activeFacebookListingProductId = null;
@@ -338,6 +360,104 @@ function renderAdminMetrics(summary) {
   `;
 }
 
+function renderAmazonResearchCategoryOptions() {
+  const select = document.querySelector("#amazonResearchCategory");
+  if (!select || select.dataset.ready === "true") return;
+  select.innerHTML = `<option value="">Select category</option>${amazonResearchCategories.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join("")}`;
+  select.dataset.ready = "true";
+}
+
+function amazonResearchSummaryCard(label, value, note = "") {
+  return `
+    <div class="panel visitor-summary-card">
+      <strong>${escapeHtml(value ?? "")}</strong>
+      <span>${escapeHtml(label)}</span>
+      ${note ? `<small>${escapeHtml(note)}</small>` : ""}
+    </div>
+  `;
+}
+
+function amazonResearchOpportunityItem(item, tone = "focus") {
+  return `
+    <article class="visitor-activity-item amazon-opportunity-item tone-${escapeHtml(tone)}">
+      <div>
+        <strong>${escapeHtml(item.category)}</strong>
+        <span>${escapeHtml(`${Math.round(Number(item.commissionRate || 0) * 100)}% commission | ${item.averagePriceBand} ticket`)}</span>
+      </div>
+      <div>
+        <strong>Score ${escapeHtml(item.score)}</strong>
+        <span>${escapeHtml(`Est. $${item.estimatedCommissionRange} per sale`)}</span>
+      </div>
+      <div>
+        <strong>${escapeHtml(item.whyFocus || "")}</strong>
+        <span>${escapeHtml(item.speedNotes || "")}</span>
+      </div>
+    </article>
+  `;
+}
+
+function amazonResearchTrackedItem(item) {
+  return `
+    <article class="visitor-activity-item amazon-tracked-item">
+      <div>
+        <strong>${escapeHtml(item.titleSnapshot || "Untitled item")}</strong>
+        <span>${escapeHtml(item.category)}${item.subCategory ? ` | ${escapeHtml(item.subCategory)}` : ""}${item.asin ? ` | ${escapeHtml(item.asin)}` : ""}</span>
+      </div>
+      <div>
+        <strong>${escapeHtml(item.estimatedCommission ? `$${item.estimatedCommission}` : "No estimate")}</strong>
+        <span>${escapeHtml(item.priceSnapshot ? `$${item.priceSnapshot} snapshot | ` : "")}${escapeHtml(`${Math.round(Number(item.commissionRate || 0) * 100)}% | Priority ${item.priorityScore}`)}</span>
+      </div>
+      <div>
+        <strong>${escapeHtml(item.focusStatus || "watch")}</strong>
+        <span>${escapeHtml(item.notes || item.sourcingFit || "No notes yet")}</span>
+      </div>
+      <div class="amazon-tracked-actions">
+        ${item.amazonUrl ? `<a href="${escapeHtml(item.amazonUrl)}" target="_blank" rel="noopener">Open Amazon</a>` : ""}
+        <button type="button" data-delete-amazon-research="${escapeHtml(item.id)}">Remove</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderAmazonResearch(data) {
+  amazonResearchData = data;
+  renderAmazonResearchCategoryOptions();
+  const summaryHost = document.querySelector("#amazonResearchSummary");
+  const focusHost = document.querySelector("#amazonResearchFocusList");
+  const avoidHost = document.querySelector("#amazonResearchAvoidList");
+  const itemsHost = document.querySelector("#amazonResearchItems");
+  if (summaryHost) {
+    summaryHost.innerHTML = [
+      amazonResearchSummaryCard("Tracked items", data?.totals?.trackedItems ?? 0, `${data?.totals?.focusItems ?? 0} marked focus`),
+      amazonResearchSummaryCard("Watch list", data?.totals?.watchItems ?? 0, "Items worth keeping an eye on"),
+      amazonResearchSummaryCard("Est. commission pool", `$${Number(data?.totals?.estimatedCommissionDollars || 0).toFixed(2)}`, "Across tracked items")
+    ].join("");
+  }
+  if (focusHost) focusHost.innerHTML = (data?.focusFirst || []).map((item) => amazonResearchOpportunityItem(item, "focus")).join("") || "<p>No focus categories yet.</p>";
+  if (avoidHost) avoidHost.innerHTML = (data?.avoidForNow || []).map((item) => amazonResearchOpportunityItem(item, "avoid")).join("") || "<p>No avoid categories yet.</p>";
+  if (itemsHost) itemsHost.innerHTML = (data?.items || []).map((item) => amazonResearchTrackedItem(item)).join("") || "<p>No tracked Amazon items yet. Add a few best sellers you want to compare.</p>";
+}
+
+function amazonResearchFormPayload(form) {
+  const fields = Object.fromEntries(new FormData(form).entries());
+  return {
+    asin: String(fields.asin || "").trim(),
+    titleSnapshot: String(fields.titleSnapshot || "").trim(),
+    amazonUrl: String(fields.amazonUrl || "").trim(),
+    category: String(fields.category || "").trim(),
+    subCategory: String(fields.subCategory || "").trim(),
+    priceSnapshot: fields.priceSnapshot ? Number(fields.priceSnapshot) : null,
+    ratingSnapshot: fields.ratingSnapshot ? Number(fields.ratingSnapshot) : null,
+    reviewCountSnapshot: fields.reviewCountSnapshot ? Number(fields.reviewCountSnapshot) : null,
+    bestSellerRankSnapshot: String(fields.bestSellerRankSnapshot || "").trim(),
+    seasonality: String(fields.seasonality || "").trim(),
+    sourcingFit: String(fields.sourcingFit || "").trim(),
+    competitionNotes: String(fields.competitionNotes || "").trim(),
+    focusStatus: String(fields.focusStatus || "watch").trim(),
+    notes: String(fields.notes || "").trim()
+  };
+}
+
 function formatDateTime(value) {
   if (!value) return "";
   const date = new Date(value);
@@ -526,6 +646,12 @@ async function loadVisitorAnalytics() {
   syncVisitorFilterControls();
 }
 
+async function loadAmazonResearch() {
+  if (sessionUser?.role !== "admin") return;
+  const data = await api("/api/admin/amazon-research");
+  renderAmazonResearch(data);
+}
+
 function adminUserItem(user) {
   const accountType = user.accountType || "shopper";
   const userStatus = user.status || "pending";
@@ -652,6 +778,7 @@ function productUpdateSnapshot(product) {
     price: moneyInputValue(product.priceCents),
     dealerPrice: moneyInputValue(product.dealerPriceCents),
     quantityOnHand: String(Math.max(0, Math.floor(Number(product.quantityOnHand || 0)))),
+    market: String(product.market || product.productSpecs?.market || "CA").trim(),
     condition: String(product.productSpecs?.condition || "").trim(),
     listingStatus: String(product.productSpecs?.listingStatus || "draft").trim(),
     marketplaceStatus: String(product.productSpecs?.marketplaceStatus || "not_listed").trim(),
@@ -668,6 +795,7 @@ function bulkEditorRow(product) {
       <td><input name="sku" value="${escapeHtml(state.sku)}" data-original="${escapeHtml(state.sku)}"></td>
       <td><input name="upc" value="${escapeHtml(state.upc)}" data-original="${escapeHtml(state.upc)}" inputmode="numeric"></td>
       <td><select name="category" data-original="${escapeHtml(state.category)}">${categorySelect(product.category)}</select></td>
+      <td><select name="market" data-original="${escapeHtml(state.market)}"><option value="CA" ${state.market === "CA" ? "selected" : ""}>CA</option><option value="US" ${state.market === "US" ? "selected" : ""}>US</option></select></td>
       <td><select name="condition" data-original="${escapeHtml(state.condition)}">${conditionSelect(product)}</select></td>
       <td><input name="quantityOnHand" type="number" min="0" step="1" value="${escapeHtml(state.quantityOnHand)}" data-original="${escapeHtml(state.quantityOnHand)}"></td>
       <td><input name="price" type="number" min="0" step="0.01" value="${escapeHtml(state.price)}" data-original="${escapeHtml(state.price)}"></td>
@@ -690,6 +818,7 @@ function bulkNewRow(rowId = `new-${bulkNewRowSequence++}`) {
       <td><input name="sku" placeholder="SKU"></td>
       <td><input name="upc" placeholder="UPC" inputmode="numeric"></td>
       <td><select name="category">${categorySelect("")}</select></td>
+      <td><select name="market"><option value="CA" selected>CA</option><option value="US">US</option></select></td>
       <td><select name="condition"><option value="">Condition</option><option value="Brand New In Box (BNIB)">Brand New In Box (BNIB)</option><option value="Open Box / Refurbished (OP/R)">Open Box / Refurbished (OP/R)</option><option value="Used (U)">Used (U)</option></select></td>
       <td><input name="quantityOnHand" type="number" min="0" step="1" value="0"></td>
       <td><input name="price" type="number" min="0" step="0.01" placeholder="0.00"></td>
@@ -720,6 +849,7 @@ function renderBulkProductEditor(products) {
             <th>SKU</th>
             <th>UPC</th>
             <th>Category</th>
+            <th>Market</th>
             <th>Condition</th>
             <th>Qty</th>
             <th>Public</th>
@@ -746,6 +876,7 @@ function bulkRowValues(row) {
     sku: read("sku"),
     upc: read("upc"),
     category: read("category"),
+    market: read("market"),
     condition: read("condition"),
     quantityOnHand: read("quantityOnHand"),
     price: read("price"),
@@ -788,6 +919,7 @@ function buildProductUpdateFormData(product, overrides = {}) {
     dealerPrice: moneyInputValue(product.dealerPriceCents),
     sourceUrl: product.sourceUrl || "",
     quantityOnHand: String(Math.max(0, Math.floor(Number(product.quantityOnHand || 0)))),
+    market: specs.market || product.market || "CA",
     length: specs.length || "",
     width: specs.width || "",
     height: specs.height || "",
@@ -827,6 +959,10 @@ function adminProductDetailMarkup(product, _products) {
           <label>Title<input name="name" value="${escapeHtml(product.name)}" required autocomplete="off"></label>
           <label>Price<input name="price" type="number" min="0" step="0.01" value="${escapeHtml(((product.priceCents || 0) / 100).toFixed(2))}" required></label>
           <label>Category<select name="category" required>${categorySelect(product.category)}</select></label>
+          <label>Market<select name="market">
+            <option value="CA" ${(product.market || product.productSpecs?.market || "CA") === "CA" ? "selected" : ""}>Canada</option>
+            <option value="US" ${(product.market || product.productSpecs?.market || "CA") === "US" ? "selected" : ""}>USA</option>
+          </select></label>
           <label>Condition<select name="condition">${conditionSelect(product)}</select></label>
           <label>Quantity<input name="quantityOnHand" type="number" min="0" step="1" value="${escapeHtml(product.quantityOnHand ?? 0)}"></label>
           <label>Fulfillment<select name="fulfillmentType">
@@ -1046,7 +1182,7 @@ function alertLeadName(lead) {
 }
 
 function saveCart() {
-  localStorage.setItem("dealerCart", JSON.stringify(cart));
+  localStorage.setItem(cartStorageKey(), JSON.stringify(cart));
   updateCartCount();
 }
 
@@ -1139,6 +1275,14 @@ function normalizePostalCode(value) {
   return String(value || "").trim().toUpperCase();
 }
 
+function defaultCountryForMarket() {
+  return currentMarket === "US" ? "United States" : "Canada";
+}
+
+function defaultRegionForMarket() {
+  return currentMarket === "US" ? "" : "ON";
+}
+
 function parseQuickAddress(value) {
   const original = String(value || "").replace(/\s+/g, " ").trim();
   if (!original) return null;
@@ -1174,6 +1318,89 @@ function fillCheckoutAddress() {
   return Boolean(parsed.address1 || parsed.city || parsed.postalCode);
 }
 
+function addressFields(prefix = "") {
+  const form = document.querySelector("#checkoutForm");
+  const field = (name) => form?.elements[`${prefix}${name}`];
+  return {
+    recipientName: field("recipientName"),
+    company: field("company"),
+    phone: field("phone"),
+    email: field("email"),
+    address1: field("address1"),
+    address2: field("address2"),
+    city: field("city"),
+    region: field("region"),
+    postalCode: field("postalCode"),
+    country: field("country")
+  };
+}
+
+function populateAddressFields(prefix = "", address = {}) {
+  const fields = addressFields(prefix);
+  Object.entries(fields).forEach(([key, input]) => {
+    if (!input) return;
+    input.value = address[key] ?? input.value ?? "";
+  });
+}
+
+function syncCheckoutAddressBook() {
+  const wrap = document.querySelector("#savedAddressWrap");
+  const select = document.querySelector("#savedAddressSelect");
+  const addresses = Array.isArray(sessionUser?.savedAddresses) ? sessionUser.savedAddresses.filter((address) => (address.market || currentMarket) === currentMarket) : [];
+  if (!wrap || !select) return;
+  wrap.classList.toggle("hidden", !addresses.length);
+  select.innerHTML = `<option value="">Choose a saved address</option>${addresses.map((address) => `<option value="${escapeHtml(address.id)}">${escapeHtml(address.label || address.address1 || address.city || "Saved address")}</option>`).join("")}`;
+}
+
+function applySavedAddress(addressId) {
+  if (!addressId) return;
+  const address = (sessionUser?.savedAddresses || []).find((entry) => String(entry.id) === String(addressId));
+  if (!address) return;
+  populateAddressFields("", address);
+  const form = document.querySelector("#checkoutForm");
+  if (form?.elements.deliveryWindow) form.elements.deliveryWindow.value = address.deliveryWindow || form.elements.deliveryWindow.value;
+  if (form?.elements.receivingInstructions) form.elements.receivingInstructions.value = address.receivingInstructions || form.elements.receivingInstructions.value;
+}
+
+function applyCheckoutDefaults() {
+  const form = document.querySelector("#checkoutForm");
+  if (!form) return;
+  if (form.elements.country && !form.elements.country.value) form.elements.country.value = defaultCountryForMarket();
+  if (form.elements.region && !form.elements.region.value) form.elements.region.value = defaultRegionForMarket();
+  if (form.elements.billingCountry && !form.elements.billingCountry.value) form.elements.billingCountry.value = defaultCountryForMarket();
+  if (sessionUser) {
+    if (form.elements.recipientName && !form.elements.recipientName.value) form.elements.recipientName.value = sessionUser.contactName || "";
+    if (form.elements.company && !form.elements.company.value) form.elements.company.value = sessionUser.company || "";
+    if (form.elements.phone && !form.elements.phone.value) form.elements.phone.value = sessionUser.phone || "";
+    if (form.elements.email && !form.elements.email.value) form.elements.email.value = sessionUser.email || "";
+  }
+  syncCheckoutAddressBook();
+}
+
+function updateBillingVisibility() {
+  const billingBlock = document.querySelector("#billingAddressBlock");
+  const sameCheckbox = document.querySelector("#billingSameCheckbox");
+  if (!billingBlock || !sameCheckbox) return;
+  billingBlock.classList.toggle("hidden", sameCheckbox.checked);
+}
+
+function updateCheckoutFulfillmentCopy() {
+  const form = document.querySelector("#checkoutForm");
+  const notice = document.querySelector(".checkout-notice span");
+  const fulfillment = form?.elements.fulfillmentMethod?.value || "pickup";
+  if (!form || !notice) return;
+  if (fulfillment === "pickup") {
+    form.elements.address1.value = form.elements.address1.value || "Pickup in Mississauga";
+    form.elements.city.value = form.elements.city.value || "Mississauga";
+    form.elements.region.value = form.elements.region.value || "ON";
+    form.elements.country.value = form.elements.country.value || "Canada";
+    form.elements.deliveryWindow.value = form.elements.deliveryWindow.value || "Contact customer to arrange pickup";
+    notice.textContent = "Choose pickup details, contact information, and payment method.";
+  } else {
+    notice.textContent = "Add the shipping address, delivery instructions, and billing details if different.";
+  }
+}
+
 function renderCart() {
   const items = cartProducts();
   const cartItems = document.querySelector("#cartItems");
@@ -1181,9 +1408,12 @@ function renderCart() {
   const checkoutMessage = document.querySelector("#checkoutMessage");
   if (checkoutMessage) checkoutMessage.textContent = "";
   if (!items.length) {
-    cartItems.innerHTML = `<p>Your cart is empty. Pick an item to reserve.</p>`;
+    cartItems.innerHTML = `<p>Your cart is empty. Add an item to start checkout.</p>`;
     cartSubtotal.textContent = "$0.00";
     updateCheckoutPaymentOptions(items);
+    applyCheckoutDefaults();
+    updateBillingVisibility();
+    updateCheckoutFulfillmentCopy();
     return;
   }
   cartItems.innerHTML = items.map(({ product, quantity }) => `
@@ -1203,6 +1433,9 @@ function renderCart() {
   `).join("");
   cartSubtotal.textContent = money(items.reduce((sum, item) => sum + item.product.priceCents * item.quantity, 0));
   updateCheckoutPaymentOptions(items);
+  applyCheckoutDefaults();
+  updateBillingVisibility();
+  updateCheckoutFulfillmentCopy();
 }
 
 function facebookListingText(product) {
@@ -1563,13 +1796,15 @@ function applyStoreModeCopy(canSeePrices = false) {
   const dealerMode = currentStoreMode === "dealer";
   const shopperMode = currentStoreMode === "shopper";
   if (storeEyebrow) storeEyebrow.textContent = dealerMode ? "Dealer pricing" : shopperMode ? "Shopper account" : "Public deals";
-  if (storeHeading) storeHeading.textContent = dealerMode ? "Dealer products" : shopperMode ? "Shopper products" : "Shop available inventory.";
+  if (storeHeading) storeHeading.textContent = dealerMode ? "Dealer products" : shopperMode ? "Shopper products" : currentMarket === "US" ? "Shop USA inventory." : "Shop available inventory.";
   if (storeHeroCopy) {
     storeHeroCopy.textContent = dealerMode
       ? "Search inventory and open the products you want."
       : shopperMode
         ? "Search inventory and add the products you want."
-        : "Search inventory, check the details, and reserve the products you want.";
+        : currentMarket === "US"
+          ? "Search separate United States inventory, open the products you want, and send a full checkout request."
+          : "Search inventory, check the details, and reserve the products you want.";
   }
   if (priceNote) {
     priceNote.textContent = dealerMode
@@ -1578,7 +1813,9 @@ function applyStoreModeCopy(canSeePrices = false) {
         ? "Shopper account is active. Public pricing is shown here for checkout and saved activity."
         : (canSeePrices
         ? "Account pricing is visible on your approved account."
-        : "Reserve products online and finish pickup details in the cart.");
+        : currentMarket === "US"
+          ? "Add products to cart, enter shipping details, and send a checkout request for the USA store."
+          : "Reserve products online and finish pickup or shipping details in the cart.");
   }
   if (shareCatalogButton) {
     shareCatalogButton.textContent = dealerMode ? "Share dealer page" : shopperMode ? "Share shopper page" : "Share catalog";
@@ -1647,6 +1884,7 @@ function populateProductFormFromImport(listing, quantityOnHand = 1) {
 async function loadProducts(mode = currentStoreMode) {
   currentStoreMode = mode || "store";
   document.body.dataset.storeMode = currentStoreMode;
+  document.body.dataset.market = currentMarket;
   if (productsRequest) return productsRequest;
   if (productCache.length) {
     applyStoreModeCopy(Boolean(sessionUser?.canSeePrices));
@@ -1658,7 +1896,7 @@ async function loadProducts(mode = currentStoreMode) {
   }
   productGrid.innerHTML = loadingCards();
   productsRequest = withStatus("Loading products...", async () => {
-    const data = await api("/api/products");
+    const data = await api(`/api/products?market=${encodeURIComponent(currentMarket)}`);
     productCache = data.products;
     renderStoreCategories(productCache);
     renderStoreHero(productCache);
@@ -1699,9 +1937,11 @@ async function loadSession() {
   await withStatus("Checking session...", async () => {
     const data = await api("/api/session");
     sessionUser = data.user;
+    cart = loadCartFromStorage();
     consentState = data.consent || consentState;
     updateNav();
     updateConsentBanner();
+    applyCheckoutDefaults();
   });
 }
 
@@ -1746,22 +1986,24 @@ async function loadAdmin() {
     if (adminVisitorFilters.country) visitorQuery.set("country", adminVisitorFilters.country);
     if (adminVisitorFilters.deviceType) visitorQuery.set("deviceType", adminVisitorFilters.deviceType);
     if (adminVisitorFilters.path) visitorQuery.set("path", adminVisitorFilters.path);
-    const [products, summary, visitors, users, facebookBridge] = await Promise.all([
+    const [products, summary, visitors, users, amazonResearch, facebookBridge] = await Promise.all([
       api("/api/admin/products"),
       api("/api/admin/summary"),
       api(`/api/admin/visitors${visitorQuery.toString() ? `?${visitorQuery}` : ""}`),
       api("/api/admin/users"),
+      api("/api/admin/amazon-research"),
       api("/api/admin/facebook-bridge/accounts").catch(() => ({ configured: false, accounts: [] }))
     ]);
-    return { products, summary, visitors, users, facebookBridge };
+    return { products, summary, visitors, users, amazonResearch, facebookBridge };
   });
-  const { products, summary, visitors, users, facebookBridge } = await adminRequest;
+  const { products, summary, visitors, users, amazonResearch, facebookBridge } = await adminRequest;
   adminRequest = null;
 
   adminSummary = summary;
   visitorAnalytics = visitors;
   recentVisitors = visitors.recentVisitors || [];
   adminUsersCache = users.users || [];
+  amazonResearchData = amazonResearch;
   adminProductsCache = products.products;
   facebookBridgeAccounts = facebookBridge.accounts || [];
   facebookBridgeConfigured = Boolean(facebookBridge.configured);
@@ -1770,6 +2012,7 @@ async function loadAdmin() {
   }
   renderAdminMetrics(adminSummary);
   renderAdminUsers(adminUsersCache);
+  renderAmazonResearch(amazonResearchData);
   renderVisitorAnalyticsSummary(visitorAnalytics);
   renderVisitorHourlyChart(visitorAnalytics);
   renderVisitorActivity(recentVisitors);
@@ -1941,6 +2184,16 @@ document.addEventListener("click", async (event) => {
     setTimeout(() => {
       button.textContent = original;
     }, 1000);
+    return;
+  }
+
+  const deleteAmazonResearchId = event.target.closest("[data-delete-amazon-research]")?.dataset.deleteAmazonResearch;
+  if (deleteAmazonResearchId) {
+    if (!window.confirm("Remove this tracked Amazon research item?")) return;
+    await withStatus("Removing research item...", async () => {
+      await api(`/api/admin/amazon-research/items/${deleteAmazonResearchId}`, { method: "DELETE" });
+    });
+    await loadAmazonResearch();
     return;
   }
 
@@ -2477,7 +2730,13 @@ document.querySelector("#storeSearchButton")?.addEventListener("click", () => {
   const value = String(storeSearch.value || "").trim();
   if (value) trackEvent("search", { label: value, value });
 });
-document.querySelector("#checkoutForm")?.elements.fulfillmentMethod?.addEventListener("change", () => updateCheckoutPaymentOptions());
+document.querySelector("#checkoutForm")?.elements.fulfillmentMethod?.addEventListener("change", () => {
+  updateCheckoutPaymentOptions();
+  updateCheckoutFulfillmentCopy();
+});
+document.querySelector("#checkoutForm")?.elements.paymentMethod?.addEventListener("change", () => updateCheckoutPaymentOptions());
+document.querySelector("#savedAddressSelect")?.addEventListener("change", (event) => applySavedAddress(event.target.value));
+document.querySelector("#billingSameCheckbox")?.addEventListener("change", updateBillingVisibility);
 document.querySelector("#fillAddressBtn")?.addEventListener("click", () => {
   const message = document.querySelector("#checkoutMessage");
   const filled = fillCheckoutAddress();
@@ -2633,6 +2892,7 @@ document.querySelector("#checkoutForm").addEventListener("submit", async (event)
   const restore = setButtonBusy(submitButton, "Submitting...");
   const form = new FormData(event.target);
   const body = {
+    market: currentMarket,
     items: cart.map((item) => ({ productId: item.productId, quantity: item.quantity })),
     shipTo: {
       fulfillmentMethod: form.get("fulfillmentMethod"),
@@ -2649,9 +2909,25 @@ document.querySelector("#checkoutForm").addEventListener("submit", async (event)
       country: form.get("country"),
       deliveryWindow: form.get("deliveryWindow"),
       receivingInstructions: form.get("receivingInstructions"),
+      label: form.get("addressLabel"),
       residentialAddress: form.has("residentialAddress"),
       liftgateRequired: form.has("liftgateRequired"),
       contactBeforeDelivery: form.has("contactBeforeDelivery")
+    },
+    billingSameAsShipping: form.has("billingSameAsShipping"),
+    saveAddress: form.has("saveAddress"),
+    addressLabel: form.get("addressLabel"),
+    billingAddress: {
+      recipientName: form.get("billingRecipientName"),
+      company: form.get("billingCompany"),
+      phone: form.get("billingPhone"),
+      email: form.get("billingEmail"),
+      address1: form.get("billingAddress1"),
+      address2: form.get("billingAddress2"),
+      city: form.get("billingCity"),
+      region: form.get("billingRegion"),
+      postalCode: form.get("billingPostalCode"),
+      country: form.get("billingCountry")
     },
     note: form.get("note")
   };
@@ -2663,11 +2939,41 @@ document.querySelector("#checkoutForm").addEventListener("submit", async (event)
     }));
     cart = [];
     saveCart();
+    if (sessionUser && body.saveAddress) {
+      sessionUser.savedAddresses = Array.isArray(sessionUser.savedAddresses) ? sessionUser.savedAddresses : [];
+      sessionUser.savedAddresses = [
+        ...sessionUser.savedAddresses.filter((address) => String(address.label || "") !== String(body.addressLabel || "")),
+        {
+          id: crypto?.randomUUID?.() || `${Date.now()}`,
+          label: body.addressLabel || "Shipping",
+          recipientName: body.shipTo.recipientName,
+          company: body.shipTo.company,
+          phone: body.shipTo.phone,
+          email: body.shipTo.email,
+          address1: body.shipTo.address1,
+          address2: body.shipTo.address2,
+          city: body.shipTo.city,
+          region: body.shipTo.region,
+          postalCode: body.shipTo.postalCode,
+          country: body.shipTo.country,
+          deliveryWindow: body.shipTo.deliveryWindow,
+          receivingInstructions: body.shipTo.receivingInstructions,
+          residentialAddress: body.shipTo.residentialAddress,
+          liftgateRequired: body.shipTo.liftgateRequired,
+          contactBeforeDelivery: body.shipTo.contactBeforeDelivery,
+          market: currentMarket
+        }
+      ];
+    }
     renderCart();
     event.target.reset();
-    event.target.elements.country.value = "Canada";
-    if (event.target.elements.contactBeforeDelivery) event.target.elements.contactBeforeDelivery.value = "on";
-    message.textContent = `Request #${data.orderId} sent. We will contact you to finish pickup.`;
+    event.target.elements.country.value = defaultCountryForMarket();
+    if (event.target.elements.contactBeforeDelivery) event.target.elements.contactBeforeDelivery.checked = true;
+    if (event.target.elements.billingSameAsShipping) event.target.elements.billingSameAsShipping.checked = true;
+    updateBillingVisibility();
+    updateCheckoutFulfillmentCopy();
+    syncCheckoutAddressBook();
+    message.textContent = `Request #${data.orderId} sent. We will contact you to finish ${body.shipTo.fulfillmentMethod === "ship" ? "shipping" : "pickup"}.`;
   } catch (error) {
     message.textContent = error.message;
   } finally {
@@ -2764,6 +3070,29 @@ document.querySelector("#bulkProductForm")?.addEventListener("submit", async (ev
 
 document.querySelector("#addBulkRowButton")?.addEventListener("click", () => {
   appendBulkNewRow();
+});
+
+document.querySelector("#amazonResearchForm")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.target;
+  const message = document.querySelector("#amazonResearchMessage");
+  const submitButton = form.querySelector("button[type='submit']");
+  const restore = setButtonBusy(submitButton, "Saving...");
+  if (message) message.textContent = "";
+  try {
+    await withStatus("Saving Amazon research item...", () => api("/api/admin/amazon-research/items", {
+      method: "POST",
+      body: JSON.stringify(amazonResearchFormPayload(form))
+    }));
+    form.reset();
+    renderAmazonResearchCategoryOptions();
+    if (message) message.textContent = "Research item saved.";
+    await loadAmazonResearch();
+  } catch (error) {
+    if (message) message.textContent = error.message || "Could not save research item.";
+  } finally {
+    restore();
+  }
 });
 
 document.addEventListener("submit", async (event) => {

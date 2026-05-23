@@ -70,6 +70,8 @@
           <div class="menu-panel">
             <button class="nav-button" data-route="store">Store</button>
             <button class="nav-button" data-route="cart">Cart</button>
+            <a class="nav-button" href="/desktop">Shop Canada</a>
+            <a class="nav-button" href="/us">Shop USA</a>
             <button class="nav-button signed-out" data-route="login">Login</button>
             <button class="nav-button signed-out" data-route="register">Register</button>
             <a class="nav-button signed-out" href="/admin#login">Admin login</a>
@@ -91,11 +93,11 @@
     <section id="storeView" class="view">
       <section class="panel store-intro-strip">
         <div>
-          <p class="eyebrow">Local deals</p>
-          <h1>Reserve inventory fast and pick up in Mississauga.</h1>
-          <p class="store-intro-copy">Real products, visible pricing, and direct follow-up. Most items are local pickup, with select shippable inventory across Canada.</p>
+          <p class="eyebrow" id="storeEyebrow">Local deals</p>
+          <h1 id="storeHeading">Reserve inventory fast and pick up in Mississauga.</h1>
+          <p class="store-intro-copy" id="storeHeroCopy">Real products, visible pricing, and direct follow-up. Most items are local pickup, with select shippable inventory across Canada.</p>
         </div>
-        <div class="store-intro-points" aria-label="Why shoppers use this store">
+        <div class="store-intro-points" aria-label="Why shoppers use this store" id="storeIntroPoints">
           <span>Local pickup</span>
           <span>Pay on pickup</span>
           <span>Real inventory</span>
@@ -105,6 +107,13 @@
         <label class="store-search-label"><span>Search inventory</span><input id="storeSearch" type="search" placeholder="What do you want?"></label>
         <button class="store-search-button" id="storeSearchButton" type="button" aria-label="Search inventory">Find</button>
         <label class="store-category-label">Category<select id="storeCategory"><option value="">All categories</option></select></label>
+      </section>
+      <section class="store-departments" aria-label="Shop departments">
+        <div class="department-strip-head">
+          <strong>Shop by department</strong>
+          <span>Start broad, then narrow down fast.</span>
+        </div>
+        <div class="department-strip" id="categoryTiles"></div>
       </section>
       <div class="product-grid" id="productGrid"></div>
     </section>
@@ -182,8 +191,8 @@
     <section id="cartView" class="view hidden">
       <div class="section-head compact">
         <div>
-          <p class="eyebrow">Pickup checkout</p>
-          <h2>Reserve your item.</h2>
+          <p class="eyebrow">Checkout</p>
+          <h2>Choose delivery and enter your details.</h2>
         </div>
       </div>
       <div class="checkout-layout">
@@ -193,32 +202,77 @@
           <div class="cart-total"><span>Subtotal</span><strong id="cartSubtotal">$0.00</strong></div>
         </section>
         <form class="panel checkout-form" id="checkoutForm">
-          <h2>Pickup request</h2>
+          <h2>Customer and shipping details</h2>
           <div class="checkout-notice wide-field">
-            <strong>Mississauga pickup</strong>
-            <span>Send contact info. Pay by e-transfer or cash.</span>
+            <strong>Complete checkout request</strong>
+            <span>Choose pickup or shipping, add your delivery details, and save addresses for next time.</span>
           </div>
-          <input name="fulfillmentMethod" type="hidden" value="pickup">
-          <input name="paymentMethod" type="hidden" value="etransfer">
-          <input name="company" type="hidden" value="Individual">
-          <input name="address1" type="hidden" value="Pickup in Mississauga">
-          <input name="address2" type="hidden" value="">
-          <input name="city" type="hidden" value="Mississauga">
-          <input name="region" type="hidden" value="ON">
-          <input name="postalCode" type="hidden" value="Pickup">
-          <input name="country" type="hidden" value="Canada">
-          <input name="deliveryWindow" type="hidden" value="Contact customer to arrange pickup">
-          <input name="receivingInstructions" type="hidden" value="Contact before pickup">
-          <input name="contactBeforeDelivery" type="hidden" value="on">
-          <label>Full name<input name="recipientName" required autocomplete="name"></label>
-          <label>Phone<input name="phone" required autocomplete="tel"></label>
-          <label>Email<input name="email" type="email" required autocomplete="email"></label>
-          <label class="wide-field">Pickup note<textarea name="note" rows="2" placeholder="Best pickup time"></textarea></label>
+          <div class="simple-field-grid">
+            <label>Fulfillment
+              <select name="fulfillmentMethod" id="checkoutFulfillment">
+                <option value="pickup">Pickup</option>
+                <option value="ship">Ship</option>
+              </select>
+            </label>
+            <label>Payment
+              <select name="paymentMethod" id="checkoutPaymentMethod">
+                <option value="etransfer">E-transfer</option>
+                <option value="cash_pickup">Cash on pickup</option>
+                <option value="credit_card">Credit card</option>
+              </select>
+            </label>
+            <label class="wide-field hidden" id="savedAddressWrap">Saved address
+              <select id="savedAddressSelect">
+                <option value="">Choose a saved address</option>
+              </select>
+            </label>
+            <label>Full name<input name="recipientName" required autocomplete="name"></label>
+            <label>Company<input name="company" autocomplete="organization"></label>
+            <label>Phone<input name="phone" required autocomplete="tel"></label>
+            <label>Email<input name="email" type="email" required autocomplete="email"></label>
+          </div>
+          <div class="checkout-address-block">
+            <h3>Shipping or pickup location</h3>
+            <div class="simple-field-grid">
+              <label>Address line 1<input name="address1" required autocomplete="address-line1"></label>
+              <label>Address line 2<input name="address2" autocomplete="address-line2"></label>
+              <label>City<input name="city" required autocomplete="address-level2"></label>
+              <label>Province / State<input name="region" required autocomplete="address-level1"></label>
+              <label>Postal / ZIP code<input name="postalCode" required autocomplete="postal-code"></label>
+              <label>Country<input name="country" required autocomplete="country-name"></label>
+              <label>Preferred window<input name="deliveryWindow" required placeholder="Weekday mornings, after 5pm, etc."></label>
+              <label>Address label<input name="addressLabel" placeholder="Warehouse, Home, Office"></label>
+            </div>
+            <label class="wide-field">Receiving instructions<textarea name="receivingInstructions" rows="3" placeholder="Gate code, loading dock note, pickup contact, or anything we should know."></textarea></label>
+          </div>
+          <div class="checkout-flags wide-field">
+            <label><input type="checkbox" name="contactBeforeDelivery" checked> Contact before delivery or pickup</label>
+            <label><input type="checkbox" name="residentialAddress"> Residential address</label>
+            <label><input type="checkbox" name="liftgateRequired"> Liftgate required</label>
+            <label><input type="checkbox" name="saveAddress" id="saveAddressCheckbox"> Save this address to my account</label>
+            <label><input type="checkbox" name="billingSameAsShipping" id="billingSameCheckbox" checked> Billing address same as shipping</label>
+          </div>
+          <div class="checkout-address-block hidden" id="billingAddressBlock">
+            <h3>Billing address</h3>
+            <div class="simple-field-grid">
+              <label>Full name<input name="billingRecipientName" autocomplete="name"></label>
+              <label>Company<input name="billingCompany" autocomplete="organization"></label>
+              <label>Phone<input name="billingPhone" autocomplete="tel"></label>
+              <label>Email<input name="billingEmail" type="email" autocomplete="email"></label>
+              <label>Address line 1<input name="billingAddress1" autocomplete="address-line1"></label>
+              <label>Address line 2<input name="billingAddress2" autocomplete="address-line2"></label>
+              <label>City<input name="billingCity" autocomplete="address-level2"></label>
+              <label>Province / State<input name="billingRegion" autocomplete="address-level1"></label>
+              <label>Postal / ZIP code<input name="billingPostalCode" autocomplete="postal-code"></label>
+              <label>Country<input name="billingCountry" autocomplete="country-name"></label>
+            </div>
+          </div>
+          <label class="wide-field">Order note<textarea name="note" rows="2" placeholder="Anything about delivery timing, split shipment, or pickup preferences"></textarea></label>
           <div class="checkout-policy-note wide-field">
             <strong>Questions before pickup?</strong>
-            <span>Use the contact and policy links below for pickup details, shipping notes, and return guidance.</span>
+            <span>Use the contact and policy links below for shipping details, returns, and support information.</span>
           </div>
-          <button class="primary wide-field" type="submit">Reserve now</button>
+          <button class="primary wide-field" type="submit">Submit checkout request</button>
           <p class="form-message wide-field" id="checkoutMessage"></p>
         </form>
       </div>
@@ -288,6 +342,10 @@
                 <option>Toys & Games</option>
                 <option>Other</option>
               </select></label>
+              <label>Market<select name="market">
+                <option value="CA" selected>Canada</option>
+                <option value="US">USA</option>
+              </select></label>
               <label>Condition<select name="condition">
                 <option value="">Select condition</option>
                 <option value="Brand New In Box (BNIB)">Brand New In Box (BNIB)</option>
@@ -316,6 +374,73 @@
         </section>
       </div>
       <div id="adminMetrics" class="admin-metrics-strip"></div>
+      <section class="panel amazon-research-panel">
+        <div class="admin-workspace-head">
+          <div>
+            <p class="eyebrow">Amazon.ca affiliate focus</p>
+            <h2>Highest-value categories</h2>
+            <p class="admin-panel-subhead">Use this separate research lane to focus on the categories and products most likely to pay meaningful commission fast.</p>
+          </div>
+        </div>
+        <div id="amazonResearchSummary" class="amazon-research-summary"></div>
+        <div class="amazon-research-grid">
+          <section class="amazon-research-column">
+            <div class="panel amazon-research-list-card">
+              <div class="visitor-activity-list-head">
+                <strong>Focus first</strong>
+                <span>Best commission-dollar opportunities for limited time.</span>
+              </div>
+              <div id="amazonResearchFocusList" class="stack"></div>
+            </div>
+            <div class="panel amazon-research-list-card">
+              <div class="visitor-activity-list-head">
+                <strong>Avoid for now</strong>
+                <span>Low payout categories that usually waste effort.</span>
+              </div>
+              <div id="amazonResearchAvoidList" class="stack"></div>
+            </div>
+          </section>
+          <section class="amazon-research-column">
+            <form id="amazonResearchForm" class="amazon-research-form">
+              <div class="visitor-activity-list-head">
+                <strong>Track an Amazon item</strong>
+                <span>Save best sellers you want to prioritize and compare quickly.</span>
+              </div>
+              <div class="admin-form-grid compact-grid">
+                <label>Title<input name="titleSnapshot" required placeholder="Product title snapshot"></label>
+                <label>ASIN<input name="asin" placeholder="B000000000"></label>
+                <label>Amazon URL<input name="amazonUrl" type="url" required placeholder="https://www.amazon.ca/..."></label>
+                <label>Category<select name="category" id="amazonResearchCategory"><option value="">Select category</option></select></label>
+                <label>Sub-category<input name="subCategory" placeholder="Camping gear, safes, patio..."></label>
+                <label>Price snapshot (CAD)<input name="priceSnapshot" type="number" min="0" step="0.01" placeholder="399.99"></label>
+                <label>Rating<input name="ratingSnapshot" type="number" min="0" max="5" step="0.1" placeholder="4.6"></label>
+                <label>Review count<input name="reviewCountSnapshot" type="number" min="0" step="1" placeholder="5287"></label>
+                <label>Best seller rank<input name="bestSellerRankSnapshot" placeholder="#8 in carry bags"></label>
+                <label>Focus status<select name="focusStatus">
+                  <option value="focus">Focus</option>
+                  <option value="watch" selected>Watch</option>
+                  <option value="avoid">Avoid</option>
+                </select></label>
+              </div>
+              <label>Seasonality<input name="seasonality" placeholder="Spring, Q4, steady all year"></label>
+              <label>Sourcing fit<textarea name="sourcingFit" rows="2" placeholder="Why this fits your inventory lane or content lane"></textarea></label>
+              <label>Competition notes<textarea name="competitionNotes" rows="2" placeholder="How crowded or difficult this category feels"></textarea></label>
+              <label>Notes<textarea name="notes" rows="2" placeholder="What to test, what to source, or why this matters"></textarea></label>
+              <div class="row-actions">
+                <button class="primary" type="submit">Save research item</button>
+              </div>
+              <p class="form-message" id="amazonResearchMessage"></p>
+            </form>
+          </section>
+        </div>
+        <div class="panel amazon-research-items-card">
+          <div class="visitor-activity-list-head">
+            <strong>Tracked Amazon items</strong>
+            <span>Shortlist of best sellers and higher-commission items to focus on.</span>
+          </div>
+          <div id="amazonResearchItems" class="stack"></div>
+        </div>
+      </section>
       <section class="panel admin-users-panel">
         <div class="admin-workspace-head">
           <div>

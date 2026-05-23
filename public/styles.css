@@ -730,6 +730,27 @@ button.button-busy {
   padding: 10px 12px;
 }
 
+.store-departments {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.department-strip-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.department-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
 .store-search-label,
 .store-category-label {
   display: grid;
@@ -1781,6 +1802,7 @@ h2 {
 .checkout-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .checkout-form .wide-field {
@@ -1800,6 +1822,19 @@ h2 {
 
 .checkout-notice strong {
   color: var(--accent-dark);
+}
+
+.checkout-address-block {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.checkout-address-block h3 {
+  margin: 0;
 }
 
 .secure-checkout-strip {
@@ -4278,5 +4313,90 @@ body:not(.user-signed-in) main {
   .site-footer {
     align-items: stretch;
     text-align: left;
+  }
+}
+.amazon-research-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.amazon-research-summary {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.amazon-research-summary .visitor-summary-card small {
+  color: #5f6b7a;
+  font-size: 12px;
+}
+
+.amazon-research-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+}
+
+.amazon-research-column,
+.amazon-research-list-card,
+.amazon-research-items-card,
+.amazon-research-form {
+  display: grid;
+  gap: 12px;
+}
+
+.amazon-research-form .compact-grid {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.amazon-opportunity-item.tone-focus {
+  border-left: 4px solid #ffb347;
+}
+
+.amazon-opportunity-item.tone-avoid {
+  border-left: 4px solid #d4d9df;
+}
+
+.amazon-tracked-item {
+  grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr) minmax(0, 1.5fr) auto;
+  align-items: start;
+}
+
+.amazon-tracked-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.amazon-tracked-actions a,
+.amazon-tracked-actions button {
+  border: 1px solid #c8d2dc;
+  background: #fff;
+  color: #16202a;
+  font: inherit;
+  padding: 8px 12px;
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+}
+
+.amazon-tracked-actions button:hover,
+.amazon-tracked-actions a:hover {
+  border-color: #ffb347;
+}
+
+@media (max-width: 900px) {
+  .amazon-research-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .amazon-tracked-item {
+    grid-template-columns: 1fr;
+  }
+
+  .amazon-tracked-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
   }
 }

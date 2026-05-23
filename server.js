@@ -47,6 +47,8 @@ const TELEGRAM_PROJECT_NAME = process.env.TELEGRAM_PROJECT_NAME || "selltomakemo
 const COUNTRY_NAMES = typeof Intl?.DisplayNames === "function"
   ? new Intl.DisplayNames(["en"], { type: "region" })
   : null;
+const SUPPORTED_MARKETS = new Set(["CA", "US"]);
+const DEFAULT_MARKET = "CA";
 const CANADA_PROVINCES = {
   AB: "Alberta",
   BC: "British Columbia",
@@ -87,6 +89,245 @@ const PRODUCT_CATEGORIES = [
   "Toys & Games",
   "Other"
 ];
+const AMAZON_CA_CATEGORY_OPPORTUNITIES = [
+  {
+    category: "Furniture",
+    commissionRate: 0.06,
+    averagePriceBand: "High",
+    averagePriceLow: 300,
+    averagePriceHigh: 1500,
+    sourcingFit: 5,
+    competition: "Medium",
+    speedNotes: "Big-ticket home items can produce strong dollars per sale with fewer conversions.",
+    whyFocus: "Strong blend of 6% commission and high average order value."
+  },
+  {
+    category: "Home Improvement",
+    commissionRate: 0.06,
+    averagePriceBand: "Medium-High",
+    averagePriceLow: 150,
+    averagePriceHigh: 900,
+    sourcingFit: 5,
+    competition: "Medium",
+    speedNotes: "Great for tools, shop, storage, and upgrade items that solve immediate problems.",
+    whyFocus: "Reliable demand and solid commission dollars per conversion."
+  },
+  {
+    category: "Patio, Lawn & Garden",
+    commissionRate: 0.06,
+    averagePriceBand: "Medium-High",
+    averagePriceLow: 120,
+    averagePriceHigh: 1200,
+    sourcingFit: 4,
+    competition: "Medium",
+    speedNotes: "Seasonal but high-value when weather is on your side.",
+    whyFocus: "Good payout per sale and easy seasonal merchandising."
+  },
+  {
+    category: "Outdoor Recreation",
+    commissionRate: 0.06,
+    averagePriceBand: "Medium-High",
+    averagePriceLow: 150,
+    averagePriceHigh: 1500,
+    sourcingFit: 4,
+    competition: "Medium",
+    speedNotes: "Camping, riding, and recreation gear can pay well without huge volume.",
+    whyFocus: "Healthy commission rate with plenty of higher-ticket products."
+  },
+  {
+    category: "Major Appliances",
+    commissionRate: 0.05,
+    averagePriceBand: "High",
+    averagePriceLow: 500,
+    averagePriceHigh: 2500,
+    sourcingFit: 4,
+    competition: "High",
+    speedNotes: "Fewer sales are needed because one conversion can be worth a lot.",
+    whyFocus: "5% of a large-ticket item adds up fast."
+  },
+  {
+    category: "Luggage",
+    commissionRate: 0.07,
+    averagePriceBand: "Medium",
+    averagePriceLow: 120,
+    averagePriceHigh: 500,
+    sourcingFit: 3,
+    competition: "Medium",
+    speedNotes: "Travel gear can convert well with clearer seasonal spikes.",
+    whyFocus: "7% commission makes luggage a good efficiency play."
+  },
+  {
+    category: "Luxury Beauty",
+    commissionRate: 0.1,
+    averagePriceBand: "Low-Medium",
+    averagePriceLow: 60,
+    averagePriceHigh: 300,
+    sourcingFit: 2,
+    competition: "High",
+    speedNotes: "Best rate, but usually smaller baskets and more competition.",
+    whyFocus: "Highest commission rate, so premium products can still pay nicely."
+  },
+  {
+    category: "Kitchen & Dining",
+    commissionRate: 0.04,
+    averagePriceBand: "Medium",
+    averagePriceLow: 60,
+    averagePriceHigh: 350,
+    sourcingFit: 4,
+    competition: "High",
+    speedNotes: "Popular but requires more volume to matter.",
+    whyFocus: "Still workable if you already have inventory or strong content."
+  },
+  {
+    category: "Computers, Tablets & Components",
+    commissionRate: 0.01,
+    averagePriceBand: "Medium-High",
+    averagePriceLow: 300,
+    averagePriceHigh: 2500,
+    sourcingFit: 2,
+    competition: "High",
+    speedNotes: "Usually not worth your limited time unless you have a unique advantage.",
+    whyFocus: "Low payout despite high prices."
+  },
+  {
+    category: "Grocery & Gourmet Food",
+    commissionRate: 0,
+    averagePriceBand: "Low",
+    averagePriceLow: 10,
+    averagePriceHigh: 80,
+    sourcingFit: 1,
+    competition: "High",
+    speedNotes: "Do not prioritize this for affiliate revenue.",
+    whyFocus: "Zero commission makes it a poor use of time."
+  }
+];
+
+function clampNumber(value, min, max, fallback = min) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
+}
+
+function normalizeMarket(value, fallback = DEFAULT_MARKET) {
+  const text = String(value || "").trim().toUpperCase();
+  return SUPPORTED_MARKETS.has(text) ? text : fallback;
+}
+
+function marketPathPrefix(market) {
+  return normalizeMarket(market) === "US" ? "/us" : "";
+}
+
+function routePrefixForMarket(market, mobile = false) {
+  const normalized = normalizeMarket(market);
+  if (normalized === "US") return mobile ? "/m/us" : "/us";
+  return mobile ? "/mobile" : "/desktop";
+}
+
+function productMarket(product, fallback = DEFAULT_MARKET) {
+  return normalizeMarket(product?.productSpecs?.market || product?.market, fallback);
+}
+
+function parseSavedAddresses(rawValue) {
+  if (Array.isArray(rawValue)) return rawValue;
+  const text = String(rawValue || "").trim();
+  if (!text) return [];
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function amazonOpportunityScore(opportunity) {
+  const commissionPoints = Math.round(Number(opportunity.commissionRate || 0) * 100);
+  const averageTicket = ((Number(opportunity.averagePriceLow || 0) + Number(opportunity.averagePriceHigh || 0)) / 2) || 0;
+  const valueScore = averageTicket >= 1200 ? 35
+    : averageTicket >= 700 ? 28
+    : averageTicket >= 350 ? 22
+    : averageTicket >= 150 ? 16
+    : 10;
+  const sourcingScore = clampNumber(opportunity.sourcingFit, 1, 5, 3) * 6;
+  const competitionPenalty = opportunity.competition === "High" ? -8 : opportunity.competition === "Medium" ? -4 : 0;
+  return Math.max(1, commissionPoints + valueScore + sourcingScore + competitionPenalty);
+}
+
+function currencyFromDollars(amount) {
+  const number = Number(amount);
+  return Number.isFinite(number) && number >= 0 ? Math.round(number * 100) : null;
+}
+
+function moneyFromCents(cents) {
+  if (cents == null || Number.isNaN(Number(cents))) return "";
+  return (Number(cents) / 100).toFixed(2);
+}
+
+function normalizeAmazonResearchItem(item = {}) {
+  const categoryName = String(item.category || "").trim();
+  const categoryOpportunity = AMAZON_CA_CATEGORY_OPPORTUNITIES.find((entry) => entry.category.toLowerCase() === categoryName.toLowerCase());
+  const commissionRate = categoryOpportunity?.commissionRate ?? clampNumber(item.commissionRate, 0, 1, 0.02);
+  const priceSnapshotCents = item.priceSnapshotCents ?? currencyFromDollars(item.priceSnapshot);
+  const estimatedCommissionCents = item.estimatedCommissionCents
+    ?? (priceSnapshotCents != null ? Math.round(priceSnapshotCents * commissionRate) : null);
+  const priorityBase = categoryOpportunity ? amazonOpportunityScore(categoryOpportunity) : 20;
+  const priceBonus = priceSnapshotCents != null ? Math.min(25, Math.round((priceSnapshotCents / 100) / 60)) : 0;
+  const reviewBonus = clampNumber(item.reviewCountSnapshot || 0, 0, 50000, 0) >= 500 ? 8 : clampNumber(item.reviewCountSnapshot || 0, 0, 50000, 0) >= 100 ? 4 : 0;
+  const ratingBonus = clampNumber(item.ratingSnapshot || 0, 0, 5, 0) >= 4.5 ? 6 : clampNumber(item.ratingSnapshot || 0, 0, 5, 0) >= 4 ? 3 : 0;
+  return {
+    asin: String(item.asin || "").trim().toUpperCase(),
+    titleSnapshot: String(item.titleSnapshot || item.title || "").trim(),
+    amazonUrl: String(item.amazonUrl || "").trim(),
+    category: categoryOpportunity?.category || categoryName || "Other",
+    subCategory: String(item.subCategory || "").trim(),
+    commissionRate,
+    priceSnapshotCents,
+    estimatedCommissionCents,
+    bestSellerRankSnapshot: String(item.bestSellerRankSnapshot || "").trim(),
+    reviewCountSnapshot: Number(item.reviewCountSnapshot || 0) || 0,
+    ratingSnapshot: Number(item.ratingSnapshot || 0) || 0,
+    seasonality: String(item.seasonality || "").trim(),
+    sourcingFit: String(item.sourcingFit || categoryOpportunity?.speedNotes || "").trim(),
+    competitionNotes: String(item.competitionNotes || categoryOpportunity?.competition || "").trim(),
+    focusStatus: ["focus", "watch", "avoid"].includes(String(item.focusStatus || "").trim().toLowerCase())
+      ? String(item.focusStatus || "").trim().toLowerCase()
+      : "watch",
+    notes: String(item.notes || "").trim(),
+    priorityScore: clampNumber(item.priorityScore, 1, 100, Math.min(100, priorityBase + priceBonus + reviewBonus + ratingBonus)),
+    primeEligible: item.primeEligible == null ? null : Boolean(item.primeEligible),
+    sourceType: String(item.sourceType || "").trim(),
+    sourceQuery: String(item.sourceQuery || "").trim(),
+    deliverySnapshot: String(item.deliverySnapshot || "").trim(),
+    createdAt: item.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function amazonResearchSummary(items = []) {
+  const scoredCategories = AMAZON_CA_CATEGORY_OPPORTUNITIES
+    .map((entry) => ({
+      ...entry,
+      score: amazonOpportunityScore(entry),
+      estimatedCommissionRange: `${Math.round(entry.averagePriceLow * entry.commissionRate)}-${Math.round(entry.averagePriceHigh * entry.commissionRate)}`
+    }))
+    .sort((a, b) => b.score - a.score);
+  const focusFirst = scoredCategories.slice(0, 5);
+  const avoidForNow = scoredCategories.slice(-3).reverse();
+  const focusItems = [...items]
+    .sort((a, b) => Number(b.priorityScore || 0) - Number(a.priorityScore || 0))
+    .slice(0, 8);
+  return {
+    categories: scoredCategories,
+    focusFirst,
+    avoidForNow,
+    focusItems,
+    totals: {
+      trackedItems: items.length,
+      focusItems: items.filter((item) => item.focusStatus === "focus").length,
+      watchItems: items.filter((item) => item.focusStatus === "watch").length,
+      estimatedCommissionDollars: items.reduce((sum, item) => sum + Number(item.estimatedCommissionCents || 0), 0) / 100
+    }
+  };
+}
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
@@ -574,7 +815,7 @@ function renameImagesForSeo(imageUrls, productName) {
 
 function emptyJsonStore() {
   return {
-    nextIds: { users: 1, products: 1, inquiries: 1, comparisons: 1, orders: 1, alertLeads: 1, bugReports: 1 },
+    nextIds: { users: 1, products: 1, inquiries: 1, comparisons: 1, orders: 1, alertLeads: 1, bugReports: 1, amazonResearchItems: 1 },
     users: [],
     products: [],
     inquiries: [],
@@ -582,6 +823,7 @@ function emptyJsonStore() {
     orders: [],
     alertLeads: [],
     bugReports: [],
+    amazonResearchItems: [],
     siteVisitors: [],
     productViews: [],
     siteVisitEvents: [],
@@ -602,10 +844,12 @@ function readJsonStore() {
   data.nextIds.orders ||= 1;
   data.nextIds.alertLeads ||= 1;
   data.nextIds.bugReports ||= 1;
+  data.nextIds.amazonResearchItems ||= 1;
   data.comparisons ||= [];
   data.orders ||= [];
   data.alertLeads ||= [];
   data.bugReports ||= [];
+  data.amazonResearchItems ||= [];
   data.siteVisitors ||= [];
   data.productViews ||= [];
   data.siteVisitEvents ||= [];
@@ -670,7 +914,7 @@ function createJsonDatabase() {
       return store.users.find((user) => user.email === email) || null;
     },
     async createUser(user) {
-      return insert("users", user);
+      return insert("users", { ...user, savedAddresses: normalizeSavedAddresses(user.savedAddresses || []) });
     },
     async createAlertLead(lead) {
       const cleanEmail = String(lead.email || "").toLowerCase().trim();
@@ -912,6 +1156,28 @@ function createJsonDatabase() {
         };
       }).sort((a, b) => Number(b.status === "pending") - Number(a.status === "pending"));
     },
+    async listAmazonResearchItems() {
+      return [...store.amazonResearchItems]
+        .map((item) => normalizeAmazonResearchItem(item))
+        .sort((a, b) => Number(b.priorityScore || 0) - Number(a.priorityScore || 0));
+    },
+    async createAmazonResearchItem(item) {
+      return insert("amazonResearchItems", normalizeAmazonResearchItem(item));
+    },
+    async updateAmazonResearchItem(id, changes) {
+      const item = store.amazonResearchItems.find((entry) => entry.id === Number(id));
+      if (!item) return null;
+      Object.assign(item, normalizeAmazonResearchItem({ ...item, ...changes, id: item.id, createdAt: item.createdAt }));
+      writeJsonStore(store);
+      return item;
+    },
+    async deleteAmazonResearchItem(id) {
+      const index = store.amazonResearchItems.findIndex((entry) => entry.id === Number(id));
+      if (index === -1) return false;
+      store.amazonResearchItems.splice(index, 1);
+      writeJsonStore(store);
+      return true;
+    },
     async updateUserStatus(id, status) {
       const user = store.users.find((item) => item.id === Number(id) && item.role !== "admin");
       if (!user) return null;
@@ -926,10 +1192,18 @@ function createJsonDatabase() {
       writeJsonStore(store);
       return user;
     },
-    async listProducts({ activeOnly = false, ownerUserId } = {}) {
+    async updateUserSavedAddresses(id, savedAddresses) {
+      const user = store.users.find((item) => item.id === Number(id));
+      if (!user) return null;
+      user.savedAddresses = normalizeSavedAddresses(savedAddresses);
+      writeJsonStore(store);
+      return user;
+    },
+    async listProducts({ activeOnly = false, ownerUserId, market } = {}) {
       const products = store.products.filter((product) => {
         if (activeOnly && !product.active) return false;
         if (ownerUserId != null && Number(product.ownerUserId || 0) !== Number(ownerUserId)) return false;
+        if (market && productMarket(product) !== normalizeMarket(market)) return false;
         return true;
       });
       return products.sort((a, b) => b.id - a.id);
@@ -937,11 +1211,11 @@ function createJsonDatabase() {
     async getProduct(id) {
       return store.products.find((product) => product.id === Number(id)) || null;
     },
-    async getProductsByIds(ids, { activeOnly = false } = {}) {
+    async getProductsByIds(ids, { activeOnly = false, market } = {}) {
       const orderedIds = ids.map(Number);
       const wanted = new Set(orderedIds);
       return store.products
-        .filter((product) => wanted.has(Number(product.id)) && (!activeOnly || product.active))
+        .filter((product) => wanted.has(Number(product.id)) && (!activeOnly || product.active) && (!market || productMarket(product) === normalizeMarket(market)))
         .sort((a, b) => orderedIds.indexOf(Number(a.id)) - orderedIds.indexOf(Number(b.id)));
     },
     async createProduct(product) {
@@ -1054,6 +1328,7 @@ function camelUser(row) {
     status: row.status,
     role: row.role,
     accountType: row.account_type || row.accountType || (row.role === "admin" ? "admin" : "shopper"),
+    savedAddresses: normalizeSavedAddresses(row.saved_addresses ?? row.savedAddresses ?? []),
     createdAt: row.created_at
   };
 }
@@ -1245,11 +1520,46 @@ function createPostgresDatabase() {
         ON CONFLICT (id) DO NOTHING
       `, [order.id, order.userId, JSON.stringify(order.items || []), JSON.stringify(order.shipTo || {}), order.subtotalCents || 0, order.status || "new", order.note || "", order.createdAt || new Date()]);
     }
+    for (const item of old.amazonResearchItems || []) {
+      const normalized = normalizeAmazonResearchItem(item);
+      await query(`
+        INSERT INTO amazon_research_items (
+          id, asin, title_snapshot, amazon_url, category, sub_category, commission_rate,
+          price_snapshot_cents, estimated_commission_cents, best_seller_rank_snapshot,
+          review_count_snapshot, rating_snapshot, seasonality, sourcing_fit,
+          competition_notes, focus_status, notes, priority_score, created_at, updated_at
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+        ON CONFLICT (id) DO NOTHING
+      `, [
+        item.id,
+        normalized.asin,
+        normalized.titleSnapshot,
+        normalized.amazonUrl,
+        normalized.category,
+        normalized.subCategory,
+        normalized.commissionRate,
+        normalized.priceSnapshotCents,
+        normalized.estimatedCommissionCents,
+        normalized.bestSellerRankSnapshot,
+        normalized.reviewCountSnapshot,
+        normalized.ratingSnapshot,
+        normalized.seasonality,
+        normalized.sourcingFit,
+        normalized.competitionNotes,
+        normalized.focusStatus,
+        normalized.notes,
+        normalized.priorityScore,
+        item.createdAt || new Date(),
+        item.updatedAt || new Date()
+      ]);
+    }
     await query("SELECT setval('users_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM users), 1), 1))");
     await query("SELECT setval('products_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM products), 1), 1))");
     await query("SELECT setval('inquiries_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM inquiries), 1), 1))");
     await query("SELECT setval('price_comparisons_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM price_comparisons), 1), 1))");
     await query("SELECT setval('orders_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM orders), 1), 1))");
+    await query("SELECT setval('amazon_research_items_id_seq', GREATEST(COALESCE((SELECT MAX(id) FROM amazon_research_items), 1), 1))");
   }
 
   return {
@@ -1406,6 +1716,28 @@ function createPostgresDatabase() {
           user_id INTEGER REFERENCES users(id),
           PRIMARY KEY (product_id, visitor_key)
         );
+        CREATE TABLE IF NOT EXISTS amazon_research_items (
+          id SERIAL PRIMARY KEY,
+          asin TEXT NOT NULL DEFAULT '',
+          title_snapshot TEXT NOT NULL DEFAULT '',
+          amazon_url TEXT NOT NULL DEFAULT '',
+          category TEXT NOT NULL DEFAULT '',
+          sub_category TEXT NOT NULL DEFAULT '',
+          commission_rate NUMERIC(6,4) NOT NULL DEFAULT 0.02,
+          price_snapshot_cents INTEGER,
+          estimated_commission_cents INTEGER,
+          best_seller_rank_snapshot TEXT NOT NULL DEFAULT '',
+          review_count_snapshot INTEGER NOT NULL DEFAULT 0,
+          rating_snapshot NUMERIC(3,2) NOT NULL DEFAULT 0,
+          seasonality TEXT NOT NULL DEFAULT '',
+          sourcing_fit TEXT NOT NULL DEFAULT '',
+          competition_notes TEXT NOT NULL DEFAULT '',
+          focus_status TEXT NOT NULL DEFAULT 'watch',
+          notes TEXT NOT NULL DEFAULT '',
+          priority_score INTEGER NOT NULL DEFAULT 20,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
         CREATE INDEX IF NOT EXISTS idx_products_upc ON products(upc);
         ALTER TABLE products ADD COLUMN IF NOT EXISTS brand TEXT NOT NULL DEFAULT '';
         ALTER TABLE products ADD COLUMN IF NOT EXISTS image_urls TEXT NOT NULL DEFAULT '[]';
@@ -1418,6 +1750,7 @@ function createPostgresDatabase() {
         ALTER TABLE alert_leads ADD COLUMN IF NOT EXISTS first_name TEXT NOT NULL DEFAULT '';
         ALTER TABLE alert_leads ADD COLUMN IF NOT EXISTS last_name TEXT NOT NULL DEFAULT '';
         ALTER TABLE users ADD COLUMN IF NOT EXISTS account_type TEXT NOT NULL DEFAULT 'shopper';
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS saved_addresses TEXT NOT NULL DEFAULT '[]';
         CREATE INDEX IF NOT EXISTS idx_products_search ON products USING gin(to_tsvector('english', name || ' ' || description || ' ' || sku || ' ' || upc || ' ' || brand));
         CREATE INDEX IF NOT EXISTS idx_price_comparisons_product ON price_comparisons(product_id);
         CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
@@ -1429,6 +1762,7 @@ function createPostgresDatabase() {
         CREATE INDEX IF NOT EXISTS idx_site_visit_events_path ON site_visit_events(path);
         CREATE INDEX IF NOT EXISTS idx_interaction_events_created ON interaction_events(created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_interaction_events_type ON interaction_events(type);
+        CREATE INDEX IF NOT EXISTS idx_amazon_research_priority ON amazon_research_items(priority_score DESC, updated_at DESC);
         ALTER TABLE site_visitors ADD COLUMN IF NOT EXISTS ip_address TEXT NOT NULL DEFAULT '';
         ALTER TABLE site_visitors ADD COLUMN IF NOT EXISTS city TEXT NOT NULL DEFAULT '';
         ALTER TABLE site_visitors ADD COLUMN IF NOT EXISTS region TEXT NOT NULL DEFAULT '';
@@ -1462,9 +1796,13 @@ function createPostgresDatabase() {
     },
     async createUser(user) {
       const result = await query(`
-        INSERT INTO users (email, password_hash, company, contact_name, phone, status, role, account_type)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *
-      `, [user.email, user.passwordHash, user.company, user.contactName, user.phone, user.status, user.role, normalizeAccountType(user.accountType, user.role === "admin" ? "admin" : "shopper")]);
+        INSERT INTO users (email, password_hash, company, contact_name, phone, status, role, account_type, saved_addresses)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *
+      `, [user.email, user.passwordHash, user.company, user.contactName, user.phone, user.status, user.role, normalizeAccountType(user.accountType, user.role === "admin" ? "admin" : "shopper"), JSON.stringify(normalizeSavedAddresses(user.savedAddresses || []))]);
+      return camelUser(result.rows[0]);
+    },
+    async updateUserSavedAddresses(id, savedAddresses) {
+      const result = await query("UPDATE users SET saved_addresses = $1 WHERE id = $2 RETURNING *", [JSON.stringify(normalizeSavedAddresses(savedAddresses)), id]);
       return camelUser(result.rows[0]);
     },
     async createAlertLead(lead) {
@@ -1780,6 +2118,139 @@ function createPostgresDatabase() {
         ORDER BY CASE WHEN status = 'pending' THEN 0 ELSE 1 END, created_at DESC
       `)).rows.map((row) => ({ ...camelUser(row), orderCount: row.orderCount, totalSpentCents: row.totalSpentCents, lastOrderAt: row.lastOrderAt, returningCustomer: row.returningCustomer }));
     },
+    async listAmazonResearchItems() {
+      return (await query(`
+        SELECT *
+        FROM amazon_research_items
+        ORDER BY priority_score DESC, updated_at DESC, created_at DESC
+      `)).rows.map((row) => normalizeAmazonResearchItem({
+        id: row.id,
+        asin: row.asin,
+        titleSnapshot: row.title_snapshot,
+        amazonUrl: row.amazon_url,
+        category: row.category,
+        subCategory: row.sub_category,
+        commissionRate: row.commission_rate,
+        priceSnapshotCents: row.price_snapshot_cents,
+        estimatedCommissionCents: row.estimated_commission_cents,
+        bestSellerRankSnapshot: row.best_seller_rank_snapshot,
+        reviewCountSnapshot: row.review_count_snapshot,
+        ratingSnapshot: row.rating_snapshot,
+        seasonality: row.seasonality,
+        sourcingFit: row.sourcing_fit,
+        competitionNotes: row.competition_notes,
+        focusStatus: row.focus_status,
+        notes: row.notes,
+        priorityScore: row.priority_score,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      }));
+    },
+    async createAmazonResearchItem(item) {
+      const normalized = normalizeAmazonResearchItem(item);
+      const result = await query(`
+        INSERT INTO amazon_research_items (
+          asin, title_snapshot, amazon_url, category, sub_category, commission_rate,
+          price_snapshot_cents, estimated_commission_cents, best_seller_rank_snapshot,
+          review_count_snapshot, rating_snapshot, seasonality, sourcing_fit,
+          competition_notes, focus_status, notes, priority_score, updated_at
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW())
+        RETURNING *
+      `, [
+        normalized.asin,
+        normalized.titleSnapshot,
+        normalized.amazonUrl,
+        normalized.category,
+        normalized.subCategory,
+        normalized.commissionRate,
+        normalized.priceSnapshotCents,
+        normalized.estimatedCommissionCents,
+        normalized.bestSellerRankSnapshot,
+        normalized.reviewCountSnapshot,
+        normalized.ratingSnapshot,
+        normalized.seasonality,
+        normalized.sourcingFit,
+        normalized.competitionNotes,
+        normalized.focusStatus,
+        normalized.notes,
+        normalized.priorityScore
+      ]);
+      return (await this.listAmazonResearchItems()).find((entry) => entry.id === result.rows[0].id) || null;
+    },
+    async updateAmazonResearchItem(id, changes) {
+      const existing = (await query("SELECT * FROM amazon_research_items WHERE id = $1", [id])).rows[0];
+      if (!existing) return null;
+      const normalized = normalizeAmazonResearchItem({
+        id: existing.id,
+        asin: existing.asin,
+        titleSnapshot: existing.title_snapshot,
+        amazonUrl: existing.amazon_url,
+        category: existing.category,
+        subCategory: existing.sub_category,
+        commissionRate: existing.commission_rate,
+        priceSnapshotCents: existing.price_snapshot_cents,
+        estimatedCommissionCents: existing.estimated_commission_cents,
+        bestSellerRankSnapshot: existing.best_seller_rank_snapshot,
+        reviewCountSnapshot: existing.review_count_snapshot,
+        ratingSnapshot: existing.rating_snapshot,
+        seasonality: existing.seasonality,
+        sourcingFit: existing.sourcing_fit,
+        competitionNotes: existing.competition_notes,
+        focusStatus: existing.focus_status,
+        notes: existing.notes,
+        priorityScore: existing.priority_score,
+        createdAt: existing.created_at,
+        updatedAt: existing.updated_at,
+        ...changes
+      });
+      await query(`
+        UPDATE amazon_research_items
+        SET asin = $1,
+            title_snapshot = $2,
+            amazon_url = $3,
+            category = $4,
+            sub_category = $5,
+            commission_rate = $6,
+            price_snapshot_cents = $7,
+            estimated_commission_cents = $8,
+            best_seller_rank_snapshot = $9,
+            review_count_snapshot = $10,
+            rating_snapshot = $11,
+            seasonality = $12,
+            sourcing_fit = $13,
+            competition_notes = $14,
+            focus_status = $15,
+            notes = $16,
+            priority_score = $17,
+            updated_at = NOW()
+        WHERE id = $18
+      `, [
+        normalized.asin,
+        normalized.titleSnapshot,
+        normalized.amazonUrl,
+        normalized.category,
+        normalized.subCategory,
+        normalized.commissionRate,
+        normalized.priceSnapshotCents,
+        normalized.estimatedCommissionCents,
+        normalized.bestSellerRankSnapshot,
+        normalized.reviewCountSnapshot,
+        normalized.ratingSnapshot,
+        normalized.seasonality,
+        normalized.sourcingFit,
+        normalized.competitionNotes,
+        normalized.focusStatus,
+        normalized.notes,
+        normalized.priorityScore,
+        id
+      ]);
+      return (await this.listAmazonResearchItems()).find((entry) => entry.id === Number(id)) || null;
+    },
+    async deleteAmazonResearchItem(id) {
+      const result = await query("DELETE FROM amazon_research_items WHERE id = $1", [id]);
+      return result.rowCount > 0;
+    },
     async updateUserStatus(id, status) {
       const result = await query("UPDATE users SET status = $1 WHERE id = $2 AND role != 'admin' RETURNING *", [status, id]);
       return camelUser(result.rows[0]);
@@ -1788,13 +2259,17 @@ function createPostgresDatabase() {
       const result = await query("UPDATE users SET account_type = $1 WHERE id = $2 AND role != 'admin' RETURNING *", [normalizeAccountType(accountType), id]);
       return camelUser(result.rows[0]);
     },
-    async listProducts({ activeOnly = false, ownerUserId } = {}) {
+    async listProducts({ activeOnly = false, ownerUserId, market } = {}) {
       const conditions = [];
       const params = [];
       if (activeOnly) conditions.push("active = true");
       if (ownerUserId != null) {
         params.push(Number(ownerUserId));
         conditions.push(`owner_user_id = $${params.length}`);
+      }
+      if (market) {
+        params.push(normalizeMarket(market));
+        conditions.push(`COALESCE(NULLIF((product_specs::jsonb ->> 'market'), ''), '${DEFAULT_MARKET}') = $${params.length}`);
       }
       const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
       const result = await query(`SELECT * FROM products ${where} ORDER BY id DESC`, params);
@@ -1803,11 +2278,18 @@ function createPostgresDatabase() {
     async getProduct(id) {
       return camelProduct((await query("SELECT * FROM products WHERE id = $1", [id])).rows[0]);
     },
-    async getProductsByIds(ids, { activeOnly = false } = {}) {
+    async getProductsByIds(ids, { activeOnly = false, market } = {}) {
       if (!ids.length) return [];
+      const conditions = [`id = ANY($1::int[])`];
+      const params = [ids];
+      if (activeOnly) conditions.push("active = true");
+      if (market) {
+        params.push(normalizeMarket(market));
+        conditions.push(`COALESCE(NULLIF((product_specs::jsonb ->> 'market'), ''), '${DEFAULT_MARKET}') = $${params.length}`);
+      }
       const result = await query(
-        `SELECT * FROM products WHERE id = ANY($1::int[]) ${activeOnly ? "AND active = true" : ""}`,
-        [ids]
+        `SELECT * FROM products WHERE ${conditions.join(" AND ")}`,
+        params
       );
       const byId = new Map(result.rows.map((row) => [Number(row.id), camelProduct(row)]));
       return ids.map(Number).map((id) => byId.get(id)).filter(Boolean);
@@ -2297,6 +2779,13 @@ async function visitorMetadata(req) {
   };
 }
 
+async function requestMarket(req) {
+  const hinted = normalizeLocation(headerLocationHints(req));
+  if (String(hinted.country || "").toLowerCase().includes("united states")) return "US";
+  if (String(hinted.country || "").toLowerCase().includes("canada")) return "CA";
+  return "CA";
+}
+
 async function backfillVisitorLocations(visitors = []) {
   const updates = [];
   for (const visitor of visitors) {
@@ -2346,18 +2835,19 @@ function isMobileRequest(req) {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(ua);
 }
 
-function appHtml(forcedView = "", entryRoute = "") {
+function appHtml(forcedView = "", entryRoute = "", entryMarket = DEFAULT_MARKET) {
   const indexPath = path.join(ROOT, "public", "index.html");
   const html = fs.readFileSync(indexPath, "utf8");
   const view = forcedView === "mobile" || forcedView === "desktop" ? forcedView : "";
   const forceScript = `<script>window.__FORCED_VIEW=${JSON.stringify(view)};</script>`;
   const routeScript = `<script>window.__ENTRY_ROUTE=${JSON.stringify(entryRoute || "")};</script>`;
+  const marketScript = `<script>window.__ENTRY_MARKET=${JSON.stringify(normalizeMarket(entryMarket))};</script>`;
   const verificationMeta = GOOGLE_SITE_VERIFICATION
     ? `\n<meta name="google-site-verification" content="${escapeHtml(GOOGLE_SITE_VERIFICATION)}">`
     : "";
-  const routeMeta = spaRouteMeta(entryRoute || "store");
+  const routeMeta = spaRouteMeta(entryRoute || "store", normalizeMarket(entryMarket));
   return html
-    .replace("<body>", `<body data-entry-view="${view || "auto"}">`)
+    .replace("<body>", `<body data-entry-view="${view || "auto"}" data-entry-market="${normalizeMarket(entryMarket)}">`)
     .replace('<meta name="description" content="Browse selltomakemoney.com for public deals, scooters, electronics, tools, and inventory finds with Mississauga pickup plus select shippable items across Canada.">', `<meta name="description" content="${escapeHtml(routeMeta.description)}">`)
     .replace('<meta name="keywords" content="selltomakemoney, Mississauga deals, local pickup, inventory finds, scooters, electronics, tools, online catalog, e-transfer, cash pickup">', `<meta name="keywords" content="${escapeHtml(routeMeta.keywords)}">`)
     .replace('<link rel="canonical" href="https://selltomakemoney.com/">', `<link rel="canonical" href="${escapeHtml(routeMeta.canonical)}">`)
@@ -2368,40 +2858,56 @@ function appHtml(forcedView = "", entryRoute = "") {
     .replace('<meta name="twitter:description" content="Shop public deals, inventory finds, Mississauga pickup, and select shippable items across Canada.">', `<meta name="twitter:description" content="${escapeHtml(routeMeta.twitterDescription)}">`)
     .replace('<title>selltomakemoney.com Store | Mississauga Deals and Inventory Finds</title>', `<title>${escapeHtml(routeMeta.title)}</title>`)
     .replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>\s*<script type="application\/ld\+json">[\s\S]*?<\/script>/, routeMeta.jsonLd)
-    .replace("</head>", `${verificationMeta}${forceScript}\n${routeScript}\n</head>`);
+    .replace("</head>", `${verificationMeta}${forceScript}\n${routeScript}\n${marketScript}\n</head>`);
 }
 
-function spaRouteMeta(entryRoute = "store") {
+function spaRouteMeta(entryRoute = "store", market = DEFAULT_MARKET) {
   const baseUrl = "https://selltomakemoney.com";
+  const normalizedMarket = normalizeMarket(market);
+  const isUs = normalizedMarket === "US";
+  const marketPrefix = marketPathPrefix(normalizedMarket);
+  const siteLabel = isUs ? "selltomakemoney.com USA" : "selltomakemoney.com";
+  const areaServed = isUs ? "United States" : "Canada";
+  const locality = isUs ? "United States" : "Mississauga";
+  const regionCode = isUs ? "US" : "ON";
+  const countryCode = isUs ? "US" : "CA";
   const organizationJsonLd = safeJsonScript({
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: "selltomakemoney.com",
-    url: `${baseUrl}/`,
-    areaServed: "Canada",
+    name: siteLabel,
+    url: `${baseUrl}${marketPrefix || "/"}`,
+    areaServed,
     address: {
       "@type": "PostalAddress",
-      addressLocality: "Mississauga",
-      addressRegion: "ON",
-      addressCountry: "CA"
+      addressLocality: locality,
+      addressRegion: regionCode,
+      addressCountry: countryCode
     },
     sameAs: [`${baseUrl}/catalog`]
   });
-  const sharedKeywords = "selltomakemoney, Mississauga deals, local pickup, inventory finds, online catalog, e-transfer, cash pickup";
+  const sharedKeywords = isUs
+    ? "selltomakemoney usa, online deals, usa inventory, shipped products, inventory finds, online catalog"
+    : "selltomakemoney, Mississauga deals, local pickup, inventory finds, online catalog, e-transfer, cash pickup";
   const routeMap = {
     store: {
-      canonical: `${baseUrl}/`,
-      title: "selltomakemoney.com Store | Mississauga Deals and Inventory Finds",
-      description: "Browse selltomakemoney.com for public deals, scooters, electronics, tools, and inventory finds with Mississauga pickup plus select shippable items across Canada.",
-      ogDescription: "Browse public prices, compare categories, and request checkout for Mississauga pickup or select shippable items across Canada.",
-      twitterTitle: "selltomakemoney.com Store | Mississauga Deals",
-      twitterDescription: "Shop public deals, inventory finds, Mississauga pickup, and select shippable items across Canada.",
+      canonical: `${baseUrl}${marketPrefix || "/"}`,
+      title: isUs ? "selltomakemoney.com USA | Inventory Deals and Shippable Finds" : "selltomakemoney.com Store | Mississauga Deals and Inventory Finds",
+      description: isUs
+        ? "Browse selltomakemoney.com USA for separate United States inventory, shipped products, and inventory finds curated for US buyers."
+        : "Browse selltomakemoney.com for public deals, scooters, electronics, tools, and inventory finds with Mississauga pickup plus select shippable items across Canada.",
+      ogDescription: isUs
+        ? "Browse the separate USA store with shippable inventory and product details for United States buyers."
+        : "Browse public prices, compare categories, and request checkout for Mississauga pickup or select shippable items across Canada.",
+      twitterTitle: isUs ? "selltomakemoney.com USA | Inventory Deals" : "selltomakemoney.com Store | Mississauga Deals",
+      twitterDescription: isUs
+        ? "Shop separate USA inventory, shipped products, and inventory finds for United States buyers."
+        : "Shop public deals, inventory finds, Mississauga pickup, and select shippable items across Canada.",
       keywords: `${sharedKeywords}, scooters, electronics, tools`,
       pageJsonLd: safeJsonScript({
         "@context": "https://schema.org",
         "@type": "WebSite",
-        name: "selltomakemoney.com",
-        url: `${baseUrl}/`,
+        name: siteLabel,
+        url: `${baseUrl}${marketPrefix || "/"}`,
         potentialAction: {
           "@type": "SearchAction",
           target: `${baseUrl}/catalog?search={search_term_string}`,
@@ -2483,62 +2989,72 @@ function spaRouteMeta(entryRoute = "store") {
 
 async function sendDesktopApp(req, res) {
   await recordSiteVisit(req, res, "/desktop");
-  res.type("html").send(appHtml("desktop", "store"));
+  res.type("html").send(appHtml("desktop", "store", "CA"));
 }
 
 async function sendMobileApp(req, res) {
   await recordSiteVisit(req, res, "/mobile");
-  res.type("html").send(appHtml("mobile", "store"));
+  res.type("html").send(appHtml("mobile", "store", "CA"));
+}
+
+async function sendUsDesktopApp(req, res) {
+  await recordSiteVisit(req, res, "/us");
+  res.type("html").send(appHtml("desktop", "store", "US"));
+}
+
+async function sendUsMobileApp(req, res) {
+  await recordSiteVisit(req, res, "/m/us");
+  res.type("html").send(appHtml("mobile", "store", "US"));
 }
 
 async function sendMobileListWithUsApp(req, res) {
   await recordSiteVisit(req, res, "/m/list-with-us");
-  res.type("html").send(appHtml("mobile", "sellwithus"));
+  res.type("html").send(appHtml("mobile", "sellwithus", "CA"));
 }
 
 async function sendDealerApp(req, res) {
   await recordSiteVisit(req, res, "/dealer");
-  res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "dealer"));
+  res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "dealer", "CA"));
 }
 
 async function sendMobileDealerApp(req, res) {
   await recordSiteVisit(req, res, "/m/dealer");
-  res.type("html").send(appHtml("mobile", "dealer"));
+  res.type("html").send(appHtml("mobile", "dealer", "CA"));
 }
 
 async function sendShopperApp(req, res) {
   await recordSiteVisit(req, res, "/shopper");
-  res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "shopper"));
+  res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "shopper", "CA"));
 }
 
 async function sendMobileShopperApp(req, res) {
   await recordSiteVisit(req, res, "/m/shopper");
-  res.type("html").send(appHtml("mobile", "shopper"));
+  res.type("html").send(appHtml("mobile", "shopper", "CA"));
 }
 
 async function sendSellerApp(req, res) {
   await recordSiteVisit(req, res, "/sell");
-  res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "seller"));
+  res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "seller", "CA"));
 }
 
 async function sendMobileSellerApp(req, res) {
   await recordSiteVisit(req, res, "/m/sell");
-  res.type("html").send(appHtml("mobile", "seller"));
+  res.type("html").send(appHtml("mobile", "seller", "CA"));
 }
 
 async function sendListWithUsApp(req, res) {
   await recordSiteVisit(req, res, "/list-with-us");
-  res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "sellwithus"));
+  res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "sellwithus", "CA"));
 }
 
 async function sendAdminApp(req, res) {
   await recordSiteVisit(req, res, "/admin");
-  res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "admin"));
+  res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "admin", "CA"));
 }
 
 async function sendAdminFacebookApp(req, res) {
   await recordSiteVisit(req, res, "/admin/facebookmobile");
-  res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "facebook"));
+  res.type("html").send(appHtml(isMobileRequest(req) ? "mobile" : "desktop", "facebook", "CA"));
 }
 
 async function sendCatalog(req, res) {
@@ -2907,12 +3423,12 @@ function productSlug(product) {
   return base || `product-${product.id}`;
 }
 
-function productPath(product) {
-  return `/products/${product.id}/${productSlug(product)}`;
+function productPath(product, market = productMarket(product)) {
+  return `${marketPathPrefix(market)}/products/${product.id}/${productSlug(product)}`;
 }
 
-function shortProductPath(product) {
-  return `/s/p/${product.id}`;
+function shortProductPath(product, market = productMarket(product)) {
+  return `${marketPathPrefix(market)}/s/p/${product.id}`;
 }
 
 function publicBaseUrl(req) {
@@ -2998,6 +3514,7 @@ function publicUser(user) {
     status: user.status,
     role: user.role,
     accountType: user.accountType || (user.role === "admin" ? "admin" : "shopper"),
+    savedAddresses: normalizeSavedAddresses(user.savedAddresses || []),
     canSeePrices: user.role === "admin" || (user.status === "approved" && (user.accountType || "shopper") === "dealer"),
     canListItems: user.role === "admin" || (user.status === "approved" && (user.accountType || "shopper") === "seller")
   };
@@ -3180,22 +3697,27 @@ function safeJsonScript(json) {
 async function sendProductPage(req, res) {
   const product = await db.getProduct(Number(req.params.id));
   if (!product || !product.active) return res.status(404).send("Product not found.");
+  const market = productMarket(product);
+  const routeWantsUs = String(req.path || "").toLowerCase().startsWith("/us/");
+  if ((market === "US" && !routeWantsUs) || (market !== "US" && routeWantsUs)) {
+    return res.redirect(302, productPath(product, market));
+  }
   await recordProductView(req, res, product.id);
   const metricsByProductId = await db.getProductMetrics([product.id]);
   const productMetrics = metricsByProductId[product.id] || { viewCount: 0, uniqueViewers: 0 };
   const user = await currentUser(req);
   const showDealerPricing = Boolean(user && (user.role === "admin" || (user.status === "approved" && (user.accountType || "shopper") === "dealer")));
   const baseUrl = publicBaseUrl(req).replace(/\/$/, "");
-  const canonicalPath = productPath(product);
+  const canonicalPath = productPath(product, market);
   const canonicalUrl = `${baseUrl}${canonicalPath}`;
-  const shortUrl = `${baseUrl}${shortProductPath(product)}`;
+  const shortUrl = `${baseUrl}${shortProductPath(product, market)}`;
   const currentYear = new Date().getFullYear();
   const imageUrls = [...new Set([...(product.imageUrls || []), product.imageUrl].filter(Boolean))];
   const mainImage = (imageUrls[0] || "");
   const absoluteImage = mainImage ? new URL(mainImage, baseUrl).toString() : "";
   const price = dollars(product.priceCents);
   const dealerPrice = showDealerPricing ? dollars(product.dealerPriceCents) : null;
-  const title = `${product.name} | ${price} | selltomakemoney.com`;
+  const title = `${product.name} | ${price} | ${market === "US" ? "selltomakemoney.com USA" : "selltomakemoney.com"}`;
   const description = `${product.brand ? `${product.brand} ` : ""}${product.name}. ${product.description || "Available from selltomakemoney.com."}`.slice(0, 155);
   const specs = productSpecsLines(product);
   const fulfillmentType = product.productSpecs?.fulfillmentType || "pickup_only";
@@ -3209,8 +3731,9 @@ async function sendProductPage(req, res) {
     createdAt: product.createdAt
   });
   const mobileRequest = isMobileRequest(req);
-  const homePath = mobileRequest ? "/mobile" : "/desktop";
+  const homePath = routePrefixForMarket(market, mobileRequest);
   const cartPath = `${homePath}#cart`;
+  const cartStorageKey = `dealerCart_${market}`;
   res.type("html").send(`<!doctype html>
 <html lang="en">
 <head>
@@ -3219,8 +3742,8 @@ async function sendProductPage(req, res) {
   <meta name="description" content="${escapeHtml(description)}">
   <meta name="keywords" content="${escapeHtml([product.name, product.brand, product.sku, product.upc, product.category, "selltomakemoney", "Mississauga pickup", "inventory deals"].filter(Boolean).join(", "))}">
   <meta name="robots" content="index,follow">
-  <meta name="geo.region" content="CA-ON">
-  <meta name="geo.placename" content="Mississauga">
+  <meta name="geo.region" content="${market === "US" ? "US" : "CA-ON"}">
+  <meta name="geo.placename" content="${market === "US" ? "United States" : "Mississauga"}">
   <link rel="canonical" href="${escapeHtml(canonicalUrl)}">
   <meta property="og:type" content="product">
   <meta property="og:site_name" content="selltomakemoney.com">
@@ -3313,11 +3836,11 @@ async function sendProductPage(req, res) {
     const galleryThumbs = Array.from(document.querySelectorAll('[data-product-thumb]'));
     const galleryMainImage = document.getElementById('productDetailMainImage');
     document.getElementById('productBuyNow')?.addEventListener('click', () => {
-      const cart = JSON.parse(localStorage.getItem('dealerCart') || '[]');
+      const cart = JSON.parse(localStorage.getItem('${cartStorageKey}') || '[]');
       const item = cart.find((entry) => Number(entry.productId) === ${Number(product.id)});
       if (item) item.quantity = Number(item.quantity || 0) + 1;
       else cart.push({ productId: ${Number(product.id)}, quantity: 1 });
-      localStorage.setItem('dealerCart', JSON.stringify(cart));
+      localStorage.setItem('${cartStorageKey}', JSON.stringify(cart));
       window.location.href = '${cartPath}';
     });
     if (galleryMainImage && galleryThumbs.length) {
@@ -3398,13 +3921,13 @@ async function requireSeller(req, res, next) {
   next();
 }
 
-async function productPayload(product, showPrice, includeAdminData = false, productMetrics = null) {
+async function productPayload(product, showPrice, includeAdminData = false, productMetrics = null, market = productMarket(product)) {
   const normalizedCategory = normalizeCategory(product.category, { fallback: "Other" });
   const metrics = productMetrics || { viewCount: 0, uniqueViewers: 0 };
   const payload = {
     id: product.id,
-    url: productPath(product),
-    shortUrl: shortProductPath(product),
+    url: productPath(product, market),
+    shortUrl: shortProductPath(product, market),
     name: product.name,
     sku: product.sku,
     upc: product.upc,
@@ -3415,6 +3938,7 @@ async function productPayload(product, showPrice, includeAdminData = false, prod
     imageUrls: product.imageUrls || (product.imageUrl ? [product.imageUrl] : []),
     productSpecs: includeAdminData ? (product.productSpecs || {}) : publicProductSpecs(product.productSpecs || {}),
     active: Boolean(product.active),
+    market: normalizeMarket(market),
     quantityOnHand: Number(product.quantityOnHand || 0),
     createdAt: product.createdAt || "",
     recommendedAddonIds: product.recommendedAddonIds || [],
@@ -3581,6 +4105,37 @@ function cleanPhone(value, label = "Phone", { required = true } = {}) {
   const digitCount = normalized.replace(/\D/g, "").length;
   if (digitCount < 10) throw new Error(`${label} must include at least 10 digits.`);
   return normalized.slice(0, 24);
+}
+
+function normalizeSavedAddress(address = {}, fallbackMarket = DEFAULT_MARKET) {
+  const market = normalizeMarket(address.market, fallbackMarket);
+  return {
+    id: String(address.id || crypto.randomUUID()),
+    label: cleanOptional(address.label || address.addressLabel || "Saved address", 80),
+    recipientName: cleanOptional(address.recipientName, 160),
+    company: cleanOptional(address.company, 160),
+    phone: cleanPhone(address.phone, "Phone", { required: false }),
+    email: cleanOptional(address.email, 160).toLowerCase(),
+    address1: cleanOptional(address.address1, 180),
+    address2: cleanOptional(address.address2, 180),
+    city: cleanOptional(address.city, 120),
+    region: cleanOptional(address.region, 120),
+    postalCode: cleanOptional(address.postalCode, 40),
+    country: cleanOptional(address.country || (market === "US" ? "United States" : "Canada"), 80),
+    deliveryWindow: cleanOptional(address.deliveryWindow, 160),
+    receivingInstructions: cleanOptional(address.receivingInstructions, 700),
+    residentialAddress: Boolean(address.residentialAddress),
+    liftgateRequired: Boolean(address.liftgateRequired),
+    contactBeforeDelivery: Boolean(address.contactBeforeDelivery),
+    market
+  };
+}
+
+function normalizeSavedAddresses(addresses = [], fallbackMarket = DEFAULT_MARKET) {
+  return (Array.isArray(addresses) ? addresses : [])
+    .map((address) => normalizeSavedAddress(address, fallbackMarket))
+    .filter((address) => address.recipientName || address.address1 || address.city || address.email)
+    .slice(0, 12);
 }
 
 function formatAccountTypeLabel(accountType) {
@@ -3952,6 +4507,7 @@ function productSpecsFromBody(body, fallback = {}) {
     material: cleanSpec(body.material ?? fallback.material),
     model: cleanSpec(body.model ?? fallback.model),
     condition: cleanCondition(body.condition, fallback.condition),
+    market: normalizeMarket(body.market ?? fallback.market ?? DEFAULT_MARKET),
     fulfillmentType: ["pickup_only", "ships_or_pickup"].includes(cleanSpec(body.fulfillmentType ?? fallback.fulfillmentType)) ? cleanSpec(body.fulfillmentType ?? fallback.fulfillmentType) : "pickup_only",
     cost: cleanSpec(body.cost ?? fallback.cost),
     sourceNotes: cleanSpec(body.sourceNotes ?? fallback.sourceNotes, 500),
@@ -3992,7 +4548,8 @@ async function buildOrder(req) {
     }
   }
   if (!quantitiesByProduct.size) throw new Error("Cart items are invalid.");
-  const products = await db.getProductsByIds([...quantitiesByProduct.keys()], { activeOnly: true });
+  const orderMarket = normalizeMarket(req.body.market || req.body.shipTo?.market || DEFAULT_MARKET);
+  const products = await db.getProductsByIds([...quantitiesByProduct.keys()], { activeOnly: true, market: orderMarket });
   if (products.length !== quantitiesByProduct.size) throw new Error("One or more cart items are no longer available.");
   const allItemsCanShip = products.every((product) => product.productSpecs?.fulfillmentType === "ships_or_pickup");
   const items = products.map((product) => {
@@ -4009,6 +4566,8 @@ async function buildOrder(req) {
     };
   });
   const ship = req.body.shipTo || {};
+  const billing = req.body.billingAddress || {};
+  const billingSameAsShipping = Boolean(req.body.billingSameAsShipping ?? true);
   const fulfillmentMethod = cleanRequired(ship.fulfillmentMethod, "Fulfillment method", 40);
   const paymentMethod = cleanRequired(ship.paymentMethod, "Payment method", 40);
   if (!["ship", "pickup"].includes(fulfillmentMethod)) throw new Error("Choose shipping or customer pickup.");
@@ -4018,30 +4577,58 @@ async function buildOrder(req) {
   if (paymentMethod === "credit_card" && (fulfillmentMethod !== "ship" || !allItemsCanShip)) {
     throw new Error("Credit card is available only for shipped orders where every item can be shipped.");
   }
+  const countryFallback = orderMarket === "US" ? "United States" : "Canada";
   const shipTo = {
     fulfillmentMethod,
     paymentMethod,
+    market: orderMarket,
     pickupLocation: fulfillmentMethod === "pickup" ? "Mississauga, Ontario" : "",
     recipientName: cleanRequired(ship.recipientName, "Recipient name"),
-    company: cleanRequired(ship.company, "Company"),
-    phone: cleanRequired(ship.phone, "Phone", 60),
-    email: cleanRequired(ship.email, "Email", 160),
-    address1: cleanRequired(ship.address1, "Address line 1"),
+    company: cleanOptional(ship.company, 160),
+    phone: cleanPhone(ship.phone, "Phone"),
+    email: cleanRequired(ship.email, "Email", 160).toLowerCase(),
+    address1: cleanRequired(ship.address1, fulfillmentMethod === "pickup" ? "Pickup location" : "Address line 1"),
     address2: cleanOptional(ship.address2, 180),
-    city: cleanRequired(ship.city, "City", 120),
+    city: cleanRequired(ship.city, fulfillmentMethod === "pickup" ? "Pickup city" : "City", 120),
     region: cleanRequired(ship.region, "Province/state", 120),
-    postalCode: cleanRequired(ship.postalCode, "Postal/ZIP code", 40),
-    country: cleanRequired(ship.country, "Country", 80),
+    postalCode: cleanRequired(ship.postalCode, fulfillmentMethod === "pickup" ? "Pickup postal code" : "Postal/ZIP code", 40),
+    country: cleanRequired(ship.country || countryFallback, "Country", 80),
     deliveryWindow: cleanRequired(ship.deliveryWindow, "Preferred delivery or pickup window", 160),
     receivingInstructions: cleanRequired(ship.receivingInstructions, "Receiving or pickup instructions", 700),
     liftgateRequired: Boolean(ship.liftgateRequired),
     residentialAddress: Boolean(ship.residentialAddress),
     contactBeforeDelivery: Boolean(ship.contactBeforeDelivery)
   };
+  const billingAddress = billingSameAsShipping
+    ? {
+        ...shipTo,
+        label: "Billing same as shipping",
+        pickupLocation: ""
+      }
+    : {
+        market: orderMarket,
+        recipientName: cleanRequired(billing.recipientName || ship.recipientName, "Billing recipient name"),
+        company: cleanOptional(billing.company || ship.company, 160),
+        phone: cleanPhone(billing.phone || ship.phone, "Billing phone"),
+        email: cleanRequired(billing.email || ship.email, "Billing email", 160).toLowerCase(),
+        address1: cleanRequired(billing.address1, "Billing address line 1"),
+        address2: cleanOptional(billing.address2, 180),
+        city: cleanRequired(billing.city, "Billing city", 120),
+        region: cleanRequired(billing.region, "Billing province/state", 120),
+        postalCode: cleanRequired(billing.postalCode, "Billing postal/ZIP code", 40),
+        country: cleanRequired(billing.country || countryFallback, "Billing country", 80)
+      };
+  const saveAddress = Boolean(req.body.saveAddress);
+  const addressLabel = cleanOptional(req.body.addressLabel || ship.label || "Shipping", 80);
   return {
     userId: req.user?.id || null,
+    market: orderMarket,
     items,
     shipTo,
+    billingAddress,
+    billingSameAsShipping,
+    saveAddress,
+    addressLabel,
     subtotalCents: items.reduce((sum, item) => sum + item.lineTotalCents, 0),
     note: cleanOptional(req.body.note, 1000)
   };
@@ -4277,12 +4864,35 @@ app.post("/api/logout", (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
 });
 
+app.get("/api/account/addresses", requireLogin, async (req, res) => {
+  res.json({ addresses: normalizeSavedAddresses(req.user.savedAddresses || []) });
+});
+
+app.post("/api/account/addresses", requireLogin, async (req, res) => {
+  try {
+    const nextAddress = normalizeSavedAddress(req.body, normalizeMarket(req.body.market || DEFAULT_MARKET));
+    const existing = normalizeSavedAddresses(req.user.savedAddresses || []);
+    const updated = [...existing.filter((address) => address.id !== nextAddress.id), nextAddress];
+    const user = await db.updateUserSavedAddresses(req.user.id, updated);
+    res.status(201).json({ ok: true, addresses: normalizeSavedAddresses(user?.savedAddresses || updated) });
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Could not save address." });
+  }
+});
+
+app.delete("/api/account/addresses/:id", requireLogin, async (req, res) => {
+  const nextAddresses = normalizeSavedAddresses(req.user.savedAddresses || []).filter((address) => address.id !== String(req.params.id || ""));
+  const user = await db.updateUserSavedAddresses(req.user.id, nextAddresses);
+  res.json({ ok: true, addresses: normalizeSavedAddresses(user?.savedAddresses || nextAddresses) });
+});
+
 app.get("/api/products", async (req, res) => {
   const user = await currentUser(req);
   const showPrice = Boolean(user && (user.role === "admin" || (user.status === "approved" && (user.accountType || "shopper") === "dealer")));
-  const products = await db.listProducts({ activeOnly: true });
+  const market = normalizeMarket(req.query.market, DEFAULT_MARKET);
+  const products = await db.listProducts({ activeOnly: true, market });
   const metricsByProductId = await db.getProductMetrics(products.map((product) => product.id));
-  res.json({ products: await Promise.all(products.map((product) => productPayload(product, showPrice, false, metricsByProductId[product.id]))), canSeePrices: showPrice });
+  res.json({ products: await Promise.all(products.map((product) => productPayload(product, showPrice, false, metricsByProductId[product.id], market))), canSeePrices: showPrice, market });
 });
 
 app.get("/api/seller/products", requireSeller, async (req, res) => {
@@ -4404,7 +5014,17 @@ app.post("/api/orders", async (req, res) => {
   try {
     req.user = await currentUser(req);
     if (req.user && req.user.status !== "approved") return res.status(403).json({ error: "Your account is still pending approval." });
-    const order = await db.createOrder(await buildOrder(req));
+    const builtOrder = await buildOrder(req);
+    const order = await db.createOrder(builtOrder);
+    if (req.user && builtOrder.saveAddress) {
+      const existingAddresses = normalizeSavedAddresses(req.user.savedAddresses || [], builtOrder.market);
+      const savedAddress = normalizeSavedAddress({
+        ...builtOrder.shipTo,
+        label: builtOrder.addressLabel || "Shipping",
+        market: builtOrder.market
+      }, builtOrder.market);
+      await db.updateUserSavedAddresses(req.user.id, [...existingAddresses.filter((address) => address.id !== savedAddress.id), savedAddress]);
+    }
     try {
       await sendTelegramOrderNotification(order, req.user || {});
     } catch (error) {
@@ -4422,6 +5042,56 @@ app.post("/api/telegram/webhook/:secret", async (req, res) => {
 
 app.get("/api/admin/summary", requireAdmin, async (_req, res) => {
   res.json(await db.summary());
+});
+
+app.get("/api/admin/amazon-research", requireAdmin, async (_req, res) => {
+  const items = await db.listAmazonResearchItems();
+  res.json({
+    ok: true,
+    ...amazonResearchSummary(items),
+    items: items.map((item) => ({
+      ...item,
+      priceSnapshot: moneyFromCents(item.priceSnapshotCents),
+      estimatedCommission: moneyFromCents(item.estimatedCommissionCents)
+    }))
+  });
+});
+
+app.post("/api/admin/amazon-research/items", requireAdmin, async (req, res) => {
+  const titleSnapshot = String(req.body.titleSnapshot || "").trim();
+  const amazonUrl = String(req.body.amazonUrl || "").trim();
+  const category = String(req.body.category || "").trim();
+  if (!titleSnapshot) return res.status(400).json({ error: "Item title is required." });
+  if (!amazonUrl) return res.status(400).json({ error: "Amazon URL is required." });
+  if (!category) return res.status(400).json({ error: "Category is required." });
+  const item = await db.createAmazonResearchItem(req.body);
+  res.json({
+    ok: true,
+    item: {
+      ...item,
+      priceSnapshot: moneyFromCents(item.priceSnapshotCents),
+      estimatedCommission: moneyFromCents(item.estimatedCommissionCents)
+    }
+  });
+});
+
+app.patch("/api/admin/amazon-research/items/:id", requireAdmin, async (req, res) => {
+  const item = await db.updateAmazonResearchItem(Number(req.params.id), req.body || {});
+  if (!item) return res.status(404).json({ error: "Research item not found." });
+  res.json({
+    ok: true,
+    item: {
+      ...item,
+      priceSnapshot: moneyFromCents(item.priceSnapshotCents),
+      estimatedCommission: moneyFromCents(item.estimatedCommissionCents)
+    }
+  });
+});
+
+app.delete("/api/admin/amazon-research/items/:id", requireAdmin, async (req, res) => {
+  const removed = await db.deleteAmazonResearchItem(Number(req.params.id));
+  if (!removed) return res.status(404).json({ error: "Research item not found." });
+  res.json({ ok: true });
 });
 
 app.get("/api/admin/visitors", requireAdmin, async (req, res) => {
@@ -4813,14 +5483,18 @@ app.use("/api", (error, _req, res, _next) => {
   res.status(500).json({ error: "Request failed." });
 });
 
-app.get("/", (req, res) => {
-  res.redirect(isMobileRequest(req) ? "/mobile" : "/desktop");
+app.get("/", async (req, res) => {
+  const market = await requestMarket(req);
+  res.redirect(routePrefixForMarket(market, isMobileRequest(req)));
 });
 
 app.get("/products/:id/:slug?", sendProductPage);
+app.get("/us/products/:id/:slug?", sendProductPage);
 app.get("/desktop", sendDesktopApp);
 app.get("/mobile", sendMobileApp);
 app.get("/m", sendMobileApp);
+app.get("/us", sendUsDesktopApp);
+app.get("/m/us", sendUsMobileApp);
 app.get("/m/list-with-us", sendMobileListWithUsApp);
 app.get("/m/shopper", sendMobileShopperApp);
 app.get("/m/dealer", sendMobileDealerApp);
