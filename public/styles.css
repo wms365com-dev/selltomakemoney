@@ -4147,6 +4147,66 @@ body[data-view="mobile"] .site-footer {
   .catalog-card .product-actions .primary {
     min-height: 36px;
   }
+
+  body[data-view="mobile"] #storeView {
+    display: grid;
+    gap: 0;
+  }
+
+  body[data-view="mobile"] .store-intro-strip {
+    display: none;
+  }
+
+  body[data-view="mobile"] .store-tools {
+    order: 1;
+  }
+
+  body[data-view="mobile"] #productGrid {
+    order: 2;
+  }
+
+  body[data-view="mobile"] .store-departments {
+    order: 3;
+    gap: 6px;
+    margin-bottom: 8px;
+    padding: 0 7px 8px;
+  }
+
+  body[data-view="mobile"] .department-strip-head {
+    align-items: center;
+    font-size: 12px;
+  }
+
+  body[data-view="mobile"] .department-strip-head span {
+    display: none;
+  }
+
+  body[data-view="mobile"] .department-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  body[data-view="mobile"] .category-tile {
+    min-height: 0;
+    padding: 10px;
+  }
+
+  body[data-view="mobile"] .category-tile img,
+  body[data-view="mobile"] .category-tile .category-tile-image {
+    max-height: 72px;
+    object-fit: contain;
+  }
+
+  body[data-view="mobile"] .menu-panel {
+    width: min(320px, calc(100vw - 16px));
+    gap: 6px;
+    padding: 8px;
+  }
+
+  body[data-view="mobile"] .menu-panel .nav-button {
+    min-height: 42px;
+    font-size: 16px;
+  }
 }
 
 /* Simple-sale closeout: compact public buying surface. */
