@@ -93,6 +93,7 @@ let adminSummary = null;
 let recentVisitors = [];
 let visitorAnalytics = null;
 let adminUsersCache = [];
+let adminReturnRequestsCache = [];
 let amazonResearchData = null;
 let bulkProductSearch = "";
 let bulkNewRowSequence = 1;
@@ -385,6 +386,7 @@ function renderAdminMetrics(summary) {
     <div class="panel admin-metric-card"><strong>${escapeHtml(summary.siteVisits ?? 0)}</strong><span>Site visits</span></div>
     <div class="panel admin-metric-card"><strong>${escapeHtml(summary.uniqueVisitors ?? 0)}</strong><span>Visitors</span></div>
     <div class="panel admin-metric-card"><strong>${escapeHtml(summary.listingViews ?? 0)}</strong><span>Listing views</span></div>
+    <div class="panel admin-metric-card"><strong>${escapeHtml(summary.returnRequests ?? 0)}</strong><span>Return requests</span></div>
   `;
 }
 
@@ -718,6 +720,69 @@ function renderAdminUsers(users) {
     return;
   }
   host.innerHTML = users.map((user) => adminUserItem(user)).join("");
+}
+
+function returnRequestStatusLabel(status) {
+  return {
+    vendor_review: "Vendor review",
+    approved: "Approved",
+    declined: "Declined",
+    instructions_sent: "Instructions sent",
+    closed: "Closed"
+  }[String(status || "").trim()] || "Vendor review";
+}
+
+function returnRequestAdminItem(request) {
+  const order = request.order || {};
+  const items = Array.isArray(order.items) ? order.items : [];
+  const itemSummary = items.slice(0, 2).map((item) => `${item.name || "Item"} x${item.quantity || 1}`).join(" | ");
+  const extraCount = Math.max(0, items.length - 2);
+  return `
+    <article class="visitor-activity-item return-request-item">
+      <div>
+        <strong>Request #${escapeHtml(request.id)} | Order #${escapeHtml(request.orderId)}</strong>
+        <span>${escapeHtml(request.customerName || request.customerEmail || "Customer")} | ${escapeHtml(request.customerEmail || "No email")}</span>
+      </div>
+      <div>
+        <strong>${escapeHtml(returnRequestStatusLabel(request.status))}</strong>
+        <span>${escapeHtml(request.reason || "No reason")} | Review after ${escapeHtml(formatDateTime(request.reviewAfterAt) || "now")}</span>
+      </div>
+      <div>
+        <strong>${escapeHtml(itemSummary || "No items attached")}${extraCount ? ` +${extraCount} more` : ""}</strong>
+        <span>${escapeHtml(request.issueDetails || "No issue details provided")}</span>
+      </div>
+      <div class="return-request-controls">
+        <label>Status
+          <select data-return-status="${request.id}">
+            <option value="vendor_review" ${request.status === "vendor_review" ? "selected" : ""}>Vendor review</option>
+            <option value="approved" ${request.status === "approved" ? "selected" : ""}>Approved</option>
+            <option value="declined" ${request.status === "declined" ? "selected" : ""}>Declined</option>
+            <option value="instructions_sent" ${request.status === "instructions_sent" ? "selected" : ""}>Instructions sent</option>
+            <option value="closed" ${request.status === "closed" ? "selected" : ""}>Closed</option>
+          </select>
+        </label>
+        <label>Decision note
+          <textarea data-return-note="${request.id}" rows="2" placeholder="Why approved or declined">${escapeHtml(request.decisionNote || "")}</textarea>
+        </label>
+        <label>Return instructions
+          <textarea data-return-instructions="${request.id}" rows="3" placeholder="Vendor return steps, label info, mailing address, or follow-up instructions">${escapeHtml(request.returnInstructions || "")}</textarea>
+        </label>
+        <div class="row-actions">
+          <button type="button" class="primary" data-save-return-request="${request.id}">Save return update</button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderAdminReturnRequests(requests) {
+  const host = document.querySelector("#adminReturnRequests");
+  if (!host) return;
+  if (!requests?.length) {
+    host.innerHTML = "<p>No return requests yet.</p>";
+    return;
+  }
+  host.innerHTML = requests.map((request) => returnRequestAdminItem(request)).join("");
 }
 
 function renderSellerProducts(products) {
@@ -2114,23 +2179,25 @@ async function loadAdmin() {
     if (adminVisitorFilters.country) visitorQuery.set("country", adminVisitorFilters.country);
     if (adminVisitorFilters.deviceType) visitorQuery.set("deviceType", adminVisitorFilters.deviceType);
     if (adminVisitorFilters.path) visitorQuery.set("path", adminVisitorFilters.path);
-    const [products, summary, visitors, users, amazonResearch, facebookBridge] = await Promise.all([
+    const [products, summary, visitors, users, amazonResearch, returnRequests, facebookBridge] = await Promise.all([
       api("/api/admin/products"),
       api("/api/admin/summary"),
       api(`/api/admin/visitors${visitorQuery.toString() ? `?${visitorQuery}` : ""}`),
       api("/api/admin/users"),
       api("/api/admin/amazon-research"),
+      api("/api/admin/returns"),
       api("/api/admin/facebook-bridge/accounts").catch(() => ({ configured: false, accounts: [] }))
     ]);
-    return { products, summary, visitors, users, amazonResearch, facebookBridge };
+    return { products, summary, visitors, users, amazonResearch, returnRequests, facebookBridge };
   });
-  const { products, summary, visitors, users, amazonResearch, facebookBridge } = await adminRequest;
+  const { products, summary, visitors, users, amazonResearch, returnRequests, facebookBridge } = await adminRequest;
   adminRequest = null;
 
   adminSummary = summary;
   visitorAnalytics = visitors;
   recentVisitors = visitors.recentVisitors || [];
   adminUsersCache = users.users || [];
+  adminReturnRequestsCache = returnRequests.returnRequests || [];
   amazonResearchData = amazonResearch;
   adminProductsCache = products.products;
   facebookBridgeAccounts = facebookBridge.accounts || [];
@@ -2140,6 +2207,7 @@ async function loadAdmin() {
   }
   renderAdminMetrics(adminSummary);
   renderAdminUsers(adminUsersCache);
+  renderAdminReturnRequests(adminReturnRequestsCache);
   renderAmazonResearch(amazonResearchData);
   renderVisitorAnalyticsSummary(visitorAnalytics);
   renderVisitorHourlyChart(visitorAnalytics);
@@ -2624,6 +2692,25 @@ document.addEventListener("change", async (event) => {
       await withStatus("Updating user type...", () => api(`/api/admin/users/${userAccountTypeId}`, {
         method: "PATCH",
         body: JSON.stringify({ accountType })
+      }));
+      await loadAdmin();
+    } finally {
+      restore();
+    }
+    return;
+  }
+
+  const saveReturnRequestId = event.target.closest("[data-save-return-request]")?.dataset.saveReturnRequest;
+  if (saveReturnRequestId) {
+    const button = event.target.closest("[data-save-return-request]");
+    const status = document.querySelector(`[data-return-status="${CSS.escape(saveReturnRequestId)}"]`)?.value || "vendor_review";
+    const decisionNote = document.querySelector(`[data-return-note="${CSS.escape(saveReturnRequestId)}"]`)?.value || "";
+    const returnInstructions = document.querySelector(`[data-return-instructions="${CSS.escape(saveReturnRequestId)}"]`)?.value || "";
+    const restore = setButtonBusy(button, "Saving...");
+    try {
+      await withStatus("Saving return update...", () => api(`/api/admin/returns/${saveReturnRequestId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, decisionNote, returnInstructions })
       }));
       await loadAdmin();
     } finally {

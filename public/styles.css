@@ -2312,6 +2312,21 @@ body[data-view="desktop"] .consent-actions button {
   gap: 12px;
 }
 
+.return-request-item {
+  grid-template-columns: minmax(0, 1.2fr) minmax(220px, 0.9fr) minmax(0, 1.4fr) minmax(280px, 1.2fr);
+  align-items: start;
+}
+
+.return-request-controls {
+  display: grid;
+  gap: 10px;
+}
+
+.return-request-controls textarea,
+.return-request-controls select {
+  width: 100%;
+}
+
 .admin-secondary-column {
   display: grid;
   gap: 18px;
@@ -3565,6 +3580,10 @@ body[data-view="mobile"] .visitor-chart-bar-wrap span {
 }
 
 body[data-view="mobile"] .admin-user-controls {
+  grid-template-columns: 1fr;
+}
+
+body[data-view="mobile"] .return-request-item {
   grid-template-columns: 1fr;
 }
 

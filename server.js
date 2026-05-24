@@ -50,6 +50,7 @@ const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY || "";
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 const AMAZON_CA_AFFILIATE_TAG = process.env.AMAZON_CA_AFFILIATE_TAG || process.env.AMAZON_AFFILIATE_TAG || "dealerstore-20";
 const AMAZON_US_AFFILIATE_TAG = process.env.AMAZON_US_AFFILIATE_TAG || process.env.AMAZONCOM_AFFILIATE_TAG || process.env.AMAZON_AFFILIATE_TAG || "dealerstore-20";
+const RETURN_REVIEW_DELAY_HOURS = Math.max(1, Number(process.env.RETURN_REVIEW_DELAY_HOURS || 24));
 const COUNTRY_NAMES = typeof Intl?.DisplayNames === "function"
   ? new Intl.DisplayNames(["en"], { type: "region" })
   : null;
@@ -835,12 +836,13 @@ function renameImagesForSeo(imageUrls, productName) {
 
 function emptyJsonStore() {
   return {
-    nextIds: { users: 1, products: 1, inquiries: 1, comparisons: 1, orders: 1, alertLeads: 1, bugReports: 1, amazonResearchItems: 1 },
+    nextIds: { users: 1, products: 1, inquiries: 1, comparisons: 1, orders: 1, returnRequests: 1, alertLeads: 1, bugReports: 1, amazonResearchItems: 1 },
     users: [],
     products: [],
     inquiries: [],
     comparisons: [],
     orders: [],
+    returnRequests: [],
     alertLeads: [],
     bugReports: [],
     amazonResearchItems: [],
@@ -857,16 +859,49 @@ function normalizeAccountType(value, fallback = "shopper") {
     : fallback;
 }
 
+function returnReviewAfterDate(baseDate = new Date()) {
+  return new Date(baseDate.getTime() + RETURN_REVIEW_DELAY_HOURS * 60 * 60 * 1000);
+}
+
+function normalizeReturnStatus(value, fallback = "vendor_review") {
+  const text = String(value || "").trim().toLowerCase();
+  return ["vendor_review", "approved", "declined", "instructions_sent", "closed"].includes(text) ? text : fallback;
+}
+
+function camelReturnRequest(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    orderId: row.order_id ?? row.orderId,
+    userId: row.user_id ?? row.userId ?? null,
+    market: normalizeMarket(row.market),
+    status: normalizeReturnStatus(row.status),
+    reason: row.reason || "",
+    issueDetails: row.issue_details ?? row.issueDetails ?? "",
+    requestedResolution: row.requested_resolution ?? row.requestedResolution ?? "",
+    customerEmail: row.customer_email ?? row.customerEmail ?? "",
+    customerName: row.customer_name ?? row.customerName ?? "",
+    orderEmail: row.order_email ?? row.orderEmail ?? "",
+    reviewAfterAt: row.review_after_at ?? row.reviewAfterAt ?? null,
+    decisionNote: row.decision_note ?? row.decisionNote ?? "",
+    returnInstructions: row.return_instructions ?? row.returnInstructions ?? "",
+    createdAt: row.created_at ?? row.createdAt ?? null,
+    updatedAt: row.updated_at ?? row.updatedAt ?? null
+  };
+}
+
 function readJsonStore() {
   if (!fs.existsSync(DB_PATH)) return emptyJsonStore();
   const data = JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
   data.nextIds.comparisons ||= 1;
   data.nextIds.orders ||= 1;
+  data.nextIds.returnRequests ||= 1;
   data.nextIds.alertLeads ||= 1;
   data.nextIds.bugReports ||= 1;
   data.nextIds.amazonResearchItems ||= 1;
   data.comparisons ||= [];
   data.orders ||= [];
+  data.returnRequests ||= [];
   data.alertLeads ||= [];
   data.bugReports ||= [];
   data.amazonResearchItems ||= [];
@@ -1322,12 +1357,62 @@ function createJsonDatabase() {
         };
       }).sort((a, b) => b.id - a.id);
     },
+    async findReturnEligibleOrder(orderId, customerEmail) {
+      const normalizedEmail = String(customerEmail || "").trim().toLowerCase();
+      const order = store.orders.find((entry) => Number(entry.id) === Number(orderId));
+      if (!order) return null;
+      const user = store.users.find((entry) => Number(entry.id) === Number(order.userId)) || {};
+      const orderEmail = String(user.email || order.shipTo?.email || "").trim().toLowerCase();
+      if (!normalizedEmail || normalizedEmail !== orderEmail) return null;
+      return {
+        ...order,
+        email: user.email || order.shipTo?.email || "",
+        contactName: user.contactName || order.shipTo?.recipientName || "",
+        company: user.company || order.shipTo?.company || ""
+      };
+    },
+    async listReturnRequests() {
+      return [...store.returnRequests]
+        .map((request) => camelReturnRequest(request))
+        .sort((left, right) => Number(right.id) - Number(left.id));
+    },
+    async findActiveReturnRequest(orderId, customerEmail) {
+      const normalizedEmail = String(customerEmail || "").trim().toLowerCase();
+      return [...store.returnRequests]
+        .map((request) => camelReturnRequest(request))
+        .find((request) => Number(request.orderId) === Number(orderId)
+          && String(request.customerEmail || "").trim().toLowerCase() === normalizedEmail
+          && ["vendor_review", "approved", "instructions_sent"].includes(request.status)) || null;
+    },
+    async createReturnRequest(request) {
+      const created = insert("returnRequests", {
+        ...request,
+        status: normalizeReturnStatus(request.status),
+        reviewAfterAt: request.reviewAfterAt || returnReviewAfterDate().toISOString(),
+        createdAt: request.createdAt || new Date().toISOString(),
+        updatedAt: request.updatedAt || new Date().toISOString()
+      });
+      writeJsonStore(store);
+      return camelReturnRequest(created);
+    },
+    async updateReturnRequest(id, changes) {
+      const request = store.returnRequests.find((entry) => Number(entry.id) === Number(id));
+      if (!request) return null;
+      Object.assign(request, {
+        ...changes,
+        status: normalizeReturnStatus(changes.status, request.status),
+        updatedAt: new Date().toISOString()
+      });
+      writeJsonStore(store);
+      return camelReturnRequest(request);
+    },
     async summary() {
       return {
         pendingUsers: store.users.filter((user) => user.status === "pending").length,
         products: store.products.length,
         inquiries: store.inquiries.filter((inquiry) => inquiry.status === "new").length,
         orders: store.orders.filter((order) => order.status === "new").length,
+        returnRequests: store.returnRequests.filter((request) => ["vendor_review", "approved", "instructions_sent"].includes(normalizeReturnStatus(request.status))).length,
         alertLeads: store.alertLeads.length,
         bugReports: store.bugReports.filter((report) => report.status === "new").length,
         returningCustomers: new Set(store.orders.map((order) => order.userId).filter((userId) => store.orders.filter((order) => order.userId === userId).length > 1)).size,
@@ -1653,6 +1738,24 @@ function createPostgresDatabase() {
           status TEXT NOT NULL DEFAULT 'new',
           note TEXT NOT NULL DEFAULT '',
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE TABLE IF NOT EXISTS return_requests (
+          id SERIAL PRIMARY KEY,
+          order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+          user_id INTEGER REFERENCES users(id),
+          market TEXT NOT NULL DEFAULT 'CA',
+          status TEXT NOT NULL DEFAULT 'vendor_review',
+          reason TEXT NOT NULL DEFAULT '',
+          issue_details TEXT NOT NULL DEFAULT '',
+          requested_resolution TEXT NOT NULL DEFAULT '',
+          customer_email TEXT NOT NULL DEFAULT '',
+          customer_name TEXT NOT NULL DEFAULT '',
+          order_email TEXT NOT NULL DEFAULT '',
+          review_after_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          decision_note TEXT NOT NULL DEFAULT '',
+          return_instructions TEXT NOT NULL DEFAULT '',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
         CREATE TABLE IF NOT EXISTS alert_leads (
           id SERIAL PRIMARY KEY,
@@ -2452,6 +2555,95 @@ function createPostgresDatabase() {
         customerTotalSpentCents: row.user_id ? row.customerTotalSpentCents : 0
       }));
     },
+    async findReturnEligibleOrder(orderId, customerEmail) {
+      const result = await query(`
+        SELECT orders.*, users.email, users.company, users.contact_name AS "contactName"
+        FROM orders
+        LEFT JOIN users ON users.id = orders.user_id
+        WHERE orders.id = $1
+          AND LOWER(COALESCE(users.email, orders.ship_to->>'email', '')) = LOWER($2)
+        LIMIT 1
+      `, [Number(orderId), String(customerEmail || "").trim().toLowerCase()]);
+      const row = result.rows[0];
+      if (!row) return null;
+      return {
+        ...camelOrder(row),
+        email: row.email || row.ship_to?.email || "",
+        company: row.company || row.ship_to?.company || "",
+        contactName: row.contactName || row.ship_to?.recipientName || ""
+      };
+    },
+    async listReturnRequests() {
+      return (await query(`
+        SELECT return_requests.*, orders.items, orders.ship_to, orders.subtotal_cents, orders.created_at AS order_created_at
+        FROM return_requests
+        JOIN orders ON orders.id = return_requests.order_id
+        ORDER BY return_requests.id DESC
+      `)).rows.map((row) => ({
+        ...camelReturnRequest(row),
+        order: {
+          id: row.order_id,
+          items: Array.isArray(row.items) ? row.items : JSON.parse(row.items || "[]"),
+          shipTo: typeof row.ship_to === "object" ? row.ship_to : JSON.parse(row.ship_to || "{}"),
+          subtotalCents: row.subtotal_cents,
+          createdAt: row.order_created_at
+        }
+      }));
+    },
+    async findActiveReturnRequest(orderId, customerEmail) {
+      const result = await query(`
+        SELECT *
+        FROM return_requests
+        WHERE order_id = $1
+          AND LOWER(customer_email) = LOWER($2)
+          AND status = ANY($3::text[])
+        ORDER BY id DESC
+        LIMIT 1
+      `, [Number(orderId), String(customerEmail || "").trim().toLowerCase(), ["vendor_review", "approved", "instructions_sent"]]);
+      return camelReturnRequest(result.rows[0]);
+    },
+    async createReturnRequest(request) {
+      const result = await query(`
+        INSERT INTO return_requests (
+          order_id, user_id, market, status, reason, issue_details, requested_resolution,
+          customer_email, customer_name, order_email, review_after_at, decision_note, return_instructions
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        RETURNING *
+      `, [
+        request.orderId,
+        request.userId || null,
+        normalizeMarket(request.market),
+        normalizeReturnStatus(request.status),
+        request.reason || "",
+        request.issueDetails || "",
+        request.requestedResolution || "",
+        String(request.customerEmail || "").trim().toLowerCase(),
+        request.customerName || "",
+        String(request.orderEmail || "").trim().toLowerCase(),
+        request.reviewAfterAt || returnReviewAfterDate(),
+        request.decisionNote || "",
+        request.returnInstructions || ""
+      ]);
+      return camelReturnRequest(result.rows[0]);
+    },
+    async updateReturnRequest(id, changes) {
+      const result = await query(`
+        UPDATE return_requests
+        SET status = $1,
+            decision_note = $2,
+            return_instructions = $3,
+            updated_at = NOW()
+        WHERE id = $4
+        RETURNING *
+      `, [
+        normalizeReturnStatus(changes.status),
+        changes.decisionNote || "",
+        changes.returnInstructions || "",
+        Number(id)
+      ]);
+      return camelReturnRequest(result.rows[0]);
+    },
     async summary() {
       const result = await query(`
         SELECT
@@ -2459,6 +2651,7 @@ function createPostgresDatabase() {
           (SELECT COUNT(*) FROM products)::int AS products,
           (SELECT COUNT(*) FROM inquiries WHERE status = 'new')::int AS inquiries,
           (SELECT COUNT(*) FROM orders WHERE status = 'new')::int AS orders,
+          (SELECT COUNT(*) FROM return_requests WHERE status = ANY(ARRAY['vendor_review','approved','instructions_sent']))::int AS "returnRequests",
           (SELECT COUNT(*) FROM alert_leads)::int AS "alertLeads",
           (SELECT COUNT(*) FROM bug_reports WHERE status = 'new')::int AS "bugReports",
           (SELECT COUNT(*) FROM (SELECT user_id FROM orders GROUP BY user_id HAVING COUNT(*) > 1) returning_customers)::int AS "returningCustomers",
@@ -3284,11 +3477,119 @@ async function sendReturnsPage(req, res) {
       {
         heading: "Best next step",
         paragraphs: [
+          `For shipped items, start with the return request form at ${publicBaseUrl(req)}/returns/request. ${shippingReturnWindowMessage()}`,
           "Use the contact details on the Contact page or reply through the same reservation conversation so we can match your question to the item quickly."
         ]
       }
     ]
   }));
+}
+
+async function sendReturnRequestPage(req, res) {
+  await recordSiteVisit(req, res, "/returns/request");
+  const reviewCopy = shippingReturnWindowMessage();
+  res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Start a shipped-order return request for selltomakemoney.com so we can review vendor eligibility and send next-step instructions.">
+  <meta name="robots" content="noindex,follow">
+  <title>Return request | selltomakemoney.com</title>
+  <link rel="stylesheet" href="/styles.css?v=simple-sale-6">
+</head>
+<body>
+  <header class="topbar catalog-topbar">
+    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=simple-sale-6" alt="selltomakemoney.com"></a>
+    <nav>
+      <a class="nav-button" href="/desktop">Store</a>
+      <a class="nav-button" href="/returns">Returns</a>
+      <a class="nav-button" href="/contact">Contact</a>
+      <a class="nav-button primary" href="/desktop#cart">Cart</a>
+    </nav>
+  </header>
+  <main class="checkout-success-page">
+    <section class="panel auth-panel info-page return-request-page">
+      <p class="eyebrow">Shipped order support</p>
+      <h1>Start a return request</h1>
+      <p>${escapeHtml(reviewCopy)}</p>
+      <form id="returnRequestForm" class="amazon-research-form">
+        <div class="admin-form-grid compact-grid">
+          <label>Order number<input name="orderId" type="number" min="1" required inputmode="numeric" placeholder="Example: 1042"></label>
+          <label>Email used on the order<input name="email" type="email" required autocomplete="email" placeholder="you@example.com"></label>
+          <label>Reason<select name="reason" required>
+            <option value="">Select reason</option>
+            <option>Damaged in transit</option>
+            <option>Wrong item received</option>
+            <option>Not as described</option>
+            <option>Missing parts or accessories</option>
+            <option>Changed my mind</option>
+            <option>Other</option>
+          </select></label>
+          <label>Requested resolution<select name="requestedResolution" required>
+            <option value="refund">Refund</option>
+            <option value="replacement">Replacement</option>
+            <option value="store_credit">Store credit</option>
+          </select></label>
+        </div>
+        <label>What happened?<textarea name="issueDetails" rows="6" required placeholder="Tell us what arrived, what seems wrong, and anything we should know before we contact the vendor."></textarea></label>
+        <div class="checkout-policy-note wide-field">
+          <strong>What happens next?</strong>
+          <span>${escapeHtml(reviewCopy)} We will review the request, confirm whether the vendor return path is available, and then send you approval or instructions.</span>
+        </div>
+        <div class="row-actions">
+          <button class="primary" type="submit">Submit return request</button>
+        </div>
+        <p class="form-message" id="returnRequestMessage"></p>
+      </form>
+    </section>
+  </main>
+  <footer class="site-footer">
+    <div class="footer-trust">
+      <strong>Local pickup in Mississauga</strong>
+      <span>Reserve online, pay on pickup, and get direct follow-up from a real person.</span>
+    </div>
+    <nav class="footer-links" aria-label="Support links">
+      <a href="/about">About</a>
+      <a href="/contact">Contact</a>
+      <a href="/shipping">Shipping</a>
+      <a href="/returns">Returns</a>
+      <a href="/faq">FAQ</a>
+      <a href="/terms">Terms</a>
+      <a href="/privacy">Privacy</a>
+    </nav>
+  </footer>
+  <script>
+    const form = document.querySelector("#returnRequestForm");
+    const message = document.querySelector("#returnRequestMessage");
+    form?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      message.textContent = "";
+      const button = form.querySelector("button[type='submit']");
+      const original = button.textContent;
+      button.disabled = true;
+      button.textContent = "Submitting...";
+      try {
+        const payload = Object.fromEntries(new FormData(form).entries());
+        const response = await fetch("/api/returns/request", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Could not submit the return request.");
+        message.textContent = data.message || "Return request submitted.";
+        form.reset();
+      } catch (error) {
+        message.textContent = error.message || "Could not submit the return request.";
+      } finally {
+        button.disabled = false;
+        button.textContent = original;
+      }
+    });
+  </script>
+</body>
+</html>`);
 }
 
 async function sendShippingPage(req, res) {
@@ -3472,6 +3773,36 @@ function orderShipToPayload(order = {}) {
     addressLabel: order.addressLabel || "",
     paymentDetails: order.paymentDetails || null,
     supplierSource: order.supplierSource || "amazon"
+  };
+}
+
+function shippingReturnWindowMessage(market = DEFAULT_MARKET) {
+  return `Shipped-item return requests are held for up to ${RETURN_REVIEW_DELAY_HOURS} hour${RETURN_REVIEW_DELAY_HOURS === 1 ? "" : "s"} while we confirm vendor return eligibility and prepare instructions.`;
+}
+
+function buildReturnRequestPayload(req, order) {
+  if (!order) throw new Error("Order not found.");
+  if (order.shipTo?.fulfillmentMethod !== "ship") {
+    throw new Error("Return requests are only needed for shipped orders. Pickup issues should be handled before or at pickup.");
+  }
+  const reason = cleanRequired(req.body.reason, "Return reason", 120);
+  const issueDetails = cleanRequired(req.body.issueDetails, "Issue details", 1500);
+  const requestedResolution = cleanRequired(req.body.requestedResolution || "refund", "Requested resolution", 80);
+  const orderEmail = String(order.email || order.shipTo?.email || "").trim().toLowerCase();
+  return {
+    orderId: Number(order.id),
+    userId: order.userId || null,
+    market: normalizeMarket(order.shipTo?.market || DEFAULT_MARKET),
+    status: "vendor_review",
+    reason,
+    issueDetails,
+    requestedResolution,
+    customerEmail: orderEmail,
+    customerName: order.contactName || order.shipTo?.recipientName || "",
+    orderEmail,
+    reviewAfterAt: returnReviewAfterDate(),
+    decisionNote: "",
+    returnInstructions: ""
   };
 }
 
@@ -5139,6 +5470,32 @@ app.post("/api/orders", async (req, res) => {
   }
 });
 
+app.post("/api/returns/request", async (req, res) => {
+  try {
+    const orderId = Number(req.body.orderId);
+    const email = cleanRequired(req.body.email, "Order email", 160).toLowerCase();
+    if (!Number.isInteger(orderId) || orderId <= 0) throw new Error("Enter a valid order number.");
+    const order = await db.findReturnEligibleOrder(orderId, email);
+    if (!order) throw new Error("We could not match that order number and email.");
+    if (order.shipTo?.fulfillmentMethod !== "ship") {
+      throw new Error("That order is a pickup order. Please contact us directly if there was an issue at pickup.");
+    }
+    const existing = await db.findActiveReturnRequest(orderId, email);
+    if (existing) {
+      throw new Error("A return request is already open for this order. We will follow up using the same email.");
+    }
+    const created = await db.createReturnRequest(buildReturnRequestPayload(req, order));
+    res.json({
+      ok: true,
+      returnRequestId: created.id,
+      reviewAfterAt: created.reviewAfterAt,
+      message: `Return request #${created.id} received. ${shippingReturnWindowMessage(order.shipTo?.market)}`
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Could not submit the return request." });
+  }
+});
+
 app.post("/api/checkout/session", async (req, res) => {
   try {
     req.user = await currentUser(req);
@@ -5666,6 +6023,19 @@ app.get("/api/admin/orders", requireAdmin, async (_req, res) => {
   res.json({ orders: await db.listOrders() });
 });
 
+app.get("/api/admin/returns", requireAdmin, async (_req, res) => {
+  res.json({ returnRequests: await db.listReturnRequests() });
+});
+
+app.patch("/api/admin/returns/:id", requireAdmin, async (req, res) => {
+  const status = normalizeReturnStatus(req.body.status);
+  const decisionNote = cleanOptional(req.body.decisionNote, 1500);
+  const returnInstructions = cleanOptional(req.body.returnInstructions, 3000);
+  const updated = await db.updateReturnRequest(req.params.id, { status, decisionNote, returnInstructions });
+  if (!updated) return res.status(404).json({ error: "Return request not found." });
+  res.json({ ok: true, returnRequest: updated });
+});
+
 app.use("/api", (error, _req, res, _next) => {
   if (error instanceof multer.MulterError) {
     const message = error.code === "LIMIT_FILE_SIZE"
@@ -5707,6 +6077,7 @@ app.get("/about", sendAboutPage);
 app.get("/contact", sendContactPage);
 app.get("/faq", sendFaqPage);
 app.get("/returns", sendReturnsPage);
+app.get("/returns/request", sendReturnRequestPage);
 app.get("/shipping", sendShippingPage);
 app.get("/terms", sendTermsPage);
 app.get("/privacy", sendPrivacyPage);
