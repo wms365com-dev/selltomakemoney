@@ -3496,11 +3496,11 @@ async function sendReturnRequestPage(req, res) {
   <meta name="description" content="Start a shipped-order return request for selltomakemoney.com so we can review vendor eligibility and send next-step instructions.">
   <meta name="robots" content="noindex,follow">
   <title>Return request | selltomakemoney.com</title>
-  <link rel="stylesheet" href="/styles.css?v=simple-sale-6">
+  <link rel="stylesheet" href="/styles.css?v=simple-sale-7">
 </head>
 <body>
   <header class="topbar catalog-topbar">
-    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=simple-sale-6" alt="selltomakemoney.com"></a>
+    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=simple-sale-7" alt="selltomakemoney.com"></a>
     <nav>
       <a class="nav-button" href="/desktop">Store</a>
       <a class="nav-button" href="/returns">Returns</a>
@@ -3670,11 +3670,11 @@ function renderInfoPage({ title, description, eyebrow, heading, intro, sections 
   <meta name="description" content="${escapeHtml(description)}">
   <meta name="robots" content="index,follow">
   <title>${escapeHtml(title)} | selltomakemoney.com</title>
-  <link rel="stylesheet" href="/styles.css?v=simple-sale-6">
+  <link rel="stylesheet" href="/styles.css?v=simple-sale-7">
 </head>
 <body>
   <header class="topbar catalog-topbar">
-    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=simple-sale-6" alt="selltomakemoney.com"></a>
+    <a class="brand" href="/desktop" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=simple-sale-7" alt="selltomakemoney.com"></a>
     <nav>
       <a class="nav-button" href="/desktop">Store</a>
       <a class="nav-button" href="/catalog">Catalog</a>
@@ -4128,11 +4128,11 @@ async function sendProductPage(req, res) {
   ${absoluteImage ? `<meta name="twitter:image" content="${escapeHtml(absoluteImage)}">` : ""}
   <title>${escapeHtml(title)}</title>
   <script type="application/ld+json">${safeJsonScript(productJsonLd(product, canonicalUrl, absoluteImage))}</script>
-  <link rel="stylesheet" href="/styles.css?v=simple-sale-6">
+  <link rel="stylesheet" href="/styles.css?v=simple-sale-7">
 </head>
 <body>
   <header class="topbar catalog-topbar">
-    <a class="brand" href="${homePath}" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=simple-sale-6" alt="selltomakemoney.com"></a>
+    <a class="brand" href="${homePath}" aria-label="selltomakemoney.com home"><img src="/assets/logo.svg?v=simple-sale-7" alt="selltomakemoney.com"></a>
     <nav><a class="nav-button primary" href="${cartPath}">Cart</a></nav>
   </header>
   <main>
@@ -5565,7 +5565,7 @@ app.get("/checkout/success", async (req, res) => {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Payment received | selltomakemoney.com</title>
-  <link rel="stylesheet" href="/styles.css?v=simple-sale-6">
+  <link rel="stylesheet" href="/styles.css?v=simple-sale-7">
 </head>
 <body>
   <main class="checkout-success-page">
@@ -5585,7 +5585,7 @@ app.get("/checkout/success", async (req, res) => {
 </body>
 </html>`);
   } catch (error) {
-    res.status(400).type("html").send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Checkout issue</title><link rel="stylesheet" href="/styles.css?v=simple-sale-6"></head><body><main class="checkout-success-page"><section class="panel auth-panel"><p class="eyebrow">Checkout issue</p><h1>We couldn't confirm that payment yet.</h1><p>${escapeHtml(error.message || "Please contact support.")}</p><div class="row-actions"><a class="nav-button primary" href="/desktop#cart">Return to cart</a></div></section></main></body></html>`);
+    res.status(400).type("html").send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Checkout issue</title><link rel="stylesheet" href="/styles.css?v=simple-sale-7"></head><body><main class="checkout-success-page"><section class="panel auth-panel"><p class="eyebrow">Checkout issue</p><h1>We couldn't confirm that payment yet.</h1><p>${escapeHtml(error.message || "Please contact support.")}</p><div class="row-actions"><a class="nav-button primary" href="/desktop#cart">Return to cart</a></div></section></main></body></html>`);
   }
 });
 
