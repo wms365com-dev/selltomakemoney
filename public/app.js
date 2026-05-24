@@ -2933,6 +2933,15 @@ document.querySelector("#checkoutForm").addEventListener("submit", async (event)
   };
   try {
     trackEvent("checkout_start", { label: body.shipTo.fulfillmentMethod || "checkout", value: `${cart.length} items` });
+    if (body.shipTo.paymentMethod === "credit_card") {
+      const stripeSession = await withStatus("Starting secure payment...", () => api("/api/checkout/session", {
+        method: "POST",
+        body: JSON.stringify(body)
+      }));
+      if (!stripeSession?.url) throw new Error("Stripe checkout did not return a payment link.");
+      window.location.href = stripeSession.url;
+      return;
+    }
     const data = await withStatus("Submitting checkout...", () => api("/api/orders", {
       method: "POST",
       body: JSON.stringify(body)

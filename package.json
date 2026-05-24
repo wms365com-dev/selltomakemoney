@@ -4,8 +4,10 @@
   "description": "selltomakemoney.com dealer storefront with price-gated catalog and admin approvals.",
   "main": "server.js",
   "scripts": {
+    "amazon:blended-1000": "node scripts/build-amazon-blended-1000.js",
     "start": "node server.js",
     "dev": "node server.js",
+    "amazon:prime-research": "node scripts/build-amazon-prime-dataset.js",
     "qa:playwright": "node scripts/playwright-smoke.js",
     "telegram:get-updates": "node scripts/telegram-get-updates.js",
     "telegram:set-webhook": "node scripts/telegram-set-webhook.js"
@@ -16,7 +18,9 @@
     "express": "^4.19.2",
     "express-session": "^1.18.0",
     "multer": "^2.0.2",
-    "pg": "^8.20.0"
+    "pg": "^8.20.0",
+    "stripe": "^22.1.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "playwright": "^1.59.1"

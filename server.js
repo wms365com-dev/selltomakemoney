@@ -9,6 +9,7 @@ const multer = require("multer");
 const bcrypt = require("bcryptjs");
 const cheerio = require("cheerio");
 const { Pool } = require("pg");
+const Stripe = require("stripe");
 const { createTelegramProjectBot } = require("./lib/telegram-control");
 
 const app = express();
@@ -44,11 +45,17 @@ const TELEGRAM_NOTIFY_CHAT_ID = process.env.TELEGRAM_NOTIFY_CHAT_ID || "";
 const TELEGRAM_MESSAGE_THREAD_ID = process.env.TELEGRAM_MESSAGE_THREAD_ID || "";
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || "";
 const TELEGRAM_PROJECT_NAME = process.env.TELEGRAM_PROJECT_NAME || "selltomakemoney.com";
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "";
+const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY || "";
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 const COUNTRY_NAMES = typeof Intl?.DisplayNames === "function"
   ? new Intl.DisplayNames(["en"], { type: "region" })
   : null;
 const SUPPORTED_MARKETS = new Set(["CA", "US"]);
 const DEFAULT_MARKET = "CA";
+const stripe = STRIPE_SECRET_KEY
+  ? new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2026-02-25.clover" })
+  : null;
 const CANADA_PROVINCES = {
   AB: "Alberta",
   BC: "British Columbia",
@@ -1264,7 +1271,11 @@ function createJsonDatabase() {
       }).sort((a, b) => b.id - a.id);
     },
     async createOrder(order) {
-      const created = insert("orders", { status: "new", ...order });
+      const created = insert("orders", {
+        ...order,
+        shipTo: orderShipToPayload(order),
+        status: order.status || "new"
+      });
       for (const item of order.items || []) {
         const product = store.products.find((entry) => Number(entry.id) === Number(item.productId));
         if (!product) continue;
@@ -2389,10 +2400,11 @@ function createPostgresDatabase() {
       `)).rows;
     },
     async createOrder(order) {
+      const storedShipTo = orderShipToPayload(order);
       const result = await query(`
         INSERT INTO orders (user_id, items, ship_to, subtotal_cents, status, note)
-        VALUES ($1,$2,$3,$4,'new',$5) RETURNING *
-      `, [order.userId, JSON.stringify(order.items), JSON.stringify(order.shipTo), order.subtotalCents, order.note]);
+        VALUES ($1,$2,$3,$4,$5,$6) RETURNING *
+      `, [order.userId, JSON.stringify(order.items), JSON.stringify(storedShipTo), order.subtotalCents, order.status || "new", order.note]);
       const created = camelOrder(result.rows[0]);
       for (const item of order.items || []) {
         const existing = await this.getProduct(Number(item.productId));
@@ -3435,6 +3447,18 @@ function publicBaseUrl(req) {
   return process.env.PUBLIC_SITE_URL || (req.get("host")?.includes("localhost") ? `${req.protocol}://${req.get("host")}` : "https://selltomakemoney.com");
 }
 
+function orderShipToPayload(order = {}) {
+  return {
+    ...(order.shipTo || {}),
+    market: normalizeMarket(order.market || order.shipTo?.market || DEFAULT_MARKET),
+    billingAddress: order.billingAddress || null,
+    billingSameAsShipping: Boolean(order.billingSameAsShipping),
+    addressLabel: order.addressLabel || "",
+    paymentDetails: order.paymentDetails || null,
+    supplierSource: order.supplierSource || "amazon"
+  };
+}
+
 app.get("/robots.txt", (req, res) => {
   const baseUrl = publicBaseUrl(req).replace(/\/$/, "");
   res.type("text/plain").send([
@@ -3892,6 +3916,34 @@ async function sendProductPage(req, res) {
 async function currentUser(req) {
   if (!req.session.userId) return null;
   return db.getUserById(req.session.userId);
+}
+
+function requireStripeCheckout() {
+  if (!stripe) {
+    throw new Error("Stripe checkout is not configured yet. Add STRIPE_SECRET_KEY and STRIPE_PUBLISHABLE_KEY first.");
+  }
+}
+
+function pendingCheckouts(req) {
+  req.session.pendingCheckouts ||= {};
+  return req.session.pendingCheckouts;
+}
+
+function rememberPendingCheckout(req, checkoutId, payload) {
+  const store = pendingCheckouts(req);
+  store[checkoutId] = {
+    ...payload,
+    createdAt: new Date().toISOString()
+  };
+}
+
+function readPendingCheckout(req, checkoutId) {
+  return pendingCheckouts(req)[checkoutId] || null;
+}
+
+function clearPendingCheckout(req, checkoutId) {
+  const store = pendingCheckouts(req);
+  delete store[checkoutId];
 }
 
 async function requireLogin(req, res, next) {
@@ -4634,6 +4686,41 @@ async function buildOrder(req) {
   };
 }
 
+async function createStripeCheckoutSession(req, order) {
+  requireStripeCheckout();
+  const checkoutId = crypto.randomUUID();
+  const baseUrl = publicBaseUrl(req).replace(/\/$/, "");
+  const market = normalizeMarket(order.market || DEFAULT_MARKET);
+  const homePath = routePrefixForMarket(market, false);
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    success_url: `${baseUrl}/checkout/success?checkoutId=${encodeURIComponent(checkoutId)}&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${baseUrl}${homePath}#cart`,
+    customer_email: order.shipTo.email,
+    billing_address_collection: "required",
+    phone_number_collection: { enabled: true },
+    line_items: order.items.map((item) => ({
+      quantity: item.quantity,
+      price_data: {
+        currency: market === "US" ? "usd" : "cad",
+        unit_amount: Number(item.unitPriceCents || 0),
+        product_data: {
+          name: item.name,
+          description: [item.brand, item.sku].filter(Boolean).join(" | ") || undefined
+        }
+      }
+    })),
+    metadata: {
+      checkoutId,
+      market,
+      supplierSource: "amazon",
+      fulfillmentMethod: order.shipTo.fulfillmentMethod
+    }
+  });
+  rememberPendingCheckout(req, checkoutId, { order, stripeSessionId: session.id });
+  return { checkoutId, session };
+}
+
 function integrationBearerToken(req) {
   const header = String(req.get("authorization") || "");
   const match = header.match(/^Bearer\s+(.+)$/i);
@@ -5033,6 +5120,99 @@ app.post("/api/orders", async (req, res) => {
     res.status(201).json({ orderId: order.id });
   } catch (error) {
     res.status(400).json({ error: error.message || "Could not submit checkout." });
+  }
+});
+
+app.post("/api/checkout/session", async (req, res) => {
+  try {
+    req.user = await currentUser(req);
+    if (req.user && req.user.status !== "approved") return res.status(403).json({ error: "Your account is still pending approval." });
+    const order = await buildOrder(req);
+    if (order.shipTo.paymentMethod !== "credit_card") {
+      return res.status(400).json({ error: "Stripe checkout is only for credit card orders." });
+    }
+    const { checkoutId, session } = await createStripeCheckoutSession(req, order);
+    req.session.save(() => res.status(201).json({
+      ok: true,
+      checkoutId,
+      sessionId: session.id,
+      url: session.url
+    }));
+  } catch (error) {
+    res.status(400).json({ error: error.message || "Could not start checkout." });
+  }
+});
+
+app.get("/checkout/success", async (req, res) => {
+  try {
+    requireStripeCheckout();
+    const checkoutId = String(req.query.checkoutId || "").trim();
+    const sessionId = String(req.query.session_id || "").trim();
+    if (!checkoutId || !sessionId) throw new Error("Missing checkout confirmation details.");
+    const pending = readPendingCheckout(req, checkoutId);
+    if (!pending) throw new Error("This checkout session is no longer available. Please contact support if you were charged.");
+    const stripeSession = await stripe.checkout.sessions.retrieve(sessionId);
+    if (stripeSession.payment_status !== "paid") {
+      throw new Error("Payment is not marked paid yet. Please refresh in a moment or contact support.");
+    }
+    const alreadyCreated = req.session.completedCheckouts?.[checkoutId];
+    let orderId = alreadyCreated || null;
+    if (!orderId) {
+      const createdOrder = await db.createOrder({
+        ...pending.order,
+        status: "paid_pending_supplier",
+        supplierSource: "amazon",
+        paymentDetails: {
+          provider: "stripe",
+          checkoutSessionId: stripeSession.id,
+          customerEmail: stripeSession.customer_details?.email || pending.order.shipTo.email || "",
+          amountTotal: stripeSession.amount_total || pending.order.subtotalCents || 0,
+          currency: stripeSession.currency || (pending.order.market === "US" ? "usd" : "cad")
+        }
+      });
+      req.session.completedCheckouts ||= {};
+      req.session.completedCheckouts[checkoutId] = createdOrder.id;
+      orderId = createdOrder.id;
+      if (pending.order.userId && pending.order.saveAddress) {
+        const user = await db.getUserById(pending.order.userId);
+        const existingAddresses = normalizeSavedAddresses(user?.savedAddresses || [], pending.order.market);
+        const savedAddress = normalizeSavedAddress({
+          ...pending.order.shipTo,
+          label: pending.order.addressLabel || "Shipping",
+          market: pending.order.market
+        }, pending.order.market);
+        await db.updateUserSavedAddresses(pending.order.userId, [...existingAddresses.filter((address) => address.label !== savedAddress.label), savedAddress]);
+      }
+      clearPendingCheckout(req, checkoutId);
+    }
+    const homePath = routePrefixForMarket(pending.order.market || DEFAULT_MARKET, false);
+    res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Payment received | selltomakemoney.com</title>
+  <link rel="stylesheet" href="/styles.css?v=simple-sale-6">
+</head>
+<body>
+  <main class="checkout-success-page">
+    <section class="panel auth-panel">
+      <p class="eyebrow">Payment received</p>
+      <h1>Thanks, your order is in.</h1>
+      <p>Order #${escapeHtml(String(orderId))} is marked paid and ready for supplier fulfillment review.</p>
+      <div class="row-actions">
+        <a class="nav-button primary" href="${homePath}">Continue shopping</a>
+        <a class="nav-button" href="${homePath}#cart">Back to cart</a>
+      </div>
+    </section>
+  </main>
+  <script>
+    try { localStorage.removeItem('dealerCart_${escapeHtml(String(pending.order.market || DEFAULT_MARKET))}'); } catch (_error) {}
+  </script>
+</body>
+</html>`);
+  } catch (error) {
+    res.status(400).type("html").send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Checkout issue</title><link rel="stylesheet" href="/styles.css?v=simple-sale-6"></head><body><main class="checkout-success-page"><section class="panel auth-panel"><p class="eyebrow">Checkout issue</p><h1>We couldn't confirm that payment yet.</h1><p>${escapeHtml(error.message || "Please contact support.")}</p><div class="row-actions"><a class="nav-button primary" href="/desktop#cart">Return to cart</a></div></section></main></body></html>`);
   }
 });
 
