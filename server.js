@@ -48,6 +48,8 @@ const TELEGRAM_PROJECT_NAME = process.env.TELEGRAM_PROJECT_NAME || "selltomakemo
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "";
 const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY || "";
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
+const AMAZON_CA_AFFILIATE_TAG = process.env.AMAZON_CA_AFFILIATE_TAG || process.env.AMAZON_AFFILIATE_TAG || "dealerstore-20";
+const AMAZON_US_AFFILIATE_TAG = process.env.AMAZON_US_AFFILIATE_TAG || process.env.AMAZONCOM_AFFILIATE_TAG || process.env.AMAZON_AFFILIATE_TAG || "dealerstore-20";
 const COUNTRY_NAMES = typeof Intl?.DisplayNames === "function"
   ? new Intl.DisplayNames(["en"], { type: "region" })
   : null;
@@ -371,21 +373,32 @@ function extractAmazonAsin(product = {}) {
   }
 }
 
-function amazonSearchUrl(query) {
-  const tag = encodeURIComponent(AMAZON_AFFILIATE_TAG);
-  return `https://www.amazon.ca/s?k=${query}&tag=${tag}`;
+function amazonDomainForMarket(market = DEFAULT_MARKET) {
+  return normalizeMarket(market) === "US" ? "www.amazon.com" : "www.amazon.ca";
 }
 
-function amazonProductUrl(asin) {
-  const tag = encodeURIComponent(AMAZON_AFFILIATE_TAG);
-  return `https://www.amazon.ca/dp/${encodeURIComponent(asin)}?tag=${tag}`;
+function amazonAffiliateTagForMarket(market = DEFAULT_MARKET) {
+  return normalizeMarket(market) === "US" ? AMAZON_US_AFFILIATE_TAG : AMAZON_CA_AFFILIATE_TAG;
+}
+
+function amazonSearchUrl(query, market = DEFAULT_MARKET) {
+  const domain = amazonDomainForMarket(market);
+  const tag = encodeURIComponent(amazonAffiliateTagForMarket(market));
+  return `https://${domain}/s?k=${query}&tag=${tag}`;
+}
+
+function amazonProductUrl(asin, market = DEFAULT_MARKET) {
+  const domain = amazonDomainForMarket(market);
+  const tag = encodeURIComponent(amazonAffiliateTagForMarket(market));
+  return `https://${domain}/dp/${encodeURIComponent(asin)}?tag=${tag}`;
 }
 
 function searchLinks(product) {
   const query = searchQuery(product);
   const asin = extractAmazonAsin(product);
+  const market = productMarket(product);
   return [
-    { site: "Amazon", url: asin ? amazonProductUrl(asin) : amazonSearchUrl(query) }
+    { site: "Amazon", url: asin ? amazonProductUrl(asin, market) : amazonSearchUrl(query, market) }
   ];
 }
 
@@ -677,7 +690,7 @@ async function searchListingsByUpc(upc) {
     candidates: enriched,
     searchLinks: [
       { site: "Google Shopping", url: `https://www.google.com/search?tbm=shop&q=${query}` },
-      { site: "Amazon", url: amazonSearchUrl(query) },
+      { site: "Amazon", url: amazonSearchUrl(query, DEFAULT_MARKET) },
       { site: "Walmart", url: `https://www.walmart.com/search?q=${query}` },
       { site: "eBay", url: `https://www.ebay.com/sch/i.html?_nkw=${query}` }
     ]
@@ -1321,7 +1334,8 @@ function createJsonDatabase() {
         siteVisits: store.siteVisitors.reduce((sum, entry) => sum + Number(entry.visitCount || 0), 0),
         uniqueVisitors: store.siteVisitors.length,
         listingViews: store.productViews.reduce((sum, entry) => sum + Number(entry.viewCount || 0), 0),
-        amazonAffiliateTag: AMAZON_AFFILIATE_TAG
+        amazonAffiliateTagCa: AMAZON_CA_AFFILIATE_TAG,
+        amazonAffiliateTagUs: AMAZON_US_AFFILIATE_TAG
       };
     }
   };
@@ -2454,7 +2468,8 @@ function createPostgresDatabase() {
       `);
       return {
         ...result.rows[0],
-        amazonAffiliateTag: AMAZON_AFFILIATE_TAG
+        amazonAffiliateTagCa: AMAZON_CA_AFFILIATE_TAG,
+        amazonAffiliateTagUs: AMAZON_US_AFFILIATE_TAG
       };
     }
   };
