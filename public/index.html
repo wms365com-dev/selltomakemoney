@@ -108,6 +108,17 @@
         <button class="store-search-button" id="storeSearchButton" type="button" aria-label="Search inventory">Find</button>
         <label class="store-category-label">Category<select id="storeCategory"><option value="">All categories</option></select></label>
       </section>
+      <section class="secure-checkout-strip store-trust-strip" aria-label="Shopping trust and support">
+        <div>
+          <strong>Simple shopping</strong>
+          <p>Real inventory, clear pricing, pickup or shipping options in cart, and direct support if you need help before checkout.</p>
+        </div>
+        <div class="payment-badges">
+          <span>Real inventory</span>
+          <span>Pickup or shipping</span>
+          <span>Secure card checkout</span>
+        </div>
+      </section>
       <section class="store-departments" aria-label="Shop departments">
         <div class="department-strip-head">
           <strong>Shop by department</strong>
@@ -204,8 +215,19 @@
         </section>
         <form class="panel checkout-form" id="checkoutForm">
           <h2>Customer and shipping details</h2>
+          <section class="secure-checkout-strip wide-field">
+            <div>
+              <strong>Checkout steps</strong>
+              <p>Add your contact details, choose pickup or shipping, and continue to payment or order confirmation.</p>
+            </div>
+            <div class="payment-badges">
+              <span>1. Cart</span>
+              <span>2. Address</span>
+              <span>3. Payment</span>
+            </div>
+          </section>
           <div class="checkout-notice wide-field">
-            <strong>Complete checkout request</strong>
+            <strong>Complete your order details</strong>
             <span>Choose pickup or shipping, add your delivery details, and save addresses for next time.</span>
           </div>
           <div class="simple-field-grid">
@@ -273,7 +295,7 @@
             <strong>Questions before pickup?</strong>
             <span>Use the contact and policy links below for shipping details, returns, and support information.</span>
           </div>
-          <button class="primary wide-field" type="submit">Submit checkout request</button>
+          <button class="primary wide-field" type="submit" id="checkoutSubmitButton">Submit order request</button>
           <p class="form-message wide-field" id="checkoutMessage"></p>
         </form>
       </div>

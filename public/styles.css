@@ -742,6 +742,10 @@ button.button-busy {
   margin-bottom: 14px;
 }
 
+.store-trust-strip {
+  margin-bottom: 12px;
+}
+
 .store-group-section {
   display: grid;
   gap: 10px;
@@ -1863,6 +1867,15 @@ h2 {
 
 .checkout-notice strong {
   color: var(--accent-dark);
+}
+
+.empty-cart-state {
+  display: grid;
+  gap: 10px;
+}
+
+.empty-cart-state p {
+  margin: 0;
 }
 
 .checkout-address-block {
@@ -4149,6 +4162,11 @@ body[data-view="mobile"] .site-footer {
   body[data-view="mobile"] .store-search-label input {
     min-height: 42px;
     border-radius: 0;
+  }
+
+  body[data-view="mobile"] .store-trust-strip {
+    order: 4;
+    margin: 0 7px 8px;
   }
 
   .cart-icon-button {

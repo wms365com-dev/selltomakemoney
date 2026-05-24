@@ -1402,6 +1402,25 @@ function updateCheckoutFulfillmentCopy() {
   }
 }
 
+function updateCheckoutSubmitButton() {
+  const form = document.querySelector("#checkoutForm");
+  const submitButton = document.querySelector("#checkoutSubmitButton");
+  if (!form || !submitButton) return;
+  const fulfillment = form.elements.fulfillmentMethod?.value || "pickup";
+  const paymentMethod = form.elements.paymentMethod?.value || "etransfer";
+  if (!cart.length) {
+    submitButton.textContent = "Add items to continue";
+    submitButton.disabled = true;
+    return;
+  }
+  submitButton.disabled = false;
+  if (paymentMethod === "credit_card") {
+    submitButton.textContent = "Continue to secure payment";
+    return;
+  }
+  submitButton.textContent = fulfillment === "pickup" ? "Submit pickup order" : "Submit shipping order";
+}
+
 function renderCart() {
   const items = cartProducts();
   const cartItems = document.querySelector("#cartItems");
@@ -1409,12 +1428,18 @@ function renderCart() {
   const checkoutMessage = document.querySelector("#checkoutMessage");
   if (checkoutMessage) checkoutMessage.textContent = "";
   if (!items.length) {
-    cartItems.innerHTML = `<p>Your cart is empty. Add an item to start checkout.</p>`;
+    cartItems.innerHTML = `
+      <div class="empty-cart-state">
+        <p>Your cart is empty. Add an item to start checkout.</p>
+        <button type="button" class="nav-button" data-route="store">Continue shopping</button>
+      </div>
+    `;
     cartSubtotal.textContent = "$0.00";
     updateCheckoutPaymentOptions(items);
     applyCheckoutDefaults();
     updateBillingVisibility();
     updateCheckoutFulfillmentCopy();
+    updateCheckoutSubmitButton();
     return;
   }
   cartItems.innerHTML = items.map(({ product, quantity }) => `
@@ -1437,6 +1462,7 @@ function renderCart() {
   applyCheckoutDefaults();
   updateBillingVisibility();
   updateCheckoutFulfillmentCopy();
+  updateCheckoutSubmitButton();
 }
 
 function facebookListingText(product) {
@@ -2818,8 +2844,12 @@ document.querySelector("#storeSearchButton")?.addEventListener("click", () => {
 document.querySelector("#checkoutForm")?.elements.fulfillmentMethod?.addEventListener("change", () => {
   updateCheckoutPaymentOptions();
   updateCheckoutFulfillmentCopy();
+  updateCheckoutSubmitButton();
 });
-document.querySelector("#checkoutForm")?.elements.paymentMethod?.addEventListener("change", () => updateCheckoutPaymentOptions());
+document.querySelector("#checkoutForm")?.elements.paymentMethod?.addEventListener("change", () => {
+  updateCheckoutPaymentOptions();
+  updateCheckoutSubmitButton();
+});
 document.querySelector("#savedAddressSelect")?.addEventListener("change", (event) => applySavedAddress(event.target.value));
 document.querySelector("#billingSameCheckbox")?.addEventListener("change", updateBillingVisibility);
 document.querySelector("#fillAddressBtn")?.addEventListener("click", () => {
