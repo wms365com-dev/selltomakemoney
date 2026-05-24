@@ -243,6 +243,33 @@ function updateNav() {
   document.querySelectorAll(".shopper-only").forEach((item) => item.classList.toggle("hidden", sessionUser?.accountType !== "shopper"));
   document.querySelectorAll(".dealer-only").forEach((item) => item.classList.toggle("hidden", !(sessionUser?.canSeePrices || sessionUser?.role === "admin")));
   document.querySelectorAll(".seller-only").forEach((item) => item.classList.toggle("hidden", !(sessionUser?.accountType === "seller" || sessionUser?.role === "admin")));
+  const accountHeaderLink = document.querySelector("#accountHeaderLink");
+  const accountHeaderKicker = document.querySelector("#accountHeaderKicker");
+  const accountHeaderLabel = document.querySelector("#accountHeaderLabel");
+  if (accountHeaderLink && accountHeaderKicker && accountHeaderLabel) {
+    const shortName = String(sessionUser?.contactName || sessionUser?.company || "there").split(" ")[0];
+    if (!signedIn) {
+      accountHeaderLink.dataset.route = "login";
+      accountHeaderKicker.textContent = "Hello, sign in";
+      accountHeaderLabel.textContent = "My account";
+    } else if (sessionUser?.role === "admin") {
+      accountHeaderLink.dataset.route = "admin";
+      accountHeaderKicker.textContent = `Hello, ${shortName}`;
+      accountHeaderLabel.textContent = "Admin account";
+    } else if (sessionUser?.accountType === "seller") {
+      accountHeaderLink.dataset.route = "seller";
+      accountHeaderKicker.textContent = `Hello, ${shortName}`;
+      accountHeaderLabel.textContent = "Seller account";
+    } else if (sessionUser?.accountType === "dealer") {
+      accountHeaderLink.dataset.route = "dealer";
+      accountHeaderKicker.textContent = `Hello, ${shortName}`;
+      accountHeaderLabel.textContent = "Dealer account";
+    } else {
+      accountHeaderLink.dataset.route = "shopper";
+      accountHeaderKicker.textContent = `Hello, ${shortName}`;
+      accountHeaderLabel.textContent = "My account";
+    }
+  }
   updateCartCount();
 }
 
