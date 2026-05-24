@@ -25,6 +25,7 @@ const views = {
 };
 
 const productGrid = document.querySelector("#productGrid");
+const storeGroups = document.querySelector("#storeGroups");
 const priceNote = document.querySelector("#priceNote");
 const storeEyebrow = document.querySelector("#storeEyebrow");
 const storeHeading = document.querySelector("#storeHeading");
@@ -1719,6 +1720,103 @@ function featuredStoreProducts(products) {
     .slice(0, 4);
 }
 
+function productCardMarkup(product, canSeePrices = false) {
+  return `
+    <article class="product-card">
+        <a class="product-card-link" href="${escapeHtml(product.url || `/products/${product.id}`)}" aria-label="View details for ${escapeHtml(product.name)}">
+          ${productImage(product, false)}
+        </a>
+        <div class="product-body">
+          <div class="product-copy">
+            <div>
+              <h2><a class="product-title-link" href="${escapeHtml(product.url || `/products/${product.id}`)}">${escapeHtml(product.name)}</a></h2>
+              <p class="product-card-meta">${escapeHtml([product.brand, product.category].filter(Boolean).join(" | ") || "Available inventory")}</p>
+            </div>
+            ${pricingBlock(product, canSeePrices)}
+            ${fulfillmentBadge(product)}
+          </div>
+          <div class="product-card-footer">
+            <div class="product-actions">
+              <a class="nav-button" href="${escapeHtml(product.url || `/products/${product.id}`)}">View details</a>
+              <div class="split-actions">
+                <button type="button" data-add-cart="${product.id}">Add to cart</button>
+                ${(() => {
+                  const amazonLink = amazonLinkForProduct(product);
+                  return amazonLink
+                    ? `<a class="primary amazon-buy-link" href="${escapeHtml(amazonLink.url)}" target="_blank" rel="noopener noreferrer" data-amazon-buy="${product.id}">Buy</a>`
+                    : `<button class="primary" type="button" data-buy-now="${product.id}">Reserve</button>`;
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
+    </article>
+  `;
+}
+
+function shouldRenderGroupedStoreView() {
+  const search = String(storeSearch?.value || "").trim();
+  const category = String(storeCategory?.value || "").trim();
+  return !search && !category;
+}
+
+function groupedStoreCategories(products) {
+  const byCategory = new Map();
+  for (const product of products) {
+    const category = String(product.category || "Other").trim() || "Other";
+    if (!byCategory.has(category)) byCategory.set(category, []);
+    byCategory.get(category).push(product);
+  }
+  return [...byCategory.entries()]
+    .map(([category, items]) => ({
+      category,
+      items: items
+        .sort((left, right) => {
+          const rightScore = Number(right.viewCount || 0) + Number(right.uniqueViewers || 0);
+          const leftScore = Number(left.viewCount || 0) + Number(left.uniqueViewers || 0);
+          if (rightScore !== leftScore) return rightScore - leftScore;
+          return Number(right.priceCents || 0) - Number(left.priceCents || 0);
+        }),
+      count: items.length
+    }))
+    .sort((left, right) => {
+      if (left.category === "Other" && right.category !== "Other") return 1;
+      if (right.category === "Other" && left.category !== "Other") return -1;
+      return right.count - left.count;
+    })
+    .slice(0, 8);
+}
+
+function renderStoreGroups(canSeePrices = false) {
+  if (!storeGroups) return;
+  if (!shouldRenderGroupedStoreView()) {
+    storeGroups.innerHTML = "";
+    storeGroups.classList.add("hidden");
+    return;
+  }
+  const groups = groupedStoreCategories(productCache);
+  if (!groups.length) {
+    storeGroups.innerHTML = "";
+    storeGroups.classList.add("hidden");
+    return;
+  }
+  storeGroups.classList.remove("hidden");
+  storeGroups.innerHTML = groups.map((group) => `
+    <section class="store-group-section" aria-labelledby="store-group-${escapeHtml(group.category).replace(/[^a-z0-9]+/gi, '-').toLowerCase()}">
+      <div class="store-group-head">
+        <div>
+          <h2 id="store-group-${escapeHtml(group.category).replace(/[^a-z0-9]+/gi, '-').toLowerCase()}">${escapeHtml(group.category)}</h2>
+          <p>${group.count} item${group.count === 1 ? "" : "s"} available</p>
+        </div>
+        <button type="button" class="nav-button store-group-link" data-group-category="${escapeHtml(group.category)}">View all</button>
+      </div>
+      <div class="product-grid store-group-grid">
+        ${group.items.slice(0, 6).map((product) => productCardMarkup(product, canSeePrices)).join("")}
+      </div>
+    </section>
+  `).join("");
+}
+
 function renderStoreHero(products) {
   if (!storeFeaturedPrimary || !storeFeaturedGrid) return;
   const featured = featuredStoreProducts(products);
@@ -1759,37 +1857,14 @@ function renderStoreInsights(products) {
 function renderProducts(canSeePrices = false) {
   const products = filteredProducts(productCache);
   stopProductRotator();
-  productGrid.innerHTML = products.length ? products.map((product) => `
-    <article class="product-card">
-        <a class="product-card-link" href="${escapeHtml(product.url || `/products/${product.id}`)}" aria-label="View details for ${escapeHtml(product.name)}">
-          ${productImage(product, false)}
-        </a>
-        <div class="product-body">
-          <div class="product-copy">
-            <div>
-              <h2><a class="product-title-link" href="${escapeHtml(product.url || `/products/${product.id}`)}">${escapeHtml(product.name)}</a></h2>
-              <p class="product-card-meta">${escapeHtml([product.brand, product.category].filter(Boolean).join(" | ") || "Available inventory")}</p>
-            </div>
-            ${pricingBlock(product, canSeePrices)}
-            ${fulfillmentBadge(product)}
-          </div>
-          <div class="product-card-footer">
-            <div class="product-actions">
-              <a class="nav-button" href="${escapeHtml(product.url || `/products/${product.id}`)}">View details</a>
-              <div class="split-actions">
-                <button type="button" data-add-cart="${product.id}">Add to cart</button>
-                ${(() => {
-                  const amazonLink = amazonLinkForProduct(product);
-                  return amazonLink
-                    ? `<a class="primary amazon-buy-link" href="${escapeHtml(amazonLink.url)}" target="_blank" rel="noopener noreferrer" data-amazon-buy="${product.id}">Buy</a>`
-                    : `<button class="primary" type="button" data-buy-now="${product.id}">Reserve</button>`;
-                })()}
-              </div>
-            </div>
-          </div>
-        </div>
-    </article>
-  `).join("") : `<div class="panel empty-catalog"><h2>No matching items</h2><p>Try another search or category.</p></div>`;
+  const groupedMode = shouldRenderGroupedStoreView();
+  renderStoreGroups(canSeePrices);
+  productGrid.classList.toggle("hidden", groupedMode);
+  if (groupedMode) {
+    productGrid.innerHTML = "";
+    return;
+  }
+  productGrid.innerHTML = products.length ? products.map((product) => productCardMarkup(product, canSeePrices)).join("") : `<div class="panel empty-catalog"><h2>No matching items</h2><p>Try another search or category.</p></div>`;
 }
 
 function applyStoreModeCopy(canSeePrices = false) {
@@ -2215,6 +2290,16 @@ document.addEventListener("click", async (event) => {
     renderProducts(Boolean(sessionUser?.canSeePrices));
     trackEvent("category_filter", { label: category || "All categories", value: category || "" });
     productGrid.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  const groupCategory = event.target.closest("[data-group-category]")?.dataset.groupCategory;
+  if (groupCategory) {
+    storeCategory.value = groupCategory;
+    storeSearch.value = "";
+    renderProducts(Boolean(sessionUser?.canSeePrices));
+    trackEvent("category_group_view_all", { label: groupCategory, value: groupCategory });
+    productGrid.scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
   }
 
   const addCartId = event.target.closest("[data-add-cart]")?.dataset.addCart;
