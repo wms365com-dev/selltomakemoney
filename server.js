@@ -3263,8 +3263,8 @@ async function sendReturnsPage(req, res) {
     title: "Returns",
     description: "Returns and reservation guidance for selltomakemoney.com pickup and select shippable inventory.",
     eyebrow: "Returns",
-    heading: "Pickup reservations should feel clear and fair.",
-    intro: "Because many items are local pickup inventory finds, the most important step is confirming the item details before pickup. If something is not as described, contact us before pickup so we can review it with you.",
+    heading: "Hassle-free returns should feel clear and fair.",
+    intro: "Because many items are local pickup inventory finds, the most important step is confirming the item details before pickup. If something is not as described, contact us before pickup or right after delivery so we can review it with you and keep the process hassle-free.",
     sections: [
       {
         heading: "Before pickup",
@@ -3277,7 +3277,8 @@ async function sendReturnsPage(req, res) {
       {
         heading: "If there is a problem",
         paragraphs: [
-          "If an item is materially different from the listing, contact us before pickup or immediately after a shipped order arrives so we can review the issue."
+          "If an item is materially different from the listing, contact us before pickup or immediately after a shipped order arrives so we can review the issue quickly.",
+          "Our goal is a hassle-free resolution path: clear communication, fast review, and a fair outcome when something is wrong."
         ]
       },
       {
